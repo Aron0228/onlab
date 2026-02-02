@@ -1,0 +1,7 @@
+{
+    "eslint.workingDirectories": [
+        "./client",
+        "./api"
+    ],
+    "editor.tabSize": 2
+}
