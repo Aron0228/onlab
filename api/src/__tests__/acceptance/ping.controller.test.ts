@@ -1,16 +1,16 @@
-import { Client } from '@loopback/testlab';
-import { describe, it, beforeAll, afterAll, expect } from 'vitest';
+import {Client} from '@loopback/testlab';
+import {describe, it, beforeAll, afterAll, expect} from 'vitest';
 
-import { RestApi } from '../../application';
-import { setupApplication } from './test-helper';
-import { PingController } from '../../controllers';
+import {RestApi} from '../../application';
+import {setupApplication} from './test-helper';
+import {PingController} from '../../controllers';
 
 describe('PingController (acceptance)', () => {
   let app: RestApi;
   let client: Client;
 
   beforeAll(async () => {
-    ({ app, client } = await setupApplication());
+    ({app, client} = await setupApplication());
 
     app.controller(PingController);
   });
