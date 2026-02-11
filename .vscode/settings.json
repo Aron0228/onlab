@@ -1,7 +1,15 @@
 {
-    "eslint.workingDirectories": [
-        "./client",
-        "./api"
-    ],
-    "editor.tabSize": 2
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.tabSize": 2,
+
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  "eslint.workingDirectories": [{"mode": "auto"}],
+
+  "prettier.enable": true,
+  "prettier.prettierPath": "client/node_modules/prettier",
+  "prettier.configPath": "client/.prettierrc.cjs"
 }

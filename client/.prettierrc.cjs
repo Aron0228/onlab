@@ -1,27 +1,21 @@
-export default {
+module.exports = {
   plugins: ['prettier-plugin-ember-template-tag'],
   singleQuote: true,
   overrides: [
     {
-      files: ['*.js', '*.ts', '*.cjs', '.mjs', '.cts', '.mts', '.cts'],
+      files: ['*.js', '*.ts', '*.cjs', '*.mjs', '*.cts', '*.mts'],
       options: {
         trailingComma: 'es5',
       },
     },
     {
-      files: ['*.html'],
+      files: ['*.html', '*.hbs'],
       options: {
         singleQuote: false,
       },
     },
     {
       files: ['*.json'],
-      options: {
-        singleQuote: false,
-      },
-    },
-    {
-      files: ['*.hbs'],
       options: {
         singleQuote: false,
       },
