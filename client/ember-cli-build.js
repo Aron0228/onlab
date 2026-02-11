@@ -19,11 +19,16 @@ module.exports = async function (defaults) {
           {
             module: require('postcss-import'),
             options: {
-              path: ['app/styles']
-            }
-          }
-        ]
-      }
+              path: ['app/styles'],
+            },
+          },
+        ],
+      },
+    },
+
+    svgJar: {
+      sourceDirs: ['node_modules/@tabler/icons/icons'],
+      inline: { stripPath: false },
     },
   });
 
