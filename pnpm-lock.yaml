@@ -228,6 +228,9 @@ importers:
       ember-template-lint:
         specifier: ^7.9.3
         version: 7.9.3
+      ember-truth-helpers:
+        specifier: ^5.0.0
+        version: 5.0.0
       ember-welcome-page:
         specifier: ^8.0.5
         version: 8.0.5(@babel/core@7.29.0)
@@ -3755,6 +3758,9 @@ packages:
     resolution: {integrity: sha512-iqC4rv/oVlXViGuf7hlOA/bC550ZqacZKAc8WvQV0ueeCtIYPkYYK+Tc7FwpM8qGx3jiwu/ZsTuNfPInI5pL7Q==}
     engines: {node: ^18.18.0 || >= 20.9.0}
     hasBin: true
+
+  ember-truth-helpers@5.0.0:
+    resolution: {integrity: sha512-PnQd6D6hvlNC3k6gBu0SC2cvfXX6wH6W0nToomIIoxqyrD5cllk0zBh/j/1H0KsczVCWeuF9PWj5xJgL4jQAGg==}
 
   ember-welcome-page@8.0.5:
     resolution: {integrity: sha512-XegmXI94mt/EVUD3Ya15OuAxB3iCdK16lGS7vCimUIi4fGGooxUTOnlKexTsVLbcJh8u2bsw5JZ0iVht1X5sng==}
@@ -12309,6 +12315,12 @@ snapshots:
     dependencies:
       '@lint-todo/utils': 13.1.1
       content-tag: 3.1.3
+
+  ember-truth-helpers@5.0.0:
+    dependencies:
+      '@embroider/addon-shim': 1.10.2
+    transitivePeerDependencies:
+      - supports-color
 
   ember-welcome-page@8.0.5(@babel/core@7.29.0):
     dependencies:
