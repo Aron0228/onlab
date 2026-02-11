@@ -9,6 +9,22 @@ module.exports = async function (defaults) {
 
   let app = new EmberApp(defaults, {
     // Add options here
+    minifyCss: {
+      enabled: false,
+    },
+    postcssOptions: {
+      compile: {
+        enabled: true,
+        plugins: [
+          {
+            module: require('postcss-import'),
+            options: {
+              path: ['app/styles']
+            }
+          }
+        ]
+      }
+    },
   });
 
   setConfig(app, __dirname, {
