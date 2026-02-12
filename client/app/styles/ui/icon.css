@@ -1,0 +1,57 @@
+.ui-icon-wrapper {
+  display: block;
+  flex-shrink: 0;
+
+  &.--size-sm {
+    width: 16px;
+    height: 16px;
+  }
+
+  &.--size-md {
+    width: 32px;
+    height: 32px;
+  }
+
+  &.--size-lg {
+    width: 64px;
+    height: 64px;
+  }
+
+  &.--stroke-width-sm svg {
+    stroke-width: 1;
+  }
+
+  &.--stroke-width-md svg {
+    stroke-width: 1.5;
+  }
+
+  &.--stroke-width-lg svg {
+    stroke-width: 2;
+  }
+
+  &.--variant-normal {
+    color: var(--text-primary);
+  }
+
+  &.--variant-primary {
+    color: var(--color-primary-600);
+  }
+
+  &.--variant-error {
+    color: var(--color-error);
+  }
+
+  &.--variant-warning {
+    color: var(--color-warning);
+  }
+
+  &.--variant-success {
+    color: var(--color-success);
+  }
+}
+
+.ui-icon-wrapper svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
