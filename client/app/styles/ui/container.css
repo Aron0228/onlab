@@ -1,0 +1,25 @@
+.ui-container {
+  display: flex;
+  flex: 1 1 0;
+  padding: var(--space-md);
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  flex-direction: column;
+  overflow: hidden;
+
+  &.--bordered {
+    border: 1px solid var(--border-subtle);
+  }
+
+  .ui-container__header {
+    padding-bottom: var(--space-lg);
+
+    .ui-container__header__title {
+      margin: 0;
+    }
+  }
+
+  .ui-container__body {
+    gap: var(--space-md);
+  }
+}
