@@ -1,6 +1,7 @@
 @import url('ui/tokens.css');
 @import url('ui/icon.css');
 @import url('ui/theme-switcher.css');
+@import url('ui/button.css');
 
 body {
   font-family: var(--font-main);
