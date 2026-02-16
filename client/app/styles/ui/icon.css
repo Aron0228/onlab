@@ -37,6 +37,10 @@
     color: var(--color-primary-600);
   }
 
+  &.--variant-info {
+    color: var(--color-info);
+  }
+
   &.--variant-error {
     color: var(--color-error);
   }
