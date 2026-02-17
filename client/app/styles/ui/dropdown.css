@@ -1,0 +1,108 @@
+.ui-dropdown {
+  display: flex;
+  flex: 1 1 0;
+  position: relative;
+  font-family: var(--font-main);
+
+  .ui-dropdown__trigger {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm);
+
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .ui-dropdown__trigger__arrow {
+      margin-left: auto;
+      transition: transform 0.3s ease-in-out;
+
+      &.--is-open {
+        transform: rotate(180deg);
+      }
+    }
+  }
+
+  .ui-dropdown__trigger:hover {
+    background: var(--bg-hover);
+  }
+
+  .ui-dropdown__trigger:hover .ui-dropdown__trigger__arrow {
+    color: var(--color-primary-500);
+  }
+
+  .ui-dropdown__dropdown {
+    position: absolute;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    top: calc(100% + var(--space-xs));
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+    animation: slideIn 0.2s ease-out;
+
+    .ui-dropdown__dropdown__option {
+      display: flex;
+      flex: 1 1 0;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-sm);
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .ui-dropdown__dropdown__option:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+  }
+
+  .ui-dropdown__dropdown > :first-child {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .ui-dropdown__dropdown > :last-child {
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+
+  .ui-dropdown__trigger:has(.ui-icon-button:hover) {
+    background: var(--bg-surface);
+  }
+
+  .ui-dropdown__trigger:has(.ui-icon-button:hover)
+    .ui-dropdown__trigger__arrow {
+    color: inherit;
+  }
+
+  .ui-dropdown__option-text {
+    display: flex;
+    flex: 1 1 0;
+    /* Try to break words if possible */
+    flex-wrap: wrap;
+    /* If the word is not breakable anymore, break it anywhere */
+    overflow-wrap: anywhere;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

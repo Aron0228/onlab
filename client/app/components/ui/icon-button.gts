@@ -6,7 +6,7 @@ import { action } from '@ember/object';
 interface UiIconButtonSignature {
   iconName: string;
   iconVariant?: 'normal' | 'primary' | 'info' | 'error' | 'warning' | 'success';
-  onClick?: () => void;
+  onClick?: (event?: Event) => void;
 }
 
 export default class UiIconButton extends Component<UiIconButtonSignature> {
@@ -14,8 +14,8 @@ export default class UiIconButton extends Component<UiIconButtonSignature> {
     return this.args.iconVariant ?? 'normal';
   }
 
-  @action onClick() {
-    if (this.args.onClick) this.args.onClick();
+  @action onClick(event: Event) {
+    if (this.args.onClick) this.args.onClick(event);
 
     return;
   }
