@@ -70,6 +70,7 @@
     "ember-cli-deprecation-workflow": "^3.4.0",
     "ember-cli-flash": "^7.0.0",
     "ember-cli-postcss": "^8.2.0",
+    "ember-intl": "^8.1.0",
     "ember-load-initializers": "^3.0.1",
     "ember-modifier": "^4.2.2",
     "ember-page-title": "^9.0.3",
