@@ -1,13 +1,14 @@
 .ui-alert {
   display: flex;
   align-items: center;
-  position: fixed;
   border-radius: var(--radius-md);
   z-index: 9999;
   pointer-events: auto;
   gap: var(--space-sm);
   padding: var(--space-sm);
-  width: 20rem;
+  width: min(28rem, 100%);
+  max-width: 100%;
+  box-sizing: border-box;
 
   &.--type-info {
     background-color: var(--color-info-bg);
@@ -50,14 +51,19 @@
 
 /* This is to wrap multiple alerts */
 .ui-alert__container {
+  --alert-margin: var(--space-md);
+
   position: fixed;
-  top: 24px;
-  right: calc(20rem + 24px);
+  top: var(--alert-margin);
+  right: var(--alert-margin);
+  left: var(--alert-margin);
   z-index: 1000;
 
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  align-items: flex-end;
+  gap: var(--space-md);
+  pointer-events: none;
 }
 
 @keyframes alert-in {
