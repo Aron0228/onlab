@@ -114,8 +114,10 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
       {{#if this.isOpen}}
         <div class="ui-dropdown__dropdown">
           {{#if @onSearch}}
-            <UiInput @onInput={{@onSearch}} />
-            <hr class="separator --horizontal" />
+            <div class="ui-dropdown__dropdown__search">
+              <UiInput @onInput={{@onSearch}} />
+              <hr class="separator --horizontal" />
+            </div>
           {{/if}}
           {{#each @options as |option|}}
             <button
