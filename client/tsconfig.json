@@ -3,6 +3,7 @@
   "include": ["app", "tests", "types"],
   "compilerOptions": {
     "allowJs": true,
+    "resolveJsonModule": true,
     "paths": {
       "client/tests/*": ["./tests/*"],
       "client/*": ["./app/*"],

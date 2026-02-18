@@ -1,0 +1,57 @@
+.ui-icon-button {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: 50%;
+
+  transition: all 0.2s ease-in-out;
+
+  &.--normal:hover {
+    background-color: var(--bg-hover);
+  }
+  &.--normal:hover > span {
+    color: var(--color-primary-500);
+  }
+
+  &.--primary:hover {
+    background-color: var(--color-primary-800);
+  }
+  &.--primary:hover > span {
+    color: var(--color-text-primary);
+  }
+
+  &.--info:hover {
+    background-color: var(--color-info-bg);
+  }
+  &.--info:hover > span {
+    color: var(--color-info);
+  }
+
+  &.--error:hover {
+    background-color: var(--color-error-bg);
+  }
+  &.--error:hover > span {
+    color: var(--color-error);
+  }
+
+  &.--warning:hover {
+    background-color: var(--color-warning-bg);
+  }
+  &.--warning:hover > span {
+    color: var(--color-warning);
+  }
+
+  &.--success:hover {
+    background-color: var(--color-success-bg);
+  }
+  &.--success:hover > span {
+    color: var(--color-success);
+  }
+}
+
+.ui-icon-button:hover {
+  transform: scale(1.1);
+}

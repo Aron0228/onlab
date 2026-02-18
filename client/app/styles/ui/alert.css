@@ -1,0 +1,78 @@
+.ui-alert {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  z-index: 9999;
+  pointer-events: auto;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  width: min(28rem, 100%);
+  max-width: 100%;
+  box-sizing: border-box;
+
+  &.--type-info {
+    background-color: var(--color-info-bg);
+  }
+
+  &.--type-success {
+    background-color: var(--color-success-bg);
+  }
+
+  &.--type-warning {
+    background-color: var(--color-warning-bg);
+  }
+
+  &.--type-alert {
+    background-color: var(--color-error-bg);
+  }
+
+  .ui-alert__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .ui-alert__message {
+    display: flex;
+    min-width: 0;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .ui-alert__close {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+  }
+
+  animation: alert-in 0.3s ease-out;
+}
+
+/* This is to wrap multiple alerts */
+.ui-alert__container {
+  --alert-margin: var(--space-md);
+
+  position: fixed;
+  top: var(--alert-margin);
+  right: var(--alert-margin);
+  left: var(--alert-margin);
+  z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-md);
+  pointer-events: none;
+}
+
+@keyframes alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

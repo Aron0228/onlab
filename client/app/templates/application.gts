@@ -1,12 +1,17 @@
+import type { TOC } from '@ember/component/template-only';
 import { pageTitle } from 'ember-page-title';
-import { WelcomePage } from 'ember-welcome-page';
+import UiTest from 'client/components/ui/test';
+
+interface ApplicationSignature {
+  Args: {
+    model: unknown;
+    controller: unknown;
+  };
+}
 
 <template>
-  {{pageTitle "Client"}}
-
+  {{pageTitle "Application"}}
   {{outlet}}
 
-  {{! The following component displays Ember's default welcome message. }}
-  <WelcomePage @extension="gts" />
-  {{! Feel free to remove this! }}
-</template>
+  <UiTest />
+</template> satisfies TOC<ApplicationSignature>;

@@ -1,4 +1,15 @@
 @import url('ui/tokens.css');
+@import url('ui/icon.css');
+@import url('ui/theme-switcher.css');
+@import url('ui/button.css');
+@import url('ui/container.css');
+@import url('ui/alert.css');
+@import url('ui/icon-button.css');
+@import url('ui/dropdown.css');
+@import url('ui/language-selector.css');
+@import url('ui/input.css');
+
+@import url('utils.css');
 
 body {
   font-family: var(--font-main);
@@ -18,4 +29,65 @@ h3 {
   color: var(--text-primary);
   line-height: 1.2;
   letter-spacing: -0.02em;
+}
+
+.separator {
+  --separator-color: color-mix(
+    in srgb,
+    var(--border-subtle) 78%,
+    var(--color-primary-500) 22%
+  );
+  --separator-fade-start: 0%;
+  --separator-fade-mid-start: 18%;
+  --separator-fade-mid-end: 82%;
+  --separator-fade-end: 100%;
+  --separator-length: 98%;
+  display: block;
+  flex-shrink: 0;
+  border: 0;
+
+  &.--horizontal {
+    width: var(--separator-length);
+    height: 1px;
+    align-self: center;
+
+    margin: var(--space-sm) auto;
+  }
+
+  &.--horizontal:not(.--fade) {
+    background: var(--color-primary-700);
+  }
+
+  &.--vertical {
+    width: 1px;
+    height: var(--separator-length);
+    min-height: 1.5rem;
+    align-self: center;
+
+    margin: auto var(--space-sm);
+  }
+
+  &.--vertical:not(.--fade) {
+    background: var(--color-primary-700);
+  }
+
+  &.--fade:is(.--horizontal) {
+    background: linear-gradient(
+      90deg,
+      transparent var(--separator-fade-start),
+      var(--separator-color) var(--separator-fade-mid-start),
+      var(--separator-color) var(--separator-fade-mid-end),
+      transparent var(--separator-fade-end)
+    );
+  }
+
+  &.--fade:is(.--vertical) {
+    background: linear-gradient(
+      180deg,
+      transparent var(--separator-fade-start),
+      var(--separator-color) var(--separator-fade-mid-start),
+      var(--separator-color) var(--separator-fade-mid-end),
+      transparent var(--separator-fade-end)
+    );
+  }
 }
