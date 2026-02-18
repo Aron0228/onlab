@@ -6,8 +6,8 @@
     "loopback-application",
     "loopback"
   ],
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "engines": {
     "node": "20 || 22 || 24"
   },
@@ -27,9 +27,9 @@
     "docker:build": "docker build -t rest-api .",
     "docker:run": "docker run -p 3000:3000 -d rest-api",
     "premigrate": "pnpm run build",
-    "migrate": "node ./dist/migrate",
+    "migrate": "node ./dist/src/migrate",
     "preopenapi-spec": "pnpm run build",
-    "openapi-spec": "node ./dist/openapi-spec",
+    "openapi-spec": "node ./dist/src/openapi-spec",
     "prestart": "pnpm run rebuild",
     "start": "node -r source-map-support/register .",
     "clean": "lb-clean dist *.tsbuildinfo .eslintcache",
@@ -54,6 +54,9 @@
     "@loopback/rest": "^15.0.5",
     "@loopback/rest-explorer": "^8.0.5",
     "@loopback/service-proxy": "^8.0.4",
+    "db-migrate": "^0.11.14",
+    "dotenv": "^17.3.1",
+    "loopback-connector-postgresql": "^8.0.6",
     "tslib": "^2.0.0"
   },
   "devDependencies": {

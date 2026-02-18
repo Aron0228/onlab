@@ -1,0 +1,34 @@
+import {inject, LifeCycleObserver, lifeCycleObserver} from '@loopback/core';
+import {juggler} from '@loopback/repository';
+
+const config = {
+  name: 'postgres',
+  connector: 'postgresql',
+  url:
+    process.env.POSTGRES_URL ?? 'postgres://postgres:postgres@localhost/onlab',
+  host: process.env.POSTGRES_HOST ?? 'localhost',
+  port: process.env.POSTGRES_PORT ?? 5432,
+  user: process.env.POSTGRES_USER ?? 'postgres',
+  password: process.env.POSTGRES_PASSWORD ?? 'postgres',
+  database: process.env.POSTGRES_DATABASE ?? 'spring',
+};
+
+// Observe application's life cycle to disconnect the datasource when
+// application is stopped. This allows the application to be shut down
+// gracefully. The `stop()` method is inherited from `juggler.DataSource`.
+// Learn more at https://loopback.io/doc/en/lb4/Life-cycle.html
+@lifeCycleObserver('datasource')
+export class PostgresDataSource
+  extends juggler.DataSource
+  implements LifeCycleObserver
+{
+  static dataSourceName = 'postgres';
+  static readonly defaultConfig = config;
+
+  constructor(
+    @inject('datasources.config.postgres', {optional: true})
+    dsConfig: object = config,
+  ) {
+    super(dsConfig);
+  }
+}
