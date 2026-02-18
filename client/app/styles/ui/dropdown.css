@@ -62,11 +62,14 @@
       color: var(--text-secondary);
       cursor: pointer;
       transition: background 0.2s;
+
+      &.--is-active {
+        color: var(--color-primary-500);
+      }
     }
 
     .ui-dropdown__dropdown__option:hover {
       background: var(--bg-hover);
-      color: var(--text-primary);
     }
   }
 

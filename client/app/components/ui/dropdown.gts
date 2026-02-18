@@ -78,7 +78,9 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
         <div class="layout-horizontal --gap-md --flex-grow">
           {{#if this.selected}}
             <span class="ui-dropdown__option-text">
-              {{#if (has-block)}}
+              {{#if (has-block "selected")}}
+                {{yield this.selected to="selected"}}
+              {{else if (has-block)}}
                 {{yield this.selected}}
               {{else}}
                 {{this.selected.name}}
@@ -116,7 +118,9 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
               {{on "click" (fn this.selectOption option)}}
             >
               <span class="ui-dropdown__option-text">
-                {{#if (has-block)}}
+                {{#if (has-block "option")}}
+                  {{yield option to="option"}}
+                {{else if (has-block)}}
                   {{yield option}}
                 {{else}}
                   {{option.name}}

@@ -88,6 +88,7 @@
     "eslint-plugin-qunit": "^8.2.5",
     "eslint-plugin-warp-drive": "^5.8.1",
     "globals": "^16.5.0",
+    "moment": "^2.30.1",
     "postcss-import": "^16.1.1",
     "prettier": "^3.8.1",
     "prettier-plugin-ember-template-tag": "^2.1.3",

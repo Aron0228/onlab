@@ -1,1 +1,8 @@
-{}
+{
+  "ui": {
+    "language-selector": {
+      "hungarian": "Magyar",
+      "english": "Angol"
+    }
+  }
+}
