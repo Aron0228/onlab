@@ -12,6 +12,8 @@ interface Language {
   momentLocale: 'hu' | 'en';
 }
 
+const LOCALE_KEY = 'locale';
+
 const LANGUAGES: Language[] = [
   {
     code: 'hu-hu',
@@ -30,7 +32,7 @@ const LANGUAGES: Language[] = [
 export default class UiLanguageSelector extends Component {
   @service intl;
 
-  locale = 'hu-hu';
+  locale = 'en-us';
   textFadeDurationMs = 250;
 
   constructor(owner: unknown, args: any) {
@@ -66,6 +68,7 @@ export default class UiLanguageSelector extends Component {
 
     this.intl.setLocale(language.code);
     moment.locale(language.momentLocale);
+    localStorage.setItem(LOCALE_KEY, language.code);
 
     requestAnimationFrame(() => {
       app?.classList.add('lang-fade-in');
