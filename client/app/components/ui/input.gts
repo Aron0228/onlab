@@ -41,6 +41,26 @@ export default class UiInput extends Component<UiInputSignature> {
     this.args.onInput?.(value);
   }
 
+  @action
+  handleKeydown(event: KeyboardEvent) {
+    if (
+      event.key !== 'Enter' ||
+      this.args.disabled ||
+      !this.args.rightIconButton?.onClick
+    ) {
+      return;
+    }
+
+    const currentValue = (event.target as HTMLInputElement).value.trim();
+
+    if (!currentValue) {
+      return;
+    }
+
+    event.preventDefault();
+    this.args.rightIconButton.onClick(event);
+  }
+
   <template>
     {{#if @rightIconButton}}
       <div class="ui-input__with-right-icon">
@@ -52,6 +72,7 @@ export default class UiInput extends Component<UiInputSignature> {
           disabled={{@disabled}}
           class="ui-input {{if @error '--error'}}"
           {{on "input" this.handleInput}}
+          {{on "keydown" this.handleKeydown}}
           ...attributes
         />
         <div class="icon-button-container">
@@ -71,6 +92,7 @@ export default class UiInput extends Component<UiInputSignature> {
         disabled={{@disabled}}
         class="ui-input {{if @error '--error'}}"
         {{on "input" this.handleInput}}
+        {{on "keydown" this.handleKeydown}}
         ...attributes
       />
     {{/if}}
