@@ -65,6 +65,7 @@
 
       &.--is-active {
         color: var(--color-primary-500);
+        background: var(--bg-active);
       }
     }
 
@@ -73,11 +74,11 @@
     }
   }
 
-  .ui-dropdown__dropdown > :first-child {
+  .ui-dropdown__dropdown > .ui-dropdown__dropdown__option:first-child {
     border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
 
-  .ui-dropdown__dropdown > :last-child {
+  .ui-dropdown__dropdown > .ui-dropdown__dropdown__option:last-child {
     border-radius: 0 0 var(--radius-md) var(--radius-md);
   }
 

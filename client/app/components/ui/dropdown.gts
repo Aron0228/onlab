@@ -7,6 +7,7 @@ import { eq, and } from 'ember-truth-helpers';
 import { fn } from '@ember/helper';
 import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
+import UiInput from 'client/components/ui/input';
 
 export interface UiDropdownSignature {
   Args: {
@@ -15,7 +16,7 @@ export interface UiDropdownSignature {
     onChange?: (selected: any) => void;
     disabled?: boolean;
     placeholder?: string;
-    search?: (searchTerm: string) => void;
+    onSearch?: (searchTerm: string) => void;
     allowClear?: boolean;
   };
   Blocks: {
@@ -42,7 +43,10 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
   @action
   handleOutsideClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const isInside = document.querySelector('.lang-picker')?.contains(target);
+    // On an option click this actually closes the dropdown which is superb and what we want :)
+    const isInside = document
+      .querySelector('.ui-dropdown__dropdown__search')
+      ?.contains(target);
 
     if (!isInside && this.isOpen) {
       this.isOpen = false;
@@ -109,7 +113,10 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
 
       {{#if this.isOpen}}
         <div class="ui-dropdown__dropdown">
-          {{! TODO: add searchability based on yielded option text after adding UiInput component }}
+          {{#if @onSearch}}
+            <UiInput @onInput={{@onSearch}} />
+            <hr class="separator --horizontal" />
+          {{/if}}
           {{#each @options as |option|}}
             <button
               type="button"

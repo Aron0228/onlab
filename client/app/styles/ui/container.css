@@ -5,7 +5,7 @@
   background-color: var(--bg-surface);
   border-radius: var(--radius-lg);
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 
   &.--bordered {
     border: 1px solid var(--border-subtle);
