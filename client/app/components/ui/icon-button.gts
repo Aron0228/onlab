@@ -21,7 +21,11 @@ export default class UiIconButton extends Component<UiIconButtonSignature> {
   }
 
   <template>
-    <button type="button" class="ui-icon-button" {{on "click" this.onClick}}>
+    <button
+      type="button"
+      class="ui-icon-button --{{this.iconVariant}}"
+      {{on "click" this.onClick}}
+    >
       <UiIcon @name={{@iconName}} @size="sm" @variant={{this.iconVariant}} />
     </button>
   </template>
