@@ -7,6 +7,6 @@
   },
   "include": [
     "src",
-    "vitest.config.ts",
+    "vitest.config.ts"
   ]
 }

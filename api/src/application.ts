@@ -9,6 +9,7 @@ import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
 import {RestApplication} from '@loopback/rest';
 import {MySequence} from './sequence';
+import {PostgresDataSource} from './datasources';
 
 export {ApplicationConfig};
 
@@ -17,6 +18,8 @@ export class RestApi extends BootMixin(
 ) {
   constructor(options: ApplicationConfig = {}) {
     super(options);
+
+    this.dataSource(PostgresDataSource, 'postgresDB');
 
     // Set up the custom sequence
     this.sequence(MySequence);
