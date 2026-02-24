@@ -32,6 +32,7 @@
     "openapi-spec": "node ./dist/src/openapi-spec",
     "prestart": "pnpm run rebuild",
     "start": "node -r source-map-support/register .",
+    "start:prod": "pnpm run migrate || echo 'Migration failed, continuing...' && pnpm run start",
     "clean": "lb-clean dist *.tsbuildinfo .eslintcache",
     "rebuild": "pnpm run clean && pnpm run build"
   },
