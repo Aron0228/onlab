@@ -16,6 +16,8 @@
   },
   "scripts": {
     "build": "vite build",
+    "start": "vite",
+    "start:prod": "serve -s dist -l $PORT",
     "format": "prettier . --cache --write",
     "lint": "concurrently \"pnpm:lint:*(!fix)\" --names \"lint:\" --prefixColors auto",
     "lint:css": "stylelint \"**/*.css\"",
@@ -27,7 +29,6 @@
     "lint:js": "eslint . --cache",
     "lint:js:fix": "eslint . --fix",
     "lint:types": "ember-tsc --noEmit",
-    "start": "vite",
     "test": "vite build --mode development && ember test --path dist"
   },
   "devDependencies": {
@@ -94,6 +95,7 @@
     "prettier-plugin-ember-template-tag": "^2.1.3",
     "qunit": "^2.25.0",
     "qunit-dom": "^3.5.0",
+    "serve": "^14.2.5",
     "stylelint": "^16.26.1",
     "stylelint-config-standard": "^38.0.0",
     "testem": "^3.17.0",
