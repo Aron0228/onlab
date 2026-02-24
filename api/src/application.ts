@@ -9,7 +9,9 @@ import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
 import {RestApplication} from '@loopback/rest';
 import {MySequence} from './sequence';
-import {PostgresDataSource} from './datasources';
+import {PostgresDbDataSource} from './datasources';
+import {JsonApiSerializerInterceptor} from './interceptors/json-api-serializer.interceptor';
+import {JsonApiDeserializerInterceptor} from './interceptors/json-api-deserializer.interceptor';
 
 export {ApplicationConfig};
 
@@ -19,7 +21,14 @@ export class RestApi extends BootMixin(
   constructor(options: ApplicationConfig = {}) {
     super(options);
 
-    this.dataSource(PostgresDataSource, 'postgresDB');
+    this.dataSource(PostgresDbDataSource, 'postgresDB');
+
+    this.bind('interceptors.json-api-serializer').toProvider(
+      JsonApiSerializerInterceptor,
+    );
+    this.bind('interceptors.json-api-deserializer').toProvider(
+      JsonApiDeserializerInterceptor,
+    );
 
     // Set up the custom sequence
     this.sequence(MySequence);
