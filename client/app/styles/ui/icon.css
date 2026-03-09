@@ -17,6 +17,11 @@
     height: 64px;
   }
 
+  &.--size-xl {
+    width: 96px;
+    height: 96px;
+  }
+
   &.--stroke-width-sm svg {
     stroke-width: 1;
   }

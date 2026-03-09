@@ -6,6 +6,10 @@
 .layout-vertical {
   display: flex;
   flex-direction: column;
+
+  .--align-items-center {
+    align-items: center;
+  }
 }
 
 .layout-horizontal,
@@ -34,6 +38,30 @@
     gap: var(--space-2xl);
   }
 
+  &.--padding-xs {
+    padding: var(--space-xs);
+  }
+
+  &.--padding-sm {
+    padding: var(--space-sm);
+  }
+
+  &.--padding-md {
+    padding: var(--space-md);
+  }
+
+  &.--padding-lg {
+    padding: var(--space-lg);
+  }
+
+  &.--padding-xl {
+    padding: var(--space-xl);
+  }
+
+  &.--padding-2xl {
+    padding: var(--space-2xl);
+  }
+
   &.--justify-start {
     justify-content: flex-start;
   }
@@ -57,6 +85,16 @@
   &.--flex-shrink {
     flex-shrink: 1;
   }
+
+  /* Mostly used as a root div element on pages */
+  &.--max-height {
+    height: 100dvh;
+    box-sizing: border-box;
+  }
+}
+
+.margin-left-auto {
+  margin-left: auto;
 }
 
 .font-weight-regular {
@@ -69,6 +107,42 @@
 
 .font-weight-bold {
   font-weight: var(--font-weight-bold);
+}
+
+.font-color-text-primary {
+  color: var(--text-primary);
+}
+
+.font-color-text-secondary {
+  color: var(--text-secondary);
+}
+
+.font-color-text-muted {
+  color: var(--text-muted);
+}
+
+.font-color-text-on-primary {
+  color: var(--text-on-primary);
+}
+
+.font-size-text-xs {
+  font-size: var(--text-xs);
+}
+
+.font-size-text-sm {
+  font-size: var(--text-sm);
+}
+
+.font-size-text-base {
+  font-size: var(--text-base);
+}
+
+.font-size-text-lg {
+  font-size: var(--text-lg);
+}
+
+.font-size-text-xl {
+  font-size: var(--text-xl);
 }
 
 .color-primary-500 {

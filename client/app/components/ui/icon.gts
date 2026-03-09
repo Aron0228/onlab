@@ -5,7 +5,7 @@ interface UiIconSignature {
   Args: {
     name: string;
     size?: 'sm' | 'md' | 'lg';
-    strokeWidth?: 'sm' | 'md' | 'lg';
+    strokeWidth?: 'sm' | 'md' | 'lg' | 'xl';
     filled?: boolean;
     variant?: 'normal' | 'primary' | 'info' | 'error' | 'warning' | 'success';
     custom?: boolean; // For added (non node_module) svgs this should be true

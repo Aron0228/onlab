@@ -1,0 +1,52 @@
+.route-login {
+  position: relative;
+
+  .content-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    .content-body {
+      background: #1a2332;
+      box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -4px rgba(0, 0, 0, 0.1);
+      border-radius: var(--radius-lg);
+
+      .title {
+        margin: 0;
+      }
+
+      .login-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-sm);
+        padding: var(--space-md);
+        border-radius: var(--radius-md);
+        border: 1px solid transparent;
+        opacity: 1;
+        width: 100%;
+
+        font-family: var(--font-main);
+        font-weight: var(--font-weight-medium);
+        font-size: var(--text-sm);
+
+        background-color: #0d1117;
+        color: #f9fafb;
+        cursor: pointer;
+
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .login-button .ui-icon-wrapper {
+        color: #f9fafb;
+      }
+
+      .login-button:hover {
+        opacity: var(--opacity-active);
+      }
+    }
+  }
+}

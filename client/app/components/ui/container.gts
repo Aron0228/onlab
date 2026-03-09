@@ -27,7 +27,7 @@ export default class UiContainer extends Component<UiContainerSignature> {
           {{/if}}
         </div>
       {{/if}}
-      <div class="ui-container__body">
+      <div class="ui-container__body" ...attributes>
         {{yield}}
       </div>
     </div>

@@ -10,7 +10,9 @@ module.exports = async function (defaults) {
   let app = new EmberApp(defaults, {
     // Add options here
     babel: {
-      plugins: [require.resolve('ember-concurrency/async-arrow-task-transform')],
+      plugins: [
+        require.resolve('ember-concurrency/async-arrow-task-transform'),
+      ],
     },
     minifyCss: {
       enabled: false,
@@ -30,7 +32,7 @@ module.exports = async function (defaults) {
     },
 
     svgJar: {
-      sourceDirs: ['node_modules/@tabler/icons/icons'],
+      sourceDirs: ['node_modules/@tabler/icons/icons', 'public/assets/ui'],
       inline: { stripPath: false },
     },
   });

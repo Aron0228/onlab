@@ -9,6 +9,8 @@
 @import url('ui/language-selector.css');
 @import url('ui/input.css');
 
+@import url('routes/login.css');
+
 @import url('utils.css');
 
 body {
@@ -20,6 +22,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 
   line-height: 1.5;
+  margin: 0;
+  padding: 0;
 }
 
 h1,
