@@ -35,6 +35,12 @@ importers:
 
   api:
     dependencies:
+      '@loopback/authentication':
+        specifier: ^12.0.11
+        version: 12.0.11(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8)))
+      '@loopback/authentication-jwt':
+        specifier: ^0.16.11
+        version: 0.16.11(@loopback/authentication@12.0.11(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8))))(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8)))
       '@loopback/boot':
         specifier: ^8.0.5
         version: 8.0.9(@loopback/core@7.0.8)
@@ -50,6 +56,9 @@ importers:
       '@loopback/rest-explorer':
         specifier: ^8.0.5
         version: 8.0.9(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8)))
+      '@loopback/security':
+        specifier: ^0.12.10
+        version: 0.12.10(@loopback/core@7.0.8)
       '@loopback/service-proxy':
         specifier: ^8.0.4
         version: 8.0.8(@loopback/core@7.0.8)
@@ -105,6 +114,9 @@ importers:
       lodash:
         specifier: ^4.17.23
         version: 4.17.23
+      moment:
+        specifier: ^2.30.1
+        version: 2.30.1
       pluralize:
         specifier: ^8.0.0
         version: 8.0.0
@@ -1608,6 +1620,21 @@ packages:
     resolution: {integrity: sha512-F5z53uvRIF4dYfFfJP3a2Cqg+4P1dgJchJsFnsZE0eZp0LK8X7g2J0CsJHRgns+skpXOlM7n5vFGwkWCWj8qJg==}
     engines: {node: 12.* || >= 14}
 
+  '@loopback/authentication-jwt@0.16.11':
+    resolution: {integrity: sha512-OuOQ38cu1mzP0DJrG3mMKkZFltroau3Di4J5zvkacFYpsYUBO1pJNp6ZMi87LtPrFt48JPujvjXu837cjnwS+g==}
+    engines: {node: 20 || 22 || 24}
+    peerDependencies:
+      '@loopback/authentication': ^12.0.1
+      '@loopback/core': ^7.0.1
+      '@loopback/rest': ^15.0.1
+
+  '@loopback/authentication@12.0.11':
+    resolution: {integrity: sha512-a6oxVsx8RZ5b7Nqq3cfPCcnfQ20VxcRdvrXhULRzPtzs0VM5xuWlbSCP2WDvC7pFNboxL3XSMjigtObiCnxLuA==}
+    engines: {node: 20 || 22 || 24}
+    peerDependencies:
+      '@loopback/core': ^7.0.0
+      '@loopback/rest': ^15.0.0
+
   '@loopback/boot@8.0.9':
     resolution: {integrity: sha512-t467VUPh1Bt1N9Ogt7Wu/EpOJ769F593Zw4vuk3zckyYkWesTGq/BY0n4EuamkkfCsWUmTi+lCOYEAHqUu61OQ==}
     engines: {node: 20 || 22 || 24}
@@ -1689,6 +1716,12 @@ packages:
     engines: {node: 20 || 22 || 24}
     peerDependencies:
       '@loopback/core': ^7.0.0
+
+  '@loopback/security@0.12.10':
+    resolution: {integrity: sha512-GE6RX8fkW7A/E7YwVCWbicaGzJsXHRlGwR/oQgdqFjN3VpXaeVXKxROO+hQKDX1xzsgfmOIpJ6Zg/qqtupTo7g==}
+    engines: {node: 20 || 22 || 24}
+    peerDependencies:
+      '@loopback/core': ^7.0.1
 
   '@loopback/service-proxy@8.0.8':
     resolution: {integrity: sha512-eNtGZnFyGIkM08qj97+gP9gS6B486QG48TYNEVONbQN+zSaB+PnZixVNQsPNRVdUVkPMB64nxfsRVpMv/UKtyg==}
@@ -2755,6 +2788,10 @@ packages:
   bcrypt-pbkdf@1.0.2:
     resolution: {integrity: sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==}
 
+  bcryptjs@3.0.3:
+    resolution: {integrity: sha512-GlF5wPWnSa/X5LKM1o0wz0suXIINz1iHRLvTS+sLyi7XPbe5ycmYI3DlZqVGZZtDgl4DmasFg7gOB3JYbphV5g==}
+    hasBin: true
+
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
@@ -2952,6 +2989,9 @@ packages:
 
   bser@2.1.1:
     resolution: {integrity: sha512-gQxTNE/GAfIIrmHLUE3oJyp5FO6HRBfhjnw4/wMmA63ZGDJnWBmgY/lyQBpnDUkGmAhbSe39tx2d/iTOAfglwQ==}
+
+  buffer-equal-constant-time@1.0.1:
+    resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
 
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
@@ -3798,6 +3838,9 @@ packages:
 
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
+
+  ecdsa-sig-formatter@1.0.11:
+    resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
 
   editions@1.3.4:
     resolution: {integrity: sha512-gzao+mxnYDzIysXKMQi/+M1mjy/rjestjg6OPoYTtI+3Izp23oiGZitsl9lPDPiTGXbcSIk1iJWhliSaglxnUg==}
@@ -5505,6 +5548,16 @@ packages:
   jsonify@0.0.1:
     resolution: {integrity: sha512-2/Ki0GcmuqSrgFyelQq9M05y7PS0mEwuIzrf3f1fPqkVDVRvZrPZtVSMHxdgo8Aq0sxAOb/cr2aqqA3LeWHVPg==}
 
+  jsonwebtoken@9.0.3:
+    resolution: {integrity: sha512-MT/xP0CrubFRNLNKvxJ2BYfy53Zkm++5bX9dtuPbqAeQpTVe0MQTFhao8+Cp//EmJp244xt6Drw/GVEGCUj40g==}
+    engines: {node: '>=12', npm: '>=6'}
+
+  jwa@2.0.1:
+    resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
+
+  jws@4.0.1:
+    resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
+
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
@@ -5593,11 +5646,29 @@ packages:
   lodash.flattendeep@4.4.0:
     resolution: {integrity: sha512-uHaJFihxmJcEX3kT4I23ABqKKalJ/zDrDg0lsFtc1h+3uw49SIJ5beyhx5ExVRti3AvKoOJngIj7xz3oylPdWQ==}
 
+  lodash.includes@4.3.0:
+    resolution: {integrity: sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==}
+
   lodash.isarguments@3.1.0:
     resolution: {integrity: sha512-chi4NHZlZqZD18a0imDHnZPrDeBbTtVN7GXMwuGdRH9qotxAjYs3aVLKc7zNOG9eddR5Ksd8rvFEBc9SsggPpg==}
 
   lodash.isarray@3.0.4:
     resolution: {integrity: sha512-JwObCrNJuT0Nnbuecmqr5DgtuBppuCvGD9lxjFpAzwnVtdGoDQ1zig+5W8k5/6Gcn0gZ3936HDAlGd28i7sOGQ==}
+
+  lodash.isboolean@3.0.3:
+    resolution: {integrity: sha512-Bz5mupy2SVbPHURB98VAcw+aHh4vRV5IPNhILUCsOzRmsTmSQ17jIuqopAentWoehktxGd9e/hbIXq980/1QJg==}
+
+  lodash.isinteger@4.0.4:
+    resolution: {integrity: sha512-DBwtEWN2caHQ9/imiNeEA5ys1JoRtRfY3d7V9wkqtbycnAmTvRRmbHKDV4a0EYc678/dia0jrte4tjYwVBaZUA==}
+
+  lodash.isnumber@3.0.3:
+    resolution: {integrity: sha512-QYqzpfwO3/CWf3XP+Z+tkQsfaLL/EnUlXWVkIk5FUPc4sBdTehEqZONuyRt2P67PXAk+NXmTBcc97zw9t1FQrw==}
+
+  lodash.isplainobject@4.0.6:
+    resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
+
+  lodash.isstring@4.0.1:
+    resolution: {integrity: sha512-0wJxfxH1wgO3GrbuP+dTTk7op+6L41QCXbGINEmD+ny/G/eCqGzxyCsh7159S+mgDDcoarnBw6PC1PS5+wUGgw==}
 
   lodash.kebabcase@4.1.1:
     resolution: {integrity: sha512-N8XRTIMMqqDgSy4VLKPnJ/+hpGZN+PHQiJnSenYqPaVV/NCqEogTnAdZLQiGKhxX+JCs8waWq2t1XHWKOmlY8g==}
@@ -5608,6 +5679,9 @@ packages:
   lodash.omit@4.5.0:
     resolution: {integrity: sha512-XeqSp49hNGmlkj2EJlfrQFIzQ6lXdNro9sddtQzcJY8QaoC2GO0DT7xaIokHeyM+mIT0mPMlPvkYzg2xCuHdZg==}
     deprecated: This package is deprecated. Use destructuring assignment syntax instead.
+
+  lodash.once@4.1.1:
+    resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
 
   lodash.truncate@4.4.2:
     resolution: {integrity: sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==}
@@ -9807,6 +9881,30 @@ snapshots:
       tslib: 2.8.1
       upath: 2.0.1
 
+  '@loopback/authentication-jwt@0.16.11(@loopback/authentication@12.0.11(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8))))(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8)))':
+    dependencies:
+      '@loopback/authentication': 12.0.11(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8)))
+      '@loopback/core': 7.0.8
+      '@loopback/rest': 15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8))
+      '@loopback/security': 0.12.10(@loopback/core@7.0.8)
+      bcryptjs: 3.0.3
+      debug: 4.4.3(supports-color@8.1.1)
+      jsonwebtoken: 9.0.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@loopback/authentication@12.0.11(@loopback/core@7.0.8)(@loopback/rest@15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8)))':
+    dependencies:
+      '@loopback/core': 7.0.8
+      '@loopback/rest': 15.0.9(@loopback/core@7.0.8)(@loopback/repository@8.0.8(@loopback/core@7.0.8))
+      '@loopback/security': 0.12.10(@loopback/core@7.0.8)
+      '@types/express': 4.17.25
+      '@types/lodash': 4.17.23
+      lodash: 4.17.23
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@loopback/boot@8.0.9(@loopback/core@7.0.8)':
     dependencies:
       '@loopback/core': 7.0.8
@@ -9997,6 +10095,14 @@ snapshots:
       validator: 13.15.26
     transitivePeerDependencies:
       - '@loopback/repository'
+      - supports-color
+
+  '@loopback/security@0.12.10(@loopback/core@7.0.8)':
+    dependencies:
+      '@loopback/core': 7.0.8
+      debug: 4.4.3(supports-color@8.1.1)
+      tslib: 2.8.1
+    transitivePeerDependencies:
       - supports-color
 
   '@loopback/service-proxy@8.0.8(@loopback/core@7.0.8)':
@@ -11232,6 +11338,8 @@ snapshots:
     dependencies:
       tweetnacl: 0.14.5
 
+  bcryptjs@3.0.3: {}
+
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
@@ -11698,6 +11806,8 @@ snapshots:
   bser@2.1.1:
     dependencies:
       node-int64: 0.4.0
+
+  buffer-equal-constant-time@1.0.1: {}
 
   buffer-from@1.1.2: {}
 
@@ -12417,6 +12527,10 @@ snapshots:
       gopd: 1.2.0
 
   eastasianwidth@0.2.0: {}
+
+  ecdsa-sig-formatter@1.0.11:
+    dependencies:
+      safe-buffer: 5.2.1
 
   editions@1.3.4: {}
 
@@ -14931,6 +15045,30 @@ snapshots:
 
   jsonify@0.0.1: {}
 
+  jsonwebtoken@9.0.3:
+    dependencies:
+      jws: 4.0.1
+      lodash.includes: 4.3.0
+      lodash.isboolean: 3.0.3
+      lodash.isinteger: 4.0.4
+      lodash.isnumber: 3.0.3
+      lodash.isplainobject: 4.0.6
+      lodash.isstring: 4.0.1
+      lodash.once: 4.1.1
+      ms: 2.1.3
+      semver: 7.7.3
+
+  jwa@2.0.1:
+    dependencies:
+      buffer-equal-constant-time: 1.0.1
+      ecdsa-sig-formatter: 1.0.11
+      safe-buffer: 5.2.1
+
+  jws@4.0.1:
+    dependencies:
+      jwa: 2.0.1
+      safe-buffer: 5.2.1
+
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
@@ -15021,15 +15159,29 @@ snapshots:
 
   lodash.flattendeep@4.4.0: {}
 
+  lodash.includes@4.3.0: {}
+
   lodash.isarguments@3.1.0: {}
 
   lodash.isarray@3.0.4: {}
+
+  lodash.isboolean@3.0.3: {}
+
+  lodash.isinteger@4.0.4: {}
+
+  lodash.isnumber@3.0.3: {}
+
+  lodash.isplainobject@4.0.6: {}
+
+  lodash.isstring@4.0.1: {}
 
   lodash.kebabcase@4.1.1: {}
 
   lodash.merge@4.6.2: {}
 
   lodash.omit@4.5.0: {}
+
+  lodash.once@4.1.1: {}
 
   lodash.truncate@4.4.2: {}
 

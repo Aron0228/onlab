@@ -1,7 +1,7 @@
 import type { TOC } from '@ember/component/template-only';
 import { pageTitle } from 'ember-page-title';
 
-interface ApplicationSignature {
+interface CallbackSignature {
   Args: {
     model: unknown;
     controller: unknown;
@@ -9,6 +9,6 @@ interface ApplicationSignature {
 }
 
 <template>
-  {{pageTitle "Application"}}
+  {{pageTitle "Callback"}}
   {{outlet}}
-</template> satisfies TOC<ApplicationSignature>;
+</template> satisfies TOC<CallbackSignature>;

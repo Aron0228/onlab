@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS auth."user";
+
+DROP SCHEMA IF EXISTS auth;

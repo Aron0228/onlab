@@ -4,6 +4,10 @@ import UiThemeSwitcher from 'client/components/ui/theme-switcher';
 import UiIcon from 'client/components/ui/icon';
 import svgJar from 'ember-svg-jar/helpers/svg-jar';
 import UiButton from 'client/components/ui/button';
+import { action } from '@ember/object';
+import { inject as service } from '@ember/service';
+import { task } from 'ember-concurrency';
+import { on } from '@ember/modifier';
 
 export interface RoutesLoginSignature {
   // The arguments accepted by the component
@@ -17,6 +21,32 @@ export interface RoutesLoginSignature {
 }
 
 export default class RoutesLogin extends Component {
+  @service router;
+  @service store;
+
+  githubAuthTask = task(async () => {
+    const apiUrl =
+      (import.meta.env.API_URL as string | undefined) ??
+      'http://localhost:30022';
+    const endpoint = `${apiUrl}/auth/github`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (response.redirected && response.url) {
+        window.location.assign(response.url);
+        return;
+      }
+    } catch (error: unknown) {
+      console.error('GitHub auth bootstrap failed', error);
+    }
+
+    window.location.assign(endpoint);
+  });
+
   get footerCards() {
     return [
       {
@@ -32,6 +62,10 @@ export default class RoutesLogin extends Component {
         text: 'AI Powered',
       },
     ];
+  }
+
+  @action onClick() {
+    this.githubAuthTask.perform();
   }
 
   <template>
@@ -54,7 +88,7 @@ export default class RoutesLogin extends Component {
             class="layout-vertical --align-items-center --gap-lg --padding-md"
           >
             <h2 class="title">Sign in to continue</h2>
-            <button class="login-button" type="submit">
+            <button class="login-button" type="button" {{on "click" this.onClick}}>
               <UiIcon @name="brand-github" />
               Continue with GitHub
             </button>
@@ -63,7 +97,7 @@ export default class RoutesLogin extends Component {
           </UiContainer>
         </div>
 
-        <div class="layout-horizontal --gap-md">
+        <div class="layout-horizontal --gap-xl">
           {{#each this.footerCards as |footerCard|}}
             <div class="layout-horizontal --gap-xs">
               <UiIcon @name={{footerCard.iconName}} @variant="primary" />
