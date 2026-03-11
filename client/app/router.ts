@@ -12,5 +12,8 @@ Router.map(function () {
     this.route('login');
     this.route('callback');
   });
+  this.route('debug', function () {
+    this.route('client');
+  });
   this.route('not-found', { path: '/*path' });
 });
