@@ -18,7 +18,7 @@ export function createBaseCrudController<
   const capitalizedBasePath =
     basePath.charAt(0).toUpperCase() + basePath.slice(1);
 
-  @authenticate('jwt')
+  @authenticate('jwt-header')
   abstract class BaseCrudController {
     constructor(public repository: DefaultCrudRepository<T, ID, Relations>) {}
 
