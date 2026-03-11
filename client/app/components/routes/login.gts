@@ -26,7 +26,7 @@ export default class RoutesLogin extends Component {
 
   githubAuthTask = task(async () => {
     const apiUrl =
-      (import.meta.env.API_URL as string | undefined) ??
+      (import.meta.env.VITE_API_URL as string | undefined) ??
       'http://localhost:30022';
     const endpoint = `${apiUrl}/auth/github`;
 
@@ -88,7 +88,11 @@ export default class RoutesLogin extends Component {
             class="layout-vertical --align-items-center --gap-lg --padding-md"
           >
             <h2 class="title">Sign in to continue</h2>
-            <button class="login-button" type="button" {{on "click" this.onClick}}>
+            <button
+              class="login-button"
+              type="button"
+              {{on "click" this.onClick}}
+            >
               <UiIcon @name="brand-github" />
               Continue with GitHub
             </button>
