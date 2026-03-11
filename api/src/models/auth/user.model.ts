@@ -1,4 +1,5 @@
 import {Entity, model, property} from '@loopback/repository';
+import {securityId, UserProfile} from '@loopback/security';
 
 @model({
   settings: {
@@ -44,6 +45,13 @@ export class User extends Entity {
 
   constructor(data?: Partial<User>) {
     super(data);
+  }
+
+  toUserProfile(): UserProfile {
+    return {
+      [securityId]: this.id.toString(),
+      id: this.id,
+    };
   }
 }
 
