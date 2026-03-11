@@ -1,6 +1,6 @@
 import {inject, service} from '@loopback/core';
 import {get, param, Response, RestBindings} from '@loopback/rest';
-import {GithubOauthService} from '../services/github-oauth.service';
+import {GithubOauthService} from '../services/auth/github-oauth.service';
 
 export class AuthController {
   constructor(
@@ -20,8 +20,7 @@ export class AuthController {
   async githubCallback(
     @inject(RestBindings.Http.RESPONSE) response: Response,
     @param.query.string('code') code?: string,
-    @param.query.string('state') state?: string,
   ) {
-    return await this.githubOauthService.callback(response, code, state);
+    return await this.githubOauthService.callback(response, code);
   }
 }

@@ -1,6 +1,10 @@
-import {BindingScope, injectable} from '@loopback/core';
+import {BindingScope, Getter, injectable, service} from '@loopback/core';
 import {HttpErrors, Response} from '@loopback/rest';
 import https from 'node:https';
+import {JwtTokenService} from '.';
+import {DataObject, repository} from '@loopback/repository';
+import {UserRepository} from '../../repositories';
+import {User} from '../../models';
 
 interface GithubTokenResponse {
   access_token?: string;
@@ -35,14 +39,16 @@ interface GithubUserEmailResponse {
 
 @injectable({scope: BindingScope.TRANSIENT})
 export class GithubOauthService {
-  private apiHost: string;
   private githubClientId: string;
   private githubCallbackUrl: string;
   private githubClientSecret: string;
   private clientUrl: string;
 
-  constructor() {
-    this.apiHost = process.env.API_HOST!;
+  constructor(
+    @service(JwtTokenService) private jwtTokenService: JwtTokenService,
+    @repository.getter('UserRepository')
+    private userRepositoryGetter: Getter<UserRepository>,
+  ) {
     this.githubClientId = process.env.GITHUB_CLIENT_ID!;
     this.githubCallbackUrl = process.env.GITHUB_CALLBACK_URL!;
     this.githubClientSecret = process.env.GITHUB_CLIENT_SECRET!;
@@ -62,7 +68,7 @@ export class GithubOauthService {
     return authorizeUrl.toString();
   }
 
-  public async callback(response: Response, code?: string, state?: string) {
+  public async callback(response: Response, code?: string) {
     if (!code) {
       throw new HttpErrors.BadRequest(
         'GitHub did not provide the required "code" query parameter',
@@ -74,20 +80,24 @@ export class GithubOauthService {
     try {
       const tokenResponse = await this.exchangeCodeForAccessToken(code);
       const githubUser = await this.getGithubUser(tokenResponse.access_token!);
+      const user = await this.getOrCreateUser(githubUser);
+      const token = await this.jwtTokenService.generateToken(
+        user,
+        tokenResponse.access_token!,
+      );
 
-      callbackUrl.searchParams.set('provider', 'github');
-      callbackUrl.searchParams.set('github_id', String(githubUser.id));
-      callbackUrl.searchParams.set('github_login', githubUser.login);
-      callbackUrl.searchParams.set('github_email', githubUser.email);
-      if (state) {
-        callbackUrl.searchParams.set('state', state);
-      }
+      callbackUrl.searchParams.set('token_id', token.id);
+      callbackUrl.searchParams.set(
+        'expires_at',
+        token.expiresAt.toDateString(),
+      );
 
       console.log('GitHub OAuth success', {
         id: githubUser.id,
         login: githubUser.login,
         email: githubUser.email,
         name: githubUser.name,
+        avatarUrl: githubUser.avatar_url,
       });
 
       return response.redirect(callbackUrl.toString());
@@ -99,6 +109,24 @@ export class GithubOauthService {
       );
       return response.redirect(callbackUrl.toString());
     }
+  }
+
+  public async verifyGithubToken(token: string) {
+    await this.githubRequest<{
+      login: string;
+      id: number;
+      avatar_url: string;
+      name?: string;
+    }>({
+      hostname: 'api.github.com',
+      path: '/user',
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'devteams-api',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
   }
 
   private async exchangeCodeForAccessToken(
@@ -160,6 +188,29 @@ export class GithubOauthService {
       avatar_url: user.avatar_url,
       email,
     };
+  }
+
+  private async getOrCreateUser(githubUser: GithubUserResponse): Promise<User> {
+    const userRepository = await this.userRepositoryGetter();
+
+    const existingUser = await userRepository.findOne({
+      where: {
+        githubId: githubUser.id,
+      },
+    });
+
+    if (existingUser) {
+      return existingUser;
+    }
+
+    const userDTO: DataObject<User> = {
+      githubId: githubUser.id,
+      username: githubUser.name ?? `User${githubUser.id}`,
+      email: githubUser.email,
+      avatarUrl: githubUser.email,
+    };
+
+    return userRepository.create(userDTO);
   }
 
   private async getGithubUserEmail(accessToken: string): Promise<string> {
