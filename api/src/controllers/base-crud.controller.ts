@@ -1,3 +1,4 @@
+import {authenticate} from '@loopback/authentication';
 import {intercept} from '@loopback/core';
 import {
   Count,
@@ -17,6 +18,7 @@ export function createBaseCrudController<
   const capitalizedBasePath =
     basePath.charAt(0).toUpperCase() + basePath.slice(1);
 
+  @authenticate('jwt')
   abstract class BaseCrudController {
     constructor(public repository: DefaultCrudRepository<T, ID, Relations>) {}
 

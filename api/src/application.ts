@@ -12,6 +12,12 @@ import {MySequence} from './sequence';
 import {PostgresDbDataSource} from './datasources';
 import {JsonApiSerializerInterceptor} from './interceptors/json-api-serializer.interceptor';
 import {JsonApiDeserializerInterceptor} from './interceptors/json-api-deserializer.interceptor';
+import {JWTAuthenticationComponent} from '@loopback/authentication-jwt';
+import {
+  AuthenticationComponent,
+  registerAuthenticationStrategy,
+} from '@loopback/authentication';
+import {JwtTokenStrategy} from './strategies/jwt-token.strategy';
 
 export {ApplicationConfig};
 
@@ -41,6 +47,8 @@ export class RestApi extends BootMixin(
       path: '/explorer',
     });
     this.component(RestExplorerComponent);
+    this.component(JWTAuthenticationComponent);
+    this.component(AuthenticationComponent);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here
@@ -52,5 +60,7 @@ export class RestApi extends BootMixin(
         nested: true,
       },
     };
+
+    registerAuthenticationStrategy(this, JwtTokenStrategy);
   }
 }
