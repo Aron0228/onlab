@@ -1,5 +1,7 @@
 import Route from '@ember/routing/route';
+import type Transition from '@ember/routing/transition';
 import { inject as service } from '@ember/service';
+import RouterService from '@ember/routing/router-service';
 import IntlService from 'ember-intl/services/intl';
 import moment from 'moment';
 import 'moment/dist/locale/hu';
@@ -22,16 +24,34 @@ const LOCALES: Locale[] = [
   { code: 'hu-hu', momentLocale: 'hu' },
 ] as const;
 
+type ApplicationSessionService = {
+  setup(): Promise<void>;
+  isAuthenticated: boolean;
+};
+
 export default class ApplicationRoute extends Route {
   @service
   intl!: IntlService;
 
-  async beforeModel() {
+  @service declare router: RouterService;
+  @service declare session: ApplicationSessionService;
+
+  async beforeModel(transition: Transition) {
+    await this.session.setup();
     await this.loadTranslations();
     const saved = this.getSavedLocale();
 
     this.setupIntlAndMoment(saved);
-    console.log('setup complete');
+
+    const routeName = transition.to?.name ?? '';
+    const isPublicRoute =
+      routeName === 'auth' ||
+      routeName.startsWith('auth.') ||
+      routeName === 'not-found';
+
+    if (!isPublicRoute && !this.session.isAuthenticated) {
+      this.router.transitionTo('auth.login');
+    }
   }
 
   private getSavedLocale(): Locale {
