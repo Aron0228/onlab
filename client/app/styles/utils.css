@@ -97,6 +97,10 @@
   margin-left: auto;
 }
 
+.margin-zero {
+  margin: 0;
+}
+
 .font-weight-regular {
   font-weight: var(--font-weight-regular);
 }

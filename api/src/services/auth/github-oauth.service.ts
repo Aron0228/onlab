@@ -88,6 +88,7 @@ export class GithubOauthService {
 
       callbackUrl.searchParams.set('token_id', token.id);
       callbackUrl.searchParams.set('expires_at', token.expiresAt.toISOString());
+      callbackUrl.searchParams.set('user_id', user.id.toString());
 
       console.log('GitHub OAuth success', {
         id: githubUser.id,

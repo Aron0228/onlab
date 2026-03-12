@@ -1,0 +1,47 @@
+.route-workspaces-index {
+  background: var(--bg-sidebar);
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+  }
+
+  .body {
+    flex: 1;
+    background: var(--bg-app);
+    padding: var(--space-md);
+
+    .new-workspace {
+      appearance: none;
+      padding: var(--space-xl);
+      color: inherit;
+      text-align: left;
+      border: 2px dashed rgb(from var(--border-subtle) r g b / 0.7);
+      border-radius: var(--radius-lg);
+      background: transparent;
+      cursor: pointer;
+
+      .plus-button-wrapper {
+        border-radius: var(--radius-lg);
+        background: var(--color-primary-500);
+        padding: var(--space-sm);
+        width: fit-content;
+      }
+    }
+
+    .new-workspace:hover {
+      border: 2px dashed rgb(from var(--color-primary-600) r g b / 0.7);
+      background: var(--bg-hover);
+    }
+
+    .new-workspace > .ui-icon-wrapper {
+      color: var(--text-muted);
+    }
+
+    .new-workspace:hover > .ui-icon-wrapper {
+      color: var(--color-primary-600);
+    }
+  }
+}
