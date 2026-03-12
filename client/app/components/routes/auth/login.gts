@@ -96,8 +96,8 @@ export default class RoutesLogin extends Component {
               <UiIcon @name="brand-github" />
               Continue with GitHub
             </button>
-            <span class="font-color-text-muted font-size-text-sm">By signing in,
-              you agree to our Terms of Service and Privacy Policy</span>
+            <span class="font-color-text-muted font-size-text-sm">Disclamer:
+              work in progress</span>
           </UiContainer>
         </div>
 

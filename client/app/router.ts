@@ -12,6 +12,9 @@ Router.map(function () {
     this.route('login');
     this.route('callback');
   });
+  this.route('workspaces', function () {
+    this.route('new');
+  });
   this.route('debug', function () {
     this.route('client');
   });

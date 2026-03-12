@@ -1,6 +1,6 @@
 import type { TOC } from '@ember/component/template-only';
 import { pageTitle } from 'ember-page-title';
-import RoutesLogin from 'client/components/routes/login';
+import RoutesAuthLogin from 'client/components/routes/auth/login';
 
 interface AuthLoginSignature {
   Args: {
@@ -11,5 +11,5 @@ interface AuthLoginSignature {
 
 <template>
   {{pageTitle "Login"}}
-  <RoutesLogin />
+  <RoutesAuthLogin />
 </template> satisfies TOC<AuthLoginSignature>;

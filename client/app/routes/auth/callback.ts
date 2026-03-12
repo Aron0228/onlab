@@ -26,9 +26,9 @@ export default class AuthCallbackRoute extends Route {
         expiresAt: expires_at as string,
       });
 
-      this.router.transitionTo('index');
+      this.router.transitionTo('workspaces');
     } else {
-      this.router.transitionTo('login');
+      this.router.transitionTo('auth.login');
     }
   }
 }

@@ -5,6 +5,8 @@ import { tracked } from '@glimmer/tracking';
 import type UserModel from 'client/models/user';
 import { or } from 'ember-truth-helpers';
 import { on } from '@ember/modifier';
+import UiFileUpload from 'client/components/ui/file-upload';
+import { array } from '@ember/helper';
 
 type SessionServiceLike = {
   isAuthenticated: boolean;
@@ -132,6 +134,8 @@ export default class RoutesClientDebug extends Component {
           <p>No users loaded yet.</p>
         {{/if}}
       </div>
+
+      <UiFileUpload @extensions={{array ".pdf" ".md" ".txt"}} />
     </section>
   </template>
 }

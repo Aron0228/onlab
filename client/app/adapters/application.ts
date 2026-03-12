@@ -22,7 +22,7 @@ type SessionWithToken = {
 export default class ApplicationAdapter extends JSONAPIAdapter {
   @service declare session: SessionWithToken;
 
-  host = (import.meta.env.API_URL as string) ?? 'http://localhost:30022';
+  host = (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:30022';
 
   pathForType(modelName: string): string {
     return _pluralize(camelCase(modelName));
@@ -31,7 +31,7 @@ export default class ApplicationAdapter extends JSONAPIAdapter {
   ajaxOptions(
     url: string,
     type: HTTPMethod,
-    options?: unknown,
+    options?: unknown
   ): JQueryRequestInit | FetchRequestInit {
     const request = super.ajaxOptions(url, type, options);
     const mutableRequest = request as (JQueryRequestInit | FetchRequestInit) & {
