@@ -87,10 +87,7 @@ export class GithubOauthService {
       );
 
       callbackUrl.searchParams.set('token_id', token.id);
-      callbackUrl.searchParams.set(
-        'expires_at',
-        token.expiresAt.toDateString(),
-      );
+      callbackUrl.searchParams.set('expires_at', token.expiresAt.toISOString());
 
       console.log('GitHub OAuth success', {
         id: githubUser.id,
@@ -207,7 +204,7 @@ export class GithubOauthService {
       githubId: githubUser.id,
       username: githubUser.name ?? `User${githubUser.id}`,
       email: githubUser.email,
-      avatarUrl: githubUser.email,
+      avatarUrl: githubUser.avatar_url,
     };
 
     return userRepository.create(userDTO);

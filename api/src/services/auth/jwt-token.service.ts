@@ -52,7 +52,7 @@ export class JwtTokenService {
       return undefined;
     }
 
-    return now.clone().diff(moment(token.expiresAt)) && !token.revoked
+    return moment(token.expiresAt).isAfter(now) && !token.revoked
       ? token
       : undefined;
   }
