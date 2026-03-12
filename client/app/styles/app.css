@@ -10,6 +10,8 @@
 @import url('ui/input.css');
 
 @import url('routes/login.css');
+@import url('routes/workspaces/index.css');
+@import url('routes/workspaces/new.css');
 
 @import url('utils.css');
 
@@ -24,6 +26,11 @@ body {
   line-height: 1.5;
   margin: 0;
   padding: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 h1,

@@ -27,6 +27,11 @@ const LOCALES: Locale[] = [
 type ApplicationSessionService = {
   setup(): Promise<void>;
   isAuthenticated: boolean;
+  data: {
+    authenticated?: {
+      userId?: number;
+    };
+  };
 };
 
 export default class ApplicationRoute extends Route {
@@ -35,9 +40,11 @@ export default class ApplicationRoute extends Route {
 
   @service declare router: RouterService;
   @service declare session: ApplicationSessionService;
+  @service declare sessionAccount: {hydrate(data?: ApplicationSessionService['data']): void; clear(): void;};
 
   async beforeModel(transition: Transition) {
     await this.session.setup();
+    this.syncSessionAccount();
     await this.loadTranslations();
     const saved = this.getSavedLocale();
 
@@ -79,5 +86,14 @@ export default class ApplicationRoute extends Route {
   private setupIntlAndMoment(locale: Locale) {
     this.intl.setLocale([locale.code]);
     moment.locale(locale.momentLocale);
+  }
+
+  private syncSessionAccount(): void {
+    if (!this.session.isAuthenticated) {
+      this.sessionAccount.clear();
+      return;
+    }
+
+    this.sessionAccount.hydrate(this.session.data);
   }
 }

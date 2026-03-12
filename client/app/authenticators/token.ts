@@ -3,6 +3,7 @@ import BaseAuthenticator from 'ember-simple-auth/authenticators/base';
 interface SessionData {
   token: string;
   expiresAt?: string;
+  userId?: number;
 }
 
 export default class TokenAuthenticator extends BaseAuthenticator {

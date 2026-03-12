@@ -9,6 +9,7 @@ type AuthCallbackSessionService = {
     credentials: {
       token: string;
       expiresAt: string;
+      userId?: number;
     }
   ): Promise<void>;
 };
@@ -16,15 +17,24 @@ type AuthCallbackSessionService = {
 export default class AuthCallbackRoute extends Route {
   @service declare session: AuthCallbackSessionService;
   @service declare router: RouterService;
+  @service declare sessionAccount: {
+    hydrate(data?: { authenticated?: { userId?: number } }): void;
+  };
 
   async beforeModel(transition: Transition) {
-    const { token_id, expires_at } = transition.to?.queryParams ?? {};
+    const { token_id, expires_at, user_id } = transition.to?.queryParams ?? {};
+    const userId =
+      typeof user_id === 'string' ? Number.parseInt(user_id, 10) : undefined;
 
     if (token_id && expires_at) {
-      await this.session.authenticate('authenticator:token', {
+      const authenticated = {
         token: token_id as string,
         expiresAt: expires_at as string,
-      });
+        userId: Number.isNaN(userId) ? undefined : userId,
+      };
+
+      await this.session.authenticate('authenticator:token', authenticated);
+      this.sessionAccount.hydrate({ authenticated });
 
       this.router.transitionTo('workspaces');
     } else {
