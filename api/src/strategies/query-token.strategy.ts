@@ -6,8 +6,8 @@ import {UserProfile} from '@loopback/security';
 import {UserRepository} from '../repositories';
 import {JwtTokenService} from '../services';
 
-export class JwtTokenStrategy implements AuthenticationStrategy {
-  name = 'jwt-header';
+export class QueryTokenStrategy implements AuthenticationStrategy {
+  name = 'jwt-query';
 
   constructor(
     @service(JwtTokenService) private jwtTokenService: JwtTokenService,
@@ -18,7 +18,7 @@ export class JwtTokenStrategy implements AuthenticationStrategy {
     request: Request,
   ): Promise<UserProfile | RedirectRoute | undefined> {
     try {
-      const tokenFromRequest = this.getTokenFromHeader(request);
+      const tokenFromRequest = this.getTokenFromParams(request);
 
       if (!tokenFromRequest) {
         return undefined;
@@ -40,13 +40,29 @@ export class JwtTokenStrategy implements AuthenticationStrategy {
     }
   }
 
-  private getTokenFromHeader(request: Request): string | undefined {
-    const authorizationHeader = request.headers.authorization;
+  private getTokenFromParams(request: Request): string | undefined {
+    const routeParams = request.params as Record<string, string | undefined>;
+    const queryParams = request.query as Record<
+      string,
+      string | string[] | undefined
+    >;
 
-    if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
-      return undefined;
+    const token =
+      routeParams.token ??
+      routeParams.token_id ??
+      this.getFirstQueryValue(queryParams.token) ??
+      this.getFirstQueryValue(queryParams.token_id);
+
+    return token?.trim() || undefined;
+  }
+
+  private getFirstQueryValue(
+    value: string | string[] | undefined,
+  ): string | undefined {
+    if (Array.isArray(value)) {
+      return value[0];
     }
 
-    return authorizationHeader.slice('Bearer '.length).trim() || undefined;
+    return value;
   }
 }

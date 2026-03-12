@@ -18,6 +18,7 @@ import {
   registerAuthenticationStrategy,
 } from '@loopback/authentication';
 import {JwtTokenStrategy} from './strategies/jwt-token.strategy';
+import {QueryTokenStrategy} from './strategies/query-token.strategy';
 
 export {ApplicationConfig};
 
@@ -62,5 +63,6 @@ export class RestApi extends BootMixin(
     };
 
     registerAuthenticationStrategy(this, JwtTokenStrategy);
+    registerAuthenticationStrategy(this, QueryTokenStrategy);
   }
 }
