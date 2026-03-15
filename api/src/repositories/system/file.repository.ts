@@ -102,6 +102,16 @@ export class FileRepository extends DefaultCrudRepository<
     });
 
     fileStream.pipe(response);
+
+    return response;
+  }
+
+  public async preview(id: typeof File.prototype.id, response: Response) {
+    const file = await this.findById(id);
+    response.setHeader('Content-Type', file.mimeType);
+
+    response.sendFile(file.path);
+
     return response;
   }
 
