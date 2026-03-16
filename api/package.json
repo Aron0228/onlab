@@ -64,6 +64,7 @@
     "dotenv": "^17.3.1",
     "jsonapi-serializer": "^3.6.9",
     "loopback-connector-postgresql": "^8.0.6",
+    "multer": "^2.1.1",
     "tslib": "^2.0.0"
   },
   "devDependencies": {
@@ -71,6 +72,7 @@
     "@loopback/eslint-config": "^16.0.1",
     "@loopback/testlab": "^8.0.4",
     "@types/lodash": "^4.17.23",
+    "@types/multer": "^2.1.0",
     "@types/node": "^16.18.126",
     "@types/pluralize": "^0.0.33",
     "@vitest/coverage-v8": "^4.0.18",
