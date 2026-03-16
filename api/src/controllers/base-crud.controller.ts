@@ -30,6 +30,13 @@ export function createBaseCrudController<
       return this.repository.find(filter);
     }
 
+    @get(`/${basePath}/count`)
+    public async count(
+      @param.query.object('where') where?: Where<T>,
+    ): Promise<Count> {
+      return this.repository.count(where);
+    }
+
     @get(`/${basePath}/{id}`)
     @intercept('interceptors.json-api-serializer')
     public async findById(@param.path.string('id') id: ID): Promise<T> {
