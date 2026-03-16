@@ -44,7 +44,10 @@ export default class ApplicationAdapter extends JSONAPIAdapter {
       return mutableRequest;
     }
 
+    const existingHeaders =
+      (mutableRequest.headers as Record<string, string>) ?? {};
     mutableRequest.headers = {
+      ...existingHeaders,
       Authorization: `Bearer ${token}`,
     };
 
