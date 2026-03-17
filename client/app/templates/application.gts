@@ -1,5 +1,6 @@
 import type { TOC } from '@ember/component/template-only';
 import { pageTitle } from 'ember-page-title';
+import FlashMessages from 'client/components/flash-messages';
 
 interface ApplicationSignature {
   Args: {
@@ -10,5 +11,7 @@ interface ApplicationSignature {
 
 <template>
   {{pageTitle "Application"}}
+  <FlashMessages />
+
   {{outlet}}
 </template> satisfies TOC<ApplicationSignature>;
