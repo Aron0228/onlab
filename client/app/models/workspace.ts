@@ -1,6 +1,8 @@
 import Model, {attr, belongsTo, hasMany} from '@warp-drive/legacy/model';
 import type UserModel from './user';
 import type FileModel from './file';
+import type InvitationModel from './invitation';
+import type WorkspaceMemberModel from './workspace-member';
 
 export default class WorkspaceModel extends Model {
   @belongsTo('user', {async: false, inverse: null})
@@ -8,6 +10,12 @@ export default class WorkspaceModel extends Model {
 
   @hasMany('file', {async: false, inverse: 'workspace'})
   declare files: FileModel[];
+
+  @hasMany('invitation', {async: false, inverse: 'workspace'})
+  declare invitations: InvitationModel[];
+
+  @hasMany('workspace-member', {async: false, inverse: null})
+  declare workspaceMembers: WorkspaceMemberModel[];
 
   @attr('string') declare name: string;
   @attr('number') declare ownerId: number;
