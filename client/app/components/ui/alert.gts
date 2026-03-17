@@ -30,24 +30,22 @@ export default class UiAlert extends Component<UiAlertSignature> {
   }
 
   <template>
-    {{#unless this.closed}}
-      {{! <div class="ui-alert__container"> }}
-      <div class="ui-alert --type-{{this.type}}" role="alert">
-        <div class="ui-alert__icon">
-          <UiIcon @name={{this.icon.name}} @variant={{this.icon.variant}} />
-        </div>
-
-        <div class="ui-alert__message">
-          {{@message}}
-        </div>
-
-        <div class="ui-alert__close">
-          {{! This is just here, since the destroyment of flashMessages is handled by the service }}
-          {{! The only caveat is that this way actually clicking on any part of the component causes it to get destroyed }}
-          <UiIconButton @iconName="x" @iconVariant={{@type}} />
-        </div>
+    <div class="ui-alert --type-{{this.type}}" role="alert">
+      <div class="ui-alert__icon">
+        <UiIcon @name={{this.icon.name}} @variant={{this.icon.variant}} />
       </div>
-      {{! </div> }}
-    {{/unless}}
+
+      <div class="ui-alert__message">
+        {{@message}}
+      </div>
+
+      <div class="ui-alert__close">
+        <UiIconButton
+          @iconName="x"
+          @iconVariant={{this.icon.variant}}
+          @onClick={{@onClose}}
+        />
+      </div>
+    </div>
   </template>
 }

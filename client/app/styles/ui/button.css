@@ -3,7 +3,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
+  padding: var(--space-sm);
   border-radius: var(--radius-md);
+  width: fit-content;
+  cursor: pointer;
   border: 1px solid transparent;
   opacity: 1;
 
@@ -12,7 +15,7 @@
   .btn__text {
     font-family: var(--font-main);
     font-weight: var(--font-weight-medium);
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
   }
 
   &.--hierarchy-primary {
