@@ -7,6 +7,7 @@ interface UiButtonSignature {
     text?: string;
     type?: 'button' | 'submit';
     hierarchy?: 'primary' | 'secondary' | 'tertiary';
+    iconRight?: string;
     iconLeft?: string;
     loading?: boolean;
     disabled?: boolean;
@@ -31,17 +32,25 @@ export default class UiButton extends Component<UiButtonSignature> {
       disabled={{or @disabled @loading}}
       ...attributes
     >
-      {{#if @text}}
-        <span class="btn__text">
-          {{@text}}
-        </span>
-      {{/if}}
+      <div class="layout-horizontal --gap-sm">
+        {{#if @iconLeft}}
+          <span class="btn__text">
+            <UiIcon @name={{@iconLeft}} />
+          </span>
+        {{/if}}
 
-      {{#if @iconLeft}}
-        <span class="btn__text">
-          <UiIcon @name={{@iconLeft}} />
-        </span>
-      {{/if}}
+        {{#if @text}}
+          <span class="btn__text">
+            {{@text}}
+          </span>
+        {{/if}}
+
+        {{#if @iconRight}}
+          <span class="btn__text">
+            <UiIcon @name={{@iconRight}} />
+          </span>
+        {{/if}}
+      </div>
     </button>
   </template>
 }

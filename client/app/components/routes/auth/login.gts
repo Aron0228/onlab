@@ -84,20 +84,22 @@ export default class RoutesLogin extends Component {
         </div>
 
         <div class="content-body">
-          <UiContainer
-            class="layout-vertical --align-items-center --gap-lg --padding-md"
-          >
-            <h2 class="title">Sign in to continue</h2>
-            <button
-              class="login-button"
-              type="button"
-              {{on "click" this.onClick}}
+          <UiContainer>
+            <div
+              class="layout-vertical --align-items-center --gap-lg --padding-md"
             >
-              <UiIcon @name="brand-github" />
-              Continue with GitHub
-            </button>
-            <span class="font-color-text-muted font-size-text-sm">Disclamer:
-              work in progress</span>
+              <h2 class="title">Sign in to continue</h2>
+              <button
+                class="login-button"
+                type="button"
+                {{on "click" this.onClick}}
+              >
+                <UiIcon @name="brand-github" />
+                Continue with GitHub
+              </button>
+              <span class="font-color-text-muted font-size-text-sm">Disclamer:
+                work in progress</span>
+            </div>
           </UiContainer>
         </div>
 

@@ -1,0 +1,1 @@
+DROP TALBE IF EXISTS "system"."workspace_member";

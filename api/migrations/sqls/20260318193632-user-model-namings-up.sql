@@ -1,0 +1,4 @@
+TRUNCATE TABLE auth."user" RESTART IDENTITY CASCADE;
+
+ALTER TABLE auth."user"
+ADD COLUMN full_name varchar(255) NOT NULL;

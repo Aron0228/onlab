@@ -8,12 +8,17 @@
 @import url('ui/dropdown.css');
 @import url('ui/language-selector.css');
 @import url('ui/input.css');
+@import url('ui/checkbox.css');
+@import url('ui/avatar.css');
+@import url('ui/loading-spinner.css');
 
 @import url('routes/login.css');
 @import url('routes/workspaces/index.css');
 @import url('routes/workspaces/new.css');
+@import url('routes/profile.css');
 
 @import url('utils.css');
+@import url('route-profile.css');
 
 body {
   font-family: var(--font-main);

@@ -1,0 +1,104 @@
+.route-profile {
+  background: var(--bg-sidebar);
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-sidebar);
+  }
+
+  .body {
+    flex: 1;
+    background: var(--bg-app);
+    padding: var(--space-md) var(--space-xl);
+
+    .profile-github-connection {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      border-radius: var(--radius-lg);
+      background: var(--bg-hover);
+    }
+
+    .profile-github-connection__icon {
+      display: grid;
+      place-items: center;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 9999px;
+      flex-shrink: 0;
+      background: var(--color-accent-subtle);
+    }
+
+    .profile-github-connection__meta {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+      min-width: 0;
+    }
+
+    .profile-github-connection__title {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-bold);
+      line-height: 1.1;
+    }
+
+    .profile-github-connection__username {
+      font-size: var(--text-base);
+      line-height: 1.2;
+    }
+
+    .tip-container .ui-container__header {
+      padding-bottom: 0;
+    }
+
+    .tip-container .ui-container__body > ul {
+      margin: 0;
+    }
+
+    .danger-zone-container {
+      background: var(--bg-surface);
+
+      .ui-container__header__title {
+        color: var(--color-error);
+      }
+
+      .danger-zone-container__delete-button {
+        border-color: var(--color-error);
+        color: var(--color-error);
+
+        &:hover:not(:disabled) {
+          background: var(--color-error-bg);
+        }
+      }
+    }
+  }
+
+  .footer {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: var(--space-md) var(--space-xl);
+    background: linear-gradient(
+      to top,
+      rgb(from var(--bg-app) r g b / 0) 0%,
+      rgb(from var(--bg-app) r g b / 0.12) 18%,
+      rgb(from var(--bg-app) r g b / 0.38) 42%,
+      rgb(from var(--bg-app) r g b / 0.72) 68%,
+      var(--bg-app) 100%
+    );
+  }
+}

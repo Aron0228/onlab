@@ -43,4 +43,13 @@ export class FileController extends FileBaseCrudController {
   ) {
     return this.fileRepository.download(id, response);
   }
+
+  @get('/files/{id}/preview')
+  @authenticate('jwt-query')
+  async preview(
+    @param.path.number('id') id: number,
+    @inject(RestBindings.Http.RESPONSE) response: Response,
+  ) {
+    return this.fileRepository.preview(id, response);
+  }
 }

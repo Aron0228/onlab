@@ -9,6 +9,12 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       reportsDirectory: path.resolve(__dirname, 'coverage'),
+      exclude: [
+        'src/__tests__/**',
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        '**/index.ts',
+      ],
     },
   },
 });

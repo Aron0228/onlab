@@ -91,6 +91,19 @@
     height: 100dvh;
     box-sizing: border-box;
   }
+
+  &.--overflow-y-auto {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+      background: transparent;
+    }
+  }
 }
 
 .margin-left-auto {
@@ -151,4 +164,16 @@
 
 .color-primary-500 {
   color: var(--color-primary-500);
+}
+
+.color-error {
+  color: var(--color-error);
+}
+
+.width-fit-content {
+  width: fit-content;
+}
+
+.height-fit-content {
+  height: fit-content;
 }

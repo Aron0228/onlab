@@ -1,10 +1,11 @@
 import type { TOC } from '@ember/component/template-only';
 import { pageTitle } from 'ember-page-title';
 import RoutesWorkspacesNew from 'client/components/routes/workspaces/new';
+import type WorkspaceModel from 'client/models/workspace';
 
 interface NewSignature {
   Args: {
-    model: unknown;
+    model: WorkspaceModel;
     controller: unknown;
   };
 }
@@ -12,5 +13,5 @@ interface NewSignature {
 <template>
   {{pageTitle "New"}}
   {{outlet}}
-  <RoutesWorkspacesNew />
+  <RoutesWorkspacesNew @model={{@model}} />
 </template> satisfies TOC<NewSignature>;

@@ -26,6 +26,7 @@ const LOCALES: Locale[] = [
 
 type ApplicationSessionService = {
   setup(): Promise<void>;
+  invalidate(): Promise<void>;
   isAuthenticated: boolean;
   data: {
     authenticated?: {
@@ -37,14 +38,19 @@ type ApplicationSessionService = {
 export default class ApplicationRoute extends Route {
   @service
   intl!: IntlService;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  @service flashMessages!: any;
 
   @service declare router: RouterService;
   @service declare session: ApplicationSessionService;
-  @service declare sessionAccount: {hydrate(data?: ApplicationSessionService['data']): void; clear(): void;};
+  @service declare sessionAccount: {
+    hydrate(data?: ApplicationSessionService['data']): Promise<void>;
+    clear(): void;
+  };
 
   async beforeModel(transition: Transition) {
     await this.session.setup();
-    this.syncSessionAccount();
+    await this.syncSessionAccount();
     await this.loadTranslations();
     const saved = this.getSavedLocale();
 
@@ -88,12 +94,49 @@ export default class ApplicationRoute extends Route {
     moment.locale(locale.momentLocale);
   }
 
-  private syncSessionAccount(): void {
+  private async syncSessionAccount(): Promise<void> {
     if (!this.session.isAuthenticated) {
       this.sessionAccount.clear();
       return;
     }
 
-    this.sessionAccount.hydrate(this.session.data);
+    try {
+      await this.sessionAccount.hydrate(this.session.data);
+    } catch (error: unknown) {
+      if (!this.isUnauthorizedError(error)) {
+        throw error;
+      }
+
+      this.sessionAccount.clear();
+      await this.session.invalidate();
+      this.router.transitionTo('auth.login');
+    }
+  }
+
+  private isUnauthorizedError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const possibleStatus = (error as Error & {status?: number}).status;
+
+    if (possibleStatus === 401) {
+      return true;
+    }
+
+    const errors = (error as Error & {errors?: Array<{status?: string | number}>})
+      .errors;
+
+    if (
+      Array.isArray(errors) &&
+      errors.some(
+        nestedError =>
+          nestedError.status === 401 || nestedError.status === '401',
+      )
+    ) {
+      return true;
+    }
+
+    return /401|unauthorized/i.test(error.message);
   }
 }
