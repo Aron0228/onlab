@@ -1,3 +1,9 @@
+ignore:
+  - "api/src/__tests__/**"
+  - "api/src/**/*.test.ts"
+  - "api/src/**/*.spec.ts"
+  - "api/src/**/index.ts"
+
 coverage:
   status:
     project:
