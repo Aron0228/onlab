@@ -1,6 +1,7 @@
 import {belongsTo, Entity, model, property} from '@loopback/repository';
 import {User} from '../auth';
 import {Workspace} from './workspace.model';
+import {WorkspaceMemberRole} from '../../constants';
 
 @model({
   settings: {
@@ -43,7 +44,7 @@ export class WorkspaceMember extends Entity {
     },
     postgresql: {columnName: 'role'},
   })
-  role?: 'ADMIN' | 'MEMBER';
+  role?: WorkspaceMemberRole;
 
   constructor(data?: Partial<WorkspaceMember>) {
     super(data);
