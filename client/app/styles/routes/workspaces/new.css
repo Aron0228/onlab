@@ -1,0 +1,57 @@
+.route-workspaces-new {
+  background: var(--bg-sidebar);
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+  }
+
+  .body {
+    flex: 1;
+    background: var(--bg-app);
+    padding: var(--space-md);
+  }
+
+  .footer {
+    display: flex;
+    padding: var(--space-md);
+    background: var(--bg-app);
+    align-items: stretch;
+    justify-content: flex-end;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+}
+
+/* Ezeket avatar-ba */
+
+.workspace-new-avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.workspace-new-avatar__preview {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #14b8a6, #3b82f6);
+  display: grid;
+  place-items: center;
+}
+
+.workspace-new-avatar__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workspace-new-avatar__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
