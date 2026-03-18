@@ -142,7 +142,12 @@ export default class RoutesClientDebug extends Component {
         {{#if this.users.length}}
           <ul>
             {{#each this.users as |user|}}
-              <li>#{{user.id}} {{user.username}} ({{user.email}})</li>
+              <li>
+                #{{user.id}}
+                {{or user.fullName user.username}}
+                ({{user.username}})
+                ({{user.email}})
+              </li>
             {{/each}}
           </ul>
         {{else}}

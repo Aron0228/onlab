@@ -3,6 +3,7 @@ import UiAvatar from 'client/components/ui/avatar';
 import { LinkTo } from '@ember/routing';
 import { inject as service } from '@ember/service';
 import { hash } from '@ember/helper';
+import { or } from 'ember-truth-helpers';
 import type UserModel from 'client/models/user';
 
 export interface RouteProfileSignature {
@@ -38,7 +39,7 @@ export default class RouteProfile extends Component<RouteProfileSignature> {
       >
         <div class="route-profile-component__meta">
           <h3 class="route-profile-component__title margin-zero">
-            {{this.user.username}}
+            {{or this.user.fullName this.user.username}}
           </h3>
           <span class="route-profile-component__subtitle">
             {{this.user.email}}

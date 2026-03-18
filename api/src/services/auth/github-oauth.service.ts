@@ -190,6 +190,13 @@ export class GithubOauthService {
 
   private async getOrCreateUser(githubUser: GithubUserResponse): Promise<User> {
     const userRepository = await this.userRepositoryGetter();
+    const userDTO: DataObject<User> = {
+      githubId: githubUser.id,
+      username: githubUser.login,
+      fullName: githubUser.name ?? githubUser.login,
+      email: githubUser.email,
+      avatarUrl: githubUser.avatar_url,
+    };
 
     const existingUser = await userRepository.findOne({
       where: {
@@ -198,15 +205,9 @@ export class GithubOauthService {
     });
 
     if (existingUser) {
-      return existingUser;
+      await userRepository.updateById(existingUser.id, userDTO);
+      return userRepository.findById(existingUser.id);
     }
-
-    const userDTO: DataObject<User> = {
-      githubId: githubUser.id,
-      username: githubUser.name ?? `User${githubUser.id}`,
-      email: githubUser.email,
-      avatarUrl: githubUser.avatar_url,
-    };
 
     return userRepository.create(userDTO);
   }

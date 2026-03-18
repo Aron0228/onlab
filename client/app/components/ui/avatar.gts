@@ -13,6 +13,7 @@ import { eq } from 'ember-truth-helpers';
 interface AvatarModelLike {
   avatarUrl?: string;
   name?: string;
+  fullName?: string;
   username?: string;
   id?: string | number;
 }
@@ -110,7 +111,9 @@ export default class UiAvatar extends Component<UiAvatarSignature> {
   get alt(): string {
     const model = this.args.model;
 
-    return String(model?.name ?? model?.username ?? model?.id ?? 'Avatar');
+    return String(
+      model?.name ?? model?.fullName ?? model?.username ?? model?.id ?? 'Avatar'
+    );
   }
 
   get hasImage(): boolean {

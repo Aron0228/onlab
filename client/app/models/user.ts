@@ -7,6 +7,7 @@ export default class UserModel extends Model {
 
   @attr('number') declare githubId: number;
   @attr('string') declare username: string;
+  @attr('string') declare fullName: string;
   @attr('string') declare email: string;
   @attr('string') declare avatarUrl: string;
 }

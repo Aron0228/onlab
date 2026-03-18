@@ -32,6 +32,13 @@ export class User extends Entity {
   @property({
     type: 'string',
     required: true,
+    postgresql: {columnName: 'full_name'},
+  })
+  fullName: string;
+
+  @property({
+    type: 'string',
+    required: true,
     postgresql: {columnName: 'email'},
   })
   email: string;
