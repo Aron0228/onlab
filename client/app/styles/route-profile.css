@@ -1,0 +1,42 @@
+.route-profile-component {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--space-sm);
+  border-radius: var(--radius-lg);
+
+  .route-profile-component__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-xs);
+    min-width: 0;
+    text-align: right;
+  }
+
+  .route-profile-component__title {
+    font-size: var(--text-lg);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .route-profile-component__subtitle {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ui-avatar-frame {
+    margin-left: auto;
+  }
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+}

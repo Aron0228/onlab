@@ -12,8 +12,10 @@ Router.map(function () {
     this.route('login');
     this.route('callback');
   });
+  this.route('profile');
   this.route('workspaces', function () {
     this.route('new');
+    this.route('edit', { path: '/:id' });
   });
   this.route('debug', function () {
     this.route('client');
