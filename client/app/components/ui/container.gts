@@ -5,6 +5,7 @@ interface UiContainerSignature {
   Args: {
     title?: string;
     bordered?: boolean;
+    variant?: 'default' | 'primary' | 'info' | 'warning' | 'error';
   };
   Element: HtmlDivElement;
 }
@@ -12,8 +13,9 @@ interface UiContainerSignature {
 export default class UiContainer extends Component<UiContainerSignature> {
   get containerClass() {
     const bordered = this.args.bordered ?? false;
+    const variant = this.args.variant ?? 'default';
 
-    return `ui-container${bordered ? ' --bordered' : ''}`;
+    return `ui-container${bordered ? ' --bordered' : ''} --${variant}`;
   }
 
   <template>
