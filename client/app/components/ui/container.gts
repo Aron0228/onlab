@@ -19,7 +19,7 @@ export default class UiContainer extends Component<UiContainerSignature> {
   }
 
   <template>
-    <div class={{this.containerClass}}>
+    <div class={{this.containerClass}} ...attributes>
       {{#if (or @title (has-block "header"))}}
         <div class="ui-container__header">
           {{#if (has-block "header")}}
@@ -29,7 +29,7 @@ export default class UiContainer extends Component<UiContainerSignature> {
           {{/if}}
         </div>
       {{/if}}
-      <div class="ui-container__body" ...attributes>
+      <div class="ui-container__body">
         {{yield}}
       </div>
     </div>

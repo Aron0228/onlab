@@ -92,33 +92,35 @@ export default class RoutesWorkspacesIndexInvitationCard extends Component<Route
 
   <template>
     {{#if this.workspace}}
-      <UiContainer @bordered={{true}} class="layout-horizontal --gap-md">
-        <UiAvatar @model={{this.workspace}} @squared={{true}} />
-        <div class="layout-vertical --gap-sm">
-          <h3 class="margin-zero">{{this.workspace.name}}</h3>
+      <UiContainer @bordered={{true}}>
+        <div class="layout-horizontal --gap-md">
+          <UiAvatar @model={{this.workspace}} @squared={{true}} />
+          <div class="layout-vertical --gap-sm">
+            <h3 class="margin-zero">{{this.workspace.name}}</h3>
 
-          <span
-            class="layout-horizontal --gap-sm font-color-text-muted font-size-text-md"
-          >
-            <UiIcon @name="users" />
-            {{@memberCount}}
-          </span>
-        </div>
+            <span
+              class="layout-horizontal --gap-sm font-color-text-muted font-size-text-md"
+            >
+              <UiIcon @name="users" />
+              {{@memberCount}}
+            </span>
+          </div>
 
-        <div class="layout-horizontal --gap-sm margin-left-auto">
-          <UiButton
-            @text="Accept"
-            @onClick={{this.acceptInvitationTask.perform}}
-            @loading={{this.acceptInvitationTask.isRunning}}
-            @disabled={{this.declineInvitationTask.isRunning}}
-          />
-          <UiButton
-            @text="Decline"
-            @hierarchy="secondary"
-            @onClick={{this.declineInvitationTask.perform}}
-            @loading={{this.declineInvitationTask.isRunning}}
-            @disabled={{this.acceptInvitationTask.isRunning}}
-          />
+          <div class="layout-horizontal --gap-sm margin-left-auto">
+            <UiButton
+              @text="Accept"
+              @onClick={{this.acceptInvitationTask.perform}}
+              @loading={{this.acceptInvitationTask.isRunning}}
+              @disabled={{this.declineInvitationTask.isRunning}}
+            />
+            <UiButton
+              @text="Decline"
+              @hierarchy="secondary"
+              @onClick={{this.declineInvitationTask.perform}}
+              @loading={{this.declineInvitationTask.isRunning}}
+              @disabled={{this.acceptInvitationTask.isRunning}}
+            />
+          </div>
         </div>
       </UiContainer>
     {{/if}}

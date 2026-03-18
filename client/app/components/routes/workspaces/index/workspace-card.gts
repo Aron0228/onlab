@@ -24,24 +24,26 @@ export default class RoutesWorkspacesIndexWorkspaceCard extends Component<Routes
 
   <template>
     <LinkTo @route="workspaces.edit" @model={{@model.id}}>
-      <UiContainer @bordered={{true}} class="layout-horizontal --gap-md">
-        <UiAvatar @model={{@model}} @squared={{true}} />
-        <div class="layout-vertical --gap-sm">
-          <h3 class="margin-zero">{{@model.name}}</h3>
+      <UiContainer @bordered={{true}} class="">
+        <div class="layout-horizontal --gap-md">
+          <UiAvatar @model={{@model}} @squared={{true}} />
+          <div class="layout-vertical --gap-sm">
+            <h3 class="margin-zero">{{@model.name}}</h3>
 
-          <span
-            class="layout-horizontal --gap-sm font-color-text-muted font-size-text-md"
-          >
-            <UiIcon @name="users" />
-            {{@memberCount}}
-          </span>
-        </div>
-
-        {{#if @role}}
-          <div class="layout-horizontal --gap-sm margin-left-auto">
-            <div class="workspace-role --{{this.roleClass}}">{{@role}}</div>
+            <span
+              class="layout-horizontal --gap-sm font-color-text-muted font-size-text-md"
+            >
+              <UiIcon @name="users" />
+              {{@memberCount}}
+            </span>
           </div>
-        {{/if}}
+
+          {{#if @role}}
+            <div class="layout-horizontal --gap-sm margin-left-auto">
+              <div class="workspace-role --{{this.roleClass}}">{{@role}}</div>
+            </div>
+          {{/if}}
+        </div>
       </UiContainer>
     </LinkTo>
   </template>

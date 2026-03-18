@@ -12,7 +12,7 @@
   }
 
   &.--primary {
-    background-color: var(--color-info-bg);
+    background-color: var(--color-accent-subtle);
 
     &.--bordered {
       border-color: var(--color-primary-600);
