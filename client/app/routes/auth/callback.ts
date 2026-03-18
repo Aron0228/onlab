@@ -18,7 +18,7 @@ export default class AuthCallbackRoute extends Route {
   @service declare session: AuthCallbackSessionService;
   @service declare router: RouterService;
   @service declare sessionAccount: {
-    hydrate(data?: { authenticated?: { userId?: number } }): void;
+    hydrate(data?: { authenticated?: { userId?: number } }): Promise<void>;
   };
 
   async beforeModel(transition: Transition) {
@@ -34,7 +34,7 @@ export default class AuthCallbackRoute extends Route {
       };
 
       await this.session.authenticate('authenticator:token', authenticated);
-      this.sessionAccount.hydrate({ authenticated });
+      await this.sessionAccount.hydrate({ authenticated });
 
       this.router.transitionTo('workspaces');
     } else {

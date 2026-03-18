@@ -37,14 +37,19 @@ type ApplicationSessionService = {
 export default class ApplicationRoute extends Route {
   @service
   intl!: IntlService;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  @service flashMessages!: any;
 
   @service declare router: RouterService;
   @service declare session: ApplicationSessionService;
-  @service declare sessionAccount: {hydrate(data?: ApplicationSessionService['data']): void; clear(): void;};
+  @service declare sessionAccount: {
+    hydrate(data?: ApplicationSessionService['data']): Promise<void>;
+    clear(): void;
+  };
 
   async beforeModel(transition: Transition) {
     await this.session.setup();
-    this.syncSessionAccount();
+    await this.syncSessionAccount();
     await this.loadTranslations();
     const saved = this.getSavedLocale();
 
@@ -88,12 +93,12 @@ export default class ApplicationRoute extends Route {
     moment.locale(locale.momentLocale);
   }
 
-  private syncSessionAccount(): void {
+  private async syncSessionAccount(): Promise<void> {
     if (!this.session.isAuthenticated) {
       this.sessionAccount.clear();
       return;
     }
 
-    this.sessionAccount.hydrate(this.session.data);
+    await this.sessionAccount.hydrate(this.session.data);
   }
 }
