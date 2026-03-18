@@ -4,13 +4,15 @@ import RoutesProfile from 'client/components/routes/profile';
 
 interface ProfileSignature {
   Args: {
-    model: unknown;
+    model: {
+      routeBack: string;
+    };
     controller: unknown;
   };
 }
 
 <template>
   {{pageTitle "Profile"}}
-  <RoutesProfile />
+  <RoutesProfile @routeBack={{@model.routeBack}} />
   {{outlet}}
 </template> satisfies TOC<ProfileSignature>;

@@ -13,6 +13,8 @@ import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
 import UiAvatar from 'client/components/ui/avatar';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
+import RouteProfile from 'client/components/route-profile';
+import UiLanguageSelector from 'client/components/ui/language-selector';
 import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
 import { and, not } from 'ember-truth-helpers';
@@ -125,10 +127,10 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
           </div>
         </div>
         <div class="layout-horizontal --gap-md maring-left-auto">
+          <UiLanguageSelector />
           <UiThemeSwitcher />
-          <LinkTo @route="profile">
-            <UiAvatar @model={{this.sessionAccount.user}} @size="sm" />
-          </LinkTo>
+          <hr class="separator --vertical" />
+          <RouteProfile @routeBack="workspaces.new" />
         </div>
       </div>
       <div class="body">

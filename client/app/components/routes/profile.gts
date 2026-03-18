@@ -7,7 +7,9 @@ import UiIconButton from 'client/components/ui/icon-button';
 
 export interface RoutesProfileSignature {
   // The arguments accepted by the component
-  Args: {};
+  Args: {
+    routeBack: string;
+  };
   // Any blocks yielded by the component
   Blocks: {
     default: [];
@@ -25,7 +27,7 @@ export default class RoutesProfile extends Component<RoutesProfileSignature> {
         <div class="layout-horizontal --gap-md">
           <UiIconButton
             @iconName="arrow-narrow-left"
-            @route="workspaces.index"
+            @route={{@routeBack}}
             @iconSize="md"
           />
           <div class="layout-vertical --gap-sm">
