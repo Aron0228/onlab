@@ -6,6 +6,8 @@ import type UserModel from 'client/models/user';
 import { or } from 'ember-truth-helpers';
 import { on } from '@ember/modifier';
 import UiFileUpload from 'client/components/ui/file-upload';
+import UiAvatar from 'client/components/ui/avatar';
+import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { array } from '@ember/helper';
 
 type SessionServiceLike = {
@@ -33,6 +35,12 @@ export default class RoutesClientDebug extends Component {
   @tracked isLoadingUsers = false;
   @tracked isInvalidating = false;
 
+  constructor(owner: unknown, args: unknown) {
+    super(owner, args);
+
+    this.loadUsers();
+  }
+
   get tokenPreview(): string {
     const token = this.session.data.authenticated.token;
 
@@ -45,6 +53,10 @@ export default class RoutesClientDebug extends Component {
     }
 
     return `${token.slice(0, 12)}...${token.slice(-12)}`;
+  }
+
+  get account() {
+    return this.users[0];
   }
 
   @action async loadUsers(): Promise<void> {
@@ -83,9 +95,12 @@ export default class RoutesClientDebug extends Component {
 
   <template>
     <section class="layout-vertical --gap-md --padding-md">
+      <UiLoadingSpinner @backdrop={{false}} />
       <h1>Client Debug</h1>
       <p>Use this route to verify session restoration and authenticated store
         requests.</p>
+
+      <UiAvatar @model={{this.account}} />
 
       <div class="layout-vertical --gap-xs">
         <p><strong>Authenticated:</strong>
