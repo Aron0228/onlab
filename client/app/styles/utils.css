@@ -91,6 +91,19 @@
     height: 100dvh;
     box-sizing: border-box;
   }
+
+  &.--overflow-y-auto {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+      background: transparent;
+    }
+  }
 }
 
 .margin-left-auto {

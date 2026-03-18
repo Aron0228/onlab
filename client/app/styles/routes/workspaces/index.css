@@ -6,12 +6,44 @@
     justify-content: space-between;
     align-items: center;
     padding: var(--space-md);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-sidebar);
   }
 
   .body {
     flex: 1;
     background: var(--bg-app);
-    padding: var(--space-md);
+    padding: var(--space-md) var(--space-xl);
+
+    .workspace-role {
+      border-radius: var(--radius-md);
+      padding: var(--space-xs);
+
+      &.--owner {
+        color: var(--color-error);
+        background: var(--color-error-bg);
+      }
+
+      &.--admin {
+        color: var(--color-success);
+        background: var(--color-success-bg);
+      }
+
+      &.--member {
+        color: var(--color-info);
+        background: var(--color-info-bg);
+      }
+    }
+
+    .ui-container:hover {
+      background: var(--bg-hover);
+    }
+
+    .ui-container:hover .hover-target {
+      color: var(--color-primary-600);
+    }
 
     .new-workspace {
       appearance: none;
