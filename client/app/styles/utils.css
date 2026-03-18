@@ -169,3 +169,11 @@
 .color-error {
   color: var(--color-error);
 }
+
+.width-fit-content {
+  width: fit-content;
+}
+
+.height-fit-content {
+  height: fit-content;
+}
