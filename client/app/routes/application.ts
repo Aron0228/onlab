@@ -26,6 +26,7 @@ const LOCALES: Locale[] = [
 
 type ApplicationSessionService = {
   setup(): Promise<void>;
+  invalidate(): Promise<void>;
   isAuthenticated: boolean;
   data: {
     authenticated?: {
@@ -99,6 +100,43 @@ export default class ApplicationRoute extends Route {
       return;
     }
 
-    await this.sessionAccount.hydrate(this.session.data);
+    try {
+      await this.sessionAccount.hydrate(this.session.data);
+    } catch (error: unknown) {
+      if (!this.isUnauthorizedError(error)) {
+        throw error;
+      }
+
+      this.sessionAccount.clear();
+      await this.session.invalidate();
+      this.router.transitionTo('auth.login');
+    }
+  }
+
+  private isUnauthorizedError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const possibleStatus = (error as Error & {status?: number}).status;
+
+    if (possibleStatus === 401) {
+      return true;
+    }
+
+    const errors = (error as Error & {errors?: Array<{status?: string | number}>})
+      .errors;
+
+    if (
+      Array.isArray(errors) &&
+      errors.some(
+        nestedError =>
+          nestedError.status === 401 || nestedError.status === '401',
+      )
+    ) {
+      return true;
+    }
+
+    return /401|unauthorized/i.test(error.message);
   }
 }
