@@ -1,5 +1,12 @@
-import {belongsTo, Entity, model, property} from '@loopback/repository';
+import {
+  belongsTo,
+  Entity,
+  hasMany,
+  model,
+  property,
+} from '@loopback/repository';
 import {Workspace} from '../system';
+import {GithubIssue} from './issue.model';
 
 @model({
   settings: {
@@ -47,12 +54,16 @@ export class GithubRepository extends Entity {
   })
   fullName: string;
 
+  @hasMany(() => GithubIssue, {keyTo: 'repositoryId'})
+  issues?: GithubIssue[];
+
   constructor(data?: Partial<GithubRepository>) {
     super(data);
   }
 }
 
 export type GithubRepositoryRelations = {
+  issues?: GithubIssue[];
   workspace?: Workspace;
 };
 
