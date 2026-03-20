@@ -21,6 +21,7 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
   typeof GithubRepository.prototype.id,
   GithubRepositoryRelations
 > {
+  private readonly githubIssueRepositoryGetter: Getter<GithubIssueRepository>;
   public readonly workspace: BelongsToAccessor<
     Workspace,
     typeof GithubRepository.prototype.id
@@ -38,6 +39,7 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
     githubIssueRepositoryGetter: Getter<GithubIssueRepository>,
   ) {
     super(GithubRepository, dataSource);
+    this.githubIssueRepositoryGetter = githubIssueRepositoryGetter;
 
     this.workspace = this.createBelongsToAccessorFor(
       'workspace',
@@ -50,5 +52,14 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
     );
 
     registerInclusionResolvers(GithubRepository, this);
+  }
+
+  public async deleteCascade(
+    repositoryId: typeof GithubRepository.prototype.id,
+  ): Promise<void> {
+    const githubIssueRepository = await this.githubIssueRepositoryGetter();
+
+    await githubIssueRepository.deleteAll({repositoryId});
+    await this.deleteById(repositoryId);
   }
 }

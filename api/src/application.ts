@@ -19,6 +19,15 @@ import {
 } from '@loopback/authentication';
 import {JwtTokenStrategy} from './strategies/jwt-token.strategy';
 import {QueryTokenStrategy} from './strategies/query-token.strategy';
+import {
+  GithubService,
+  GithubWebhookService,
+  GithubOauthService,
+  IssueService,
+  JwtTokenService,
+  QueueService,
+  RedisService,
+} from './services';
 
 export {ApplicationConfig};
 
@@ -50,6 +59,14 @@ export class RestApi extends BootMixin(
     this.component(RestExplorerComponent);
     this.component(JWTAuthenticationComponent);
     this.component(AuthenticationComponent);
+
+    this.service(RedisService);
+    this.service(QueueService);
+    this.service(JwtTokenService);
+    this.service(GithubOauthService);
+    this.service(GithubService);
+    this.service(GithubWebhookService);
+    this.service(IssueService);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here

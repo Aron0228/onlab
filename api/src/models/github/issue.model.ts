@@ -29,7 +29,7 @@ export class GithubIssue extends Entity {
   @property({
     type: 'number',
     required: true,
-    postgresql: {columnName: 'github_id'},
+    postgresql: {columnName: 'github_id', dataType: 'bigint'},
   })
   githubId: number;
 

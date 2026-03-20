@@ -36,7 +36,7 @@ export class GithubRepository extends Entity {
   @property({
     type: 'number',
     required: true,
-    postgresql: {columnName: 'github_repo_id'},
+    postgresql: {columnName: 'github_repo_id', dataType: 'bigint'},
   })
   githubRepoId: number;
 
