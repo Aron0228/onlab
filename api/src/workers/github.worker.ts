@@ -107,8 +107,9 @@ async function syncRepositoryIssues(
 
   let page = 1;
   let loggedSample = false;
+  let hasMoreIssues = true;
 
-  while (true) {
+  while (hasMoreIssues) {
     const issues = await githubService.listRepositoryIssuesPage(
       installationId,
       repository.fullName,
@@ -127,11 +128,11 @@ async function syncRepositoryIssues(
 
     await issueService.saveIssuesBulk(records);
 
-    if (issues.length < ISSUE_BATCH_SIZE) {
-      break;
-    }
+    hasMoreIssues = issues.length === ISSUE_BATCH_SIZE;
 
-    page += 1;
+    if (hasMoreIssues) {
+      page += 1;
+    }
   }
 }
 
