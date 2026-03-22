@@ -14,6 +14,7 @@ Router.map(function () {
   });
   this.route('profile');
   this.route('workspaces', function () {
+    this.route('callback');
     this.route('new');
     this.route('edit', { path: '/:id' });
   });

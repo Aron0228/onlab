@@ -15,16 +15,22 @@ export default class ApiService extends Service {
     return import.meta.env.VITE_API_URL as string;
   }
 
-  async request(url: string, options: RequestOptions = {}): Promise<unknown> {
-    const { method = 'GET', body, params } = options;
-
-    const fullUrl = new URL(url, this.baseUrl);
+  buildUrl(path: string, params?: Record<string, string>): URL {
+    const fullUrl = new URL(path, this.baseUrl);
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         fullUrl.searchParams.set(key, value);
       });
     }
+
+    return fullUrl;
+  }
+
+  async request(url: string, options: RequestOptions = {}): Promise<unknown> {
+    const { method = 'GET', body, params } = options;
+
+    const fullUrl = this.buildUrl(url, params);
 
     const headers: Record<string, string> = {};
 

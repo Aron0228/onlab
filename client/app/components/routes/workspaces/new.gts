@@ -16,12 +16,13 @@ import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import RouteProfile from 'client/components/route-profile';
 import UiLanguageSelector from 'client/components/ui/language-selector';
 import { LinkTo } from '@ember/routing';
-import { on } from '@ember/modifier';
-import { and, not } from 'ember-truth-helpers';
+import { not } from 'ember-truth-helpers';
 
 export interface RoutesWorkspacesNewSignature {
   // The arguments accepted by the component
-  Args: {};
+  Args: {
+    model: WorkspaceModel;
+  };
   // Any blocks yielded by the component
   Blocks: {
     default: [];
@@ -30,39 +31,66 @@ export interface RoutesWorkspacesNewSignature {
   Element: null;
 }
 
+type SavedFileResponse = {
+  id: number;
+};
+
+type StoreLike = {
+  saveRecord(record: WorkspaceModel): Promise<WorkspaceModel>;
+};
+
+type ApiServiceLike = {
+  buildUrl(path: string, params?: Record<string, string>): URL;
+  request(
+    path: string,
+    options: {
+      method: string;
+      body?: FormData;
+      params?: Record<string, string>;
+    }
+  ): Promise<SavedFileResponse>;
+};
+
+type SessionServiceLike = {
+  data: {
+    authenticated?: {
+      token?: string;
+    };
+  };
+};
+
+type FlashMessagesServiceLike = {
+  danger(message: string, options?: { title?: string }): void;
+};
+
 export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSignature> {
-  @service store;
-  @service api;
-  @service session;
-  @service sessionAccount;
-  @service router;
-  @service flashMessages;
+  @service declare store: StoreLike;
+  @service declare api: ApiServiceLike;
+  @service declare session: SessionServiceLike;
+  @service declare flashMessages: FlashMessagesServiceLike;
 
   @tracked selectedAvatarFile: File | null = null;
 
   saveRecordTask = task(async () => {
+    // This route still uses the existing legacy store save flow.
+    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     const workspace = await this.store.saveRecord(this.args.model);
 
-    if (!this.selectedAvatarFile) {
-      return;
+    if (this.selectedAvatarFile) {
+      const fileRecord = await this.uploadAvatar(
+        workspace.id,
+        this.selectedAvatarFile
+      );
+
+      const previewUrl = this.api.buildUrl(`/files/${fileRecord.id}/preview`);
+
+      workspace.avatarUrl = previewUrl.toString();
+
+      // eslint-disable-next-line warp-drive/no-legacy-request-patterns
+      await this.store.saveRecord(workspace);
     }
 
-    const fileRecord = await this.uploadAvatar(
-      workspace.id,
-      this.selectedAvatarFile
-    );
-
-    const apiHost =
-      (import.meta.env.VITE_API_URL as string) ?? 'http://localhost:30022';
-    const previewUrl = new URL(`${apiHost}/files/${fileRecord.id}/preview`);
-
-    workspace.avatarUrl = previewUrl.toString();
-
-    await this.store.saveRecord(workspace);
-
-    this.flashMessages.success('Your workspace has been save successfully!', {
-      title: 'Success',
-    });
+    this.redirectToGithubAppInstallation(workspace.id);
   });
 
   async uploadAvatar(workspaceId: number, file: File) {
@@ -91,6 +119,13 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
     this.selectedAvatarFile = file;
   }
 
+  redirectToGithubAppInstallation(workspaceId: number) {
+    const installUrl = this.api.buildUrl('/github/installApp', {
+      workspaceId: String(workspaceId),
+    });
+    globalThis.location.assign(installUrl.toString());
+  }
+
   @action
   updateWorkspaceName(value: string): void {
     this.args.model.name = value;
@@ -100,8 +135,13 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
   onSubmit(event: SubmitEvent) {
     event.preventDefault();
 
-    this.saveRecordTask.perform().catch((error) => {
-      this.flashMessages.danger(error.message, {
+    this.saveRecordTask.perform().catch((error: unknown) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Workspace creation failed. Please try again.';
+
+      this.flashMessages.danger(message, {
         title: 'An error occured',
       });
     });
@@ -160,10 +200,10 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
       </div>
       <div class="footer">
         <UiButton
-          @text="Create Workspace"
+          @text="Create Workspace & Install GitHub App"
           @onClick={{this.onSubmit}}
           @type="submit"
-          @disabled={{not (and this.selectedAvatarFile @model.name)}}
+          @disabled={{not @model.name}}
           form="workspaceForm"
         />
       </div>
