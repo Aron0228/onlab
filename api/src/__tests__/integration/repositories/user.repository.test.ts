@@ -18,10 +18,7 @@ describe('UserRepository (integration)', () => {
 
   beforeAll(async () => {
     ({app, dataSource} = await setupRepositoryTestApp());
-    repository = await getTestRepository<UserRepository>(
-      app,
-      'UserRepository',
-    );
+    repository = await getTestRepository<UserRepository>(app, 'UserRepository');
   });
 
   beforeEach(async () => {

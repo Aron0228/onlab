@@ -41,7 +41,8 @@ describe('WorkspaceRepository (integration)', () => {
     await teardownRepositoryTestApp(app, dataSource);
   });
 
-  const createWorkspace = () => createTestWorkspace(workspaceRepository, userId);
+  const createWorkspace = () =>
+    createTestWorkspace(workspaceRepository, userId);
 
   it('creates workspaces', async () => {
     await createWorkspace();

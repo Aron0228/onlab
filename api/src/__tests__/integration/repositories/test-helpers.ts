@@ -23,8 +23,7 @@ const TEST_TABLES = [
 const TEST_POSTGRES_HOST = process.env.POSTGRES_TEST_HOST ?? 'localhost';
 const TEST_POSTGRES_PORT = Number(process.env.POSTGRES_TEST_PORT ?? 5432);
 const TEST_POSTGRES_USER = process.env.POSTGRES_TEST_USER ?? 'postgres';
-const TEST_POSTGRES_PASSWORD =
-  process.env.POSTGRES_TEST_PASSWORD ?? 'postgres';
+const TEST_POSTGRES_PASSWORD = process.env.POSTGRES_TEST_PASSWORD ?? 'postgres';
 const TEST_POSTGRES_DATABASE =
   process.env.POSTGRES_TEST_DATABASE ?? 'onlab_test';
 
@@ -67,7 +66,8 @@ export const setupRepositoryTestApp = async (
     currentUser?: UserProfile | undefined;
   } = {},
 ) => {
-  let currentUser = options.currentUser ?? givenCurrentUser();
+  let currentUser: UserProfile | undefined =
+    options.currentUser ?? givenCurrentUser();
   const app = new RestApi();
   const dataSource = createTestDataSource();
 
@@ -75,9 +75,9 @@ export const setupRepositoryTestApp = async (
   app.bind('datasources.config.postgresDB').to(dataSource.settings);
   app.unbind('datasources.postgresDB');
   app.bind('datasources.postgresDB').to(dataSource);
-  app.bind(AuthenticationBindings.CURRENT_USER).toDynamicValue(
-    async () => currentUser,
-  );
+  app
+    .bind(AuthenticationBindings.CURRENT_USER)
+    .toDynamicValue(async () => currentUser);
   registerRepositories(app);
 
   return {
