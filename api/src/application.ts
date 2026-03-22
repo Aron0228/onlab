@@ -25,6 +25,8 @@ import {
   GithubOauthService,
   IssueService,
   JwtTokenService,
+  LabelService,
+  PullRequestService,
   QueueService,
   RedisService,
 } from './services';
@@ -67,6 +69,8 @@ export class RestApi extends BootMixin(
     this.service(GithubService);
     this.service(GithubWebhookService);
     this.service(IssueService);
+    this.service(LabelService);
+    this.service(PullRequestService);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here

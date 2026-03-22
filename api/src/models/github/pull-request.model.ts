@@ -1,13 +1,14 @@
 import {belongsTo, Entity, model, property} from '@loopback/repository';
+import {User} from '../auth';
 import {GithubRepository} from './repository.model';
 
 @model({
   settings: {
     forceId: false,
-    postgresql: {schema: 'github', table: 'issue'},
+    postgresql: {schema: 'github', table: 'pull_request'},
   },
 })
-export class GithubIssue extends Entity {
+export class GithubPullRequest extends Entity {
   @property({
     type: 'number',
     id: true,
@@ -29,16 +30,9 @@ export class GithubIssue extends Entity {
   @property({
     type: 'number',
     required: true,
-    postgresql: {columnName: 'github_id', dataType: 'bigint'},
+    postgresql: {columnName: 'github_pr_number'},
   })
-  githubId: number;
-
-  @property({
-    type: 'number',
-    required: true,
-    postgresql: {columnName: 'github_issue_number'},
-  })
-  githubIssueNumber: number;
+  githubPrNumber: number;
 
   @property({
     type: 'string',
@@ -60,13 +54,25 @@ export class GithubIssue extends Entity {
   })
   description: string;
 
-  constructor(data?: Partial<GithubIssue>) {
+  @belongsTo(
+    () => User,
+    {},
+    {
+      type: 'number',
+      postgresql: {columnName: 'author_id'},
+    },
+  )
+  authorId?: number | null;
+
+  constructor(data?: Partial<GithubPullRequest>) {
     super(data);
   }
 }
 
-export type GithubIssueRelations = {
+export type GithubPullRequestRelations = {
   repository?: GithubRepository;
+  author?: User;
 };
 
-export type GithubIssueWithRelations = GithubIssue & GithubIssueRelations;
+export type GithubPullRequestWithRelations = GithubPullRequest &
+  GithubPullRequestRelations;

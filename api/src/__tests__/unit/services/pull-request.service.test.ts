@@ -1,0 +1,114 @@
+import {beforeEach, describe, expect, it, vi} from 'vitest';
+
+import {PullRequestService} from '../../../services';
+
+describe('PullRequestService (unit)', () => {
+  let githubPullRequestRepository: {
+    deleteAll: ReturnType<typeof vi.fn>;
+    findOne: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    updateById: ReturnType<typeof vi.fn>;
+    createAll: ReturnType<typeof vi.fn>;
+  };
+  let service: PullRequestService;
+
+  beforeEach(() => {
+    githubPullRequestRepository = {
+      deleteAll: vi.fn().mockResolvedValue(undefined),
+      findOne: vi.fn(),
+      create: vi.fn().mockResolvedValue(undefined),
+      updateById: vi.fn().mockResolvedValue(undefined),
+      createAll: vi.fn().mockResolvedValue(undefined),
+    };
+
+    service = new PullRequestService(githubPullRequestRepository as never);
+  });
+
+  it('creates a pull request when upsert does not find an existing row', async () => {
+    githubPullRequestRepository.findOne.mockResolvedValue(null);
+
+    await service.upsertPullRequest(
+      {
+        repositoryId: 1,
+        githubPrNumber: 7,
+        title: 'Ship it',
+        status: 'open',
+        description: 'Ready',
+        authorId: 3,
+      },
+      {repositoryId: 1, githubPrNumber: 7},
+    );
+
+    expect(githubPullRequestRepository.create).toHaveBeenCalledWith({
+      repositoryId: 1,
+      githubPrNumber: 7,
+      title: 'Ship it',
+      status: 'open',
+      description: 'Ready',
+      authorId: 3,
+    });
+    expect(githubPullRequestRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it('updates a pull request when upsert finds an existing row', async () => {
+    githubPullRequestRepository.findOne.mockResolvedValue({id: 4});
+
+    await service.upsertPullRequest(
+      {
+        repositoryId: 1,
+        githubPrNumber: 7,
+        title: 'Ship it',
+        status: 'merged',
+        description: 'Done',
+        authorId: null,
+      },
+      {repositoryId: 1, githubPrNumber: 7},
+    );
+
+    expect(githubPullRequestRepository.updateById).toHaveBeenCalledWith(4, {
+      repositoryId: 1,
+      githubPrNumber: 7,
+      title: 'Ship it',
+      status: 'merged',
+      description: 'Done',
+      authorId: null,
+    });
+    expect(githubPullRequestRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('deletes a single pull request by where clause', async () => {
+    await service.deleteOne({repositoryId: 1, githubPrNumber: 7});
+
+    expect(githubPullRequestRepository.deleteAll).toHaveBeenCalledWith({
+      repositoryId: 1,
+      githubPrNumber: 7,
+    });
+  });
+
+  it('saves pull requests in batches of 100', async () => {
+    const pullRequests = Array.from({length: 205}, (_, index) => ({
+      repositoryId: 1,
+      githubPrNumber: index + 1,
+      title: `PR ${index + 1}`,
+      status: 'open',
+      description: '',
+      authorId: null,
+    }));
+
+    await service.savePullRequestsBulk(pullRequests);
+
+    expect(githubPullRequestRepository.createAll).toHaveBeenCalledTimes(3);
+    expect(githubPullRequestRepository.createAll).toHaveBeenNthCalledWith(
+      1,
+      pullRequests.slice(0, 100),
+    );
+    expect(githubPullRequestRepository.createAll).toHaveBeenNthCalledWith(
+      2,
+      pullRequests.slice(100, 200),
+    );
+    expect(githubPullRequestRepository.createAll).toHaveBeenNthCalledWith(
+      3,
+      pullRequests.slice(200, 205),
+    );
+  });
+});

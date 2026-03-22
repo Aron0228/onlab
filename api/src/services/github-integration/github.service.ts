@@ -46,6 +46,24 @@ type GithubRepositoryIssue = {
   body: string | null;
 };
 
+type GithubRepositoryPullRequest = {
+  id: number;
+  number: number;
+  title: string;
+  state: string;
+  merged_at: string | null;
+  body: string | null;
+  user: {
+    id: number;
+  } | null;
+};
+
+type GithubRepositoryLabel = {
+  id: number;
+  name: string;
+  color: string;
+};
+
 @injectable({scope: BindingScope.SINGLETON})
 export class GithubService {
   private app: App;
@@ -185,6 +203,8 @@ export class GithubService {
 
       await workspaceRepository.updateById(workspace.id, {
         githubInstallationId: undefined,
+        issueSyncDone: false,
+        prSyncDone: false,
       });
     }
   }
@@ -242,6 +262,8 @@ export class GithubService {
 
     await workspaceRepository.updateById(workspaceId, {
       githubInstallationId: installationId.toString(),
+      issueSyncDone: false,
+      prSyncDone: false,
     });
 
     const existingRepositories = await githubRepositoryRepository.find({
@@ -302,6 +324,10 @@ export class GithubService {
       installationId,
       repositories,
     );
+    await this.queueService.enqueueGithubLabelsSync({
+      installationId,
+      workspaceId,
+    });
     await this.queueService.enqueueGithubIssuesSync({
       installationId,
       workspaceId,
@@ -388,6 +414,133 @@ export class GithubService {
         html_url: issue.html_url,
         body: issue.body ?? null,
       }));
+  }
+
+  public async listRepositoryPullRequestsPage(
+    installationId: number,
+    repositoryFullName: string,
+    page: number,
+    perPage: number,
+  ): Promise<GithubRepositoryPullRequest[]> {
+    const [owner, repo] = repositoryFullName.split('/');
+
+    if (!owner || !repo) {
+      console.warn(
+        'Unable to resolve repository owner/name for pull request sync',
+        {
+          repositoryFullName,
+        },
+      );
+      return [];
+    }
+
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request('GET /repos/{owner}/{repo}/pulls', {
+      owner,
+      repo,
+      page,
+      per_page: perPage,
+      state: 'all',
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    return response.data.map(pullRequest => ({
+      id: pullRequest.id,
+      number: pullRequest.number,
+      title: pullRequest.title,
+      state: pullRequest.state,
+      merged_at: pullRequest.merged_at,
+      body: pullRequest.body ?? null,
+      user: pullRequest.user ? {id: pullRequest.user.id} : null,
+    }));
+  }
+
+  public async syncRepositoryLabels(
+    installationId: number,
+    repositoryFullName: string,
+  ): Promise<GithubRepositoryLabel[]> {
+    const [owner, repo] = repositoryFullName.split('/');
+
+    if (!owner || !repo) {
+      console.warn('Unable to resolve repository owner/name for label sync', {
+        repositoryFullName,
+      });
+      return [];
+    }
+
+    const octokit = await this.getInstallationClient(installationId);
+    const priorityLabels = [
+      {name: 'Priority: Unknown', color: '8b5cf6'},
+      {name: 'Priority: Low', color: '22c55e'},
+      {name: 'Priority: Medium', color: 'eab308'},
+      {name: 'Priority: High', color: 'f97316'},
+      {name: 'Priority: VeryHigh', color: 'ef4444'},
+    ];
+    const syncedLabels: GithubRepositoryLabel[] = [];
+
+    for (const label of priorityLabels) {
+      try {
+        const response = await octokit.request(
+          'POST /repos/{owner}/{repo}/labels',
+          {
+            owner,
+            repo,
+            name: label.name,
+            color: label.color,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          },
+        );
+
+        syncedLabels.push({
+          id: response.data.id,
+          name: response.data.name,
+          color: response.data.color,
+        });
+      } catch (error: unknown) {
+        const status = (error as {status?: number})?.status;
+
+        if (status !== 422) {
+          throw error;
+        }
+
+        const response = await octokit.request(
+          'GET /repos/{owner}/{repo}/labels/{name}',
+          {
+            owner,
+            repo,
+            name: label.name,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          },
+        );
+
+        if (response.data.color.toLowerCase() !== label.color) {
+          await octokit.request('PATCH /repos/{owner}/{repo}/labels/{name}', {
+            owner,
+            repo,
+            name: label.name,
+            new_name: label.name,
+            color: label.color,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          });
+        }
+
+        syncedLabels.push({
+          id: response.data.id,
+          name: response.data.name,
+          color: label.color,
+        });
+      }
+    }
+
+    return syncedLabels;
   }
 
   private async listInstallationRepositories(

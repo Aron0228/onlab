@@ -4,6 +4,7 @@ import {RedisService} from './redis.service';
 
 export const GITHUB_ISSUES_QUEUE_NAME = 'github-issues-queue';
 export const SYNC_GITHUB_ISSUES_JOB_NAME = 'sync-issues';
+export const SYNC_GITHUB_LABELS_JOB_NAME = 'sync-labels';
 
 export type SyncGithubIssuesJobData = {
   installationId: number;
@@ -37,6 +38,15 @@ export class QueueService {
     options: Pick<JobsOptions, 'delay'> = {},
   ) {
     return this.githubIssuesQueue.add(SYNC_GITHUB_ISSUES_JOB_NAME, data, {
+      delay: options.delay,
+    });
+  }
+
+  public async enqueueGithubLabelsSync(
+    data: SyncGithubIssuesJobData,
+    options: Pick<JobsOptions, 'delay'> = {},
+  ) {
+    return this.githubIssuesQueue.add(SYNC_GITHUB_LABELS_JOB_NAME, data, {
       delay: options.delay,
     });
   }

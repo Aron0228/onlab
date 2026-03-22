@@ -7,6 +7,19 @@ describe('GithubWebhookService (unit)', () => {
     syncInstallationForConnectedWorkspace: ReturnType<typeof vi.fn>;
     disconnectInstallation: ReturnType<typeof vi.fn>;
   };
+  let issueService: {
+    upsertIssue: ReturnType<typeof vi.fn>;
+    deleteOne: ReturnType<typeof vi.fn>;
+  };
+  let pullRequestService: {
+    upsertPullRequest: ReturnType<typeof vi.fn>;
+  };
+  let githubRepositoryRepository: {
+    findOne: ReturnType<typeof vi.fn>;
+  };
+  let userRepository: {
+    findOne: ReturnType<typeof vi.fn>;
+  };
   let service: GithubWebhookService;
 
   beforeEach(() => {
@@ -20,8 +33,30 @@ describe('GithubWebhookService (unit)', () => {
         .mockResolvedValue(undefined),
       disconnectInstallation: vi.fn().mockResolvedValue(undefined),
     };
+    issueService = {
+      upsertIssue: vi.fn().mockResolvedValue(undefined),
+      deleteOne: vi.fn().mockResolvedValue(undefined),
+    };
+    pullRequestService = {
+      upsertPullRequest: vi.fn().mockResolvedValue(undefined),
+    };
+    githubRepositoryRepository = {
+      findOne: vi.fn().mockResolvedValue({
+        id: 99,
+        fullName: 'team/api',
+      }),
+    };
+    userRepository = {
+      findOne: vi.fn().mockResolvedValue({id: 7}),
+    };
 
-    service = new GithubWebhookService(githubService as never);
+    service = new GithubWebhookService(
+      githubService as never,
+      issueService as never,
+      pullRequestService as never,
+      githubRepositoryRepository as never,
+      userRepository as never,
+    );
   });
 
   it('syncs a connected workspace when an installation is created', async () => {
@@ -68,5 +103,101 @@ describe('GithubWebhookService (unit)', () => {
     expect(
       githubService.syncInstallationForConnectedWorkspace,
     ).toHaveBeenCalledWith(123);
+  });
+
+  it('upserts issues on issue edits', async () => {
+    await service.handleWebhook('issues', {
+      action: 'edited',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+    });
+
+    expect(issueService.upsertIssue).toHaveBeenCalledWith(
+      {
+        repositoryId: 99,
+        githubId: 11,
+        githubIssueNumber: 101,
+        title: 'Broken',
+        status: 'open',
+        description: 'Updated body',
+      },
+      {
+        repositoryId: 99,
+        githubId: 11,
+      },
+    );
+  });
+
+  it('deletes issues on issue deletion events', async () => {
+    await service.handleWebhook('issues', {
+      action: 'deleted',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: null,
+        state: 'closed',
+      },
+    });
+
+    expect(issueService.deleteOne).toHaveBeenCalledWith({
+      repositoryId: 99,
+      githubId: 11,
+    });
+  });
+
+  it('upserts pull requests on pull request updates', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'closed',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 17,
+        number: 202,
+        title: 'Ship it',
+        body: 'Merged body',
+        state: 'closed',
+        merged_at: '2026-03-20T20:00:00Z',
+        user: {id: 55},
+      },
+    });
+
+    expect(userRepository.findOne).toHaveBeenCalledWith({
+      where: {githubId: 55},
+    });
+    expect(pullRequestService.upsertPullRequest).toHaveBeenCalledWith(
+      {
+        repositoryId: 99,
+        githubPrNumber: 202,
+        title: 'Ship it',
+        status: 'merged',
+        description: 'Merged body',
+        authorId: 7,
+      },
+      {
+        repositoryId: 99,
+        githubPrNumber: 202,
+      },
+    );
   });
 });

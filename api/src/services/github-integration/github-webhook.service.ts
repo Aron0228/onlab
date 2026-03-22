@@ -1,7 +1,10 @@
-/* eslint-disable no-constant-condition */
 import {BindingScope, injectable, service} from '@loopback/core';
+import {repository} from '@loopback/repository';
 import {App} from 'octokit';
+import {GithubRepositoryRepository, UserRepository} from '../../repositories';
 import {GithubService} from './github.service';
+import {IssueService} from './issue.service';
+import {PullRequestService} from './pull-request.service';
 
 export type GithubWebhookPayload = {
   action?: string;
@@ -9,17 +12,31 @@ export type GithubWebhookPayload = {
     id: number;
   };
   repository?: {
+    id?: number;
     owner: {
       login: string;
     };
     name: string;
+    full_name?: string;
   };
   pull_request?: {
+    id: number;
     number: number;
+    title: string;
+    body: string | null;
+    state: string;
+    merged_at?: string | null;
+    user?: {
+      id: number;
+    } | null;
   };
   issue?: {
+    id: number;
     node_id: string;
     number: number;
+    title: string;
+    body: string | null;
+    state: string;
   };
 };
 
@@ -27,7 +44,15 @@ export type GithubWebhookPayload = {
 export class GithubWebhookService {
   private app: App;
 
-  constructor(@service(GithubService) private githubService: GithubService) {
+  constructor(
+    @service(GithubService) private githubService: GithubService,
+    @service(IssueService) private issueService: IssueService,
+    @service(PullRequestService) private pullRequestService: PullRequestService,
+    @repository(GithubRepositoryRepository)
+    private githubRepositoryRepository: GithubRepositoryRepository,
+    @repository(UserRepository)
+    private userRepository: UserRepository,
+  ) {
     this.app = new App({
       appId: process.env.GITHUB_APP_ID!,
       privateKey: process.env.GITHUB_PRIVATE_KEY!,
@@ -46,14 +71,10 @@ export class GithubWebhookService {
   async handleWebhook(event: string, payload: GithubWebhookPayload) {
     switch (event) {
       case 'pull_request':
-        if (payload.action === 'opened') {
-          await this.handlePullRequestOpened(payload);
-        }
+        await this.handlePullRequestEvent(payload);
         break;
       case 'issues':
-        if (payload.action === 'opened') {
-          await this.handleIssueOpened(payload);
-        }
+        await this.handleIssueEvent(payload);
         break;
       case 'installation':
         await this.handleInstallationEvent(payload);
@@ -64,6 +85,46 @@ export class GithubWebhookService {
 
       default:
         console.log(`Unhandled event: ${event}`);
+    }
+  }
+
+  private async handleIssueEvent(payload: GithubWebhookPayload) {
+    switch (payload.action) {
+      case 'opened':
+      case 'edited':
+      case 'reopened':
+      case 'closed':
+        await this.upsertIssue(payload);
+
+        if (payload.action === 'opened') {
+          await this.handleIssueOpened(payload);
+        }
+        break;
+      case 'deleted':
+        await this.deleteIssue(payload);
+        break;
+      default:
+        console.log(`Unhandled issue action: ${payload.action}`);
+    }
+  }
+
+  private async handlePullRequestEvent(payload: GithubWebhookPayload) {
+    switch (payload.action) {
+      case 'opened':
+      case 'edited':
+      case 'reopened':
+      case 'closed':
+      case 'ready_for_review':
+      case 'converted_to_draft':
+      case 'synchronize':
+        await this.upsertPullRequest(payload);
+
+        if (payload.action === 'opened') {
+          await this.handlePullRequestOpened(payload);
+        }
+        break;
+      default:
+        console.log(`Unhandled pull_request action: ${payload.action}`);
     }
   }
 
@@ -196,5 +257,103 @@ export class GithubWebhookService {
     );
 
     console.log(`Labeled and commented on issue #${payload.issue.number}`);
+  }
+
+  private async upsertIssue(payload: GithubWebhookPayload): Promise<void> {
+    const repository = await this.resolveRepository(payload);
+
+    if (!repository || !payload.issue) {
+      return;
+    }
+
+    await this.issueService.upsertIssue(
+      {
+        repositoryId: repository.id,
+        githubId: payload.issue.id,
+        githubIssueNumber: payload.issue.number,
+        title: payload.issue.title,
+        status: payload.issue.state,
+        description: payload.issue.body ?? '',
+      },
+      {
+        repositoryId: repository.id,
+        githubId: payload.issue.id,
+      },
+    );
+  }
+
+  private async deleteIssue(payload: GithubWebhookPayload): Promise<void> {
+    const repository = await this.resolveRepository(payload);
+
+    if (!repository || !payload.issue) {
+      return;
+    }
+
+    await this.issueService.deleteOne({
+      repositoryId: repository.id,
+      githubId: payload.issue.id,
+    });
+  }
+
+  private async upsertPullRequest(
+    payload: GithubWebhookPayload,
+  ): Promise<void> {
+    const repository = await this.resolveRepository(payload);
+
+    if (!repository || !payload.pull_request) {
+      return;
+    }
+
+    const author = payload.pull_request.user
+      ? await this.userRepository.findOne({
+          where: {githubId: payload.pull_request.user.id},
+        })
+      : null;
+
+    await this.pullRequestService.upsertPullRequest(
+      {
+        repositoryId: repository.id,
+        githubPrNumber: payload.pull_request.number,
+        title: payload.pull_request.title,
+        status: payload.pull_request.merged_at
+          ? 'merged'
+          : payload.pull_request.state,
+        description: payload.pull_request.body ?? '',
+        authorId: author?.id ?? null,
+      },
+      {
+        repositoryId: repository.id,
+        githubPrNumber: payload.pull_request.number,
+      },
+    );
+  }
+
+  private async resolveRepository(payload: GithubWebhookPayload) {
+    const fullName =
+      payload.repository?.full_name ??
+      (payload.repository
+        ? `${payload.repository.owner.login}/${payload.repository.name}`
+        : undefined);
+
+    if (!fullName) {
+      console.warn('GitHub webhook payload missing repository full name', {
+        action: payload.action,
+      });
+      return null;
+    }
+
+    const repository = await this.githubRepositoryRepository.findOne({
+      where: {fullName},
+    });
+
+    if (!repository) {
+      console.warn('No synced GitHub repository found for webhook payload', {
+        fullName,
+        action: payload.action,
+      });
+      return null;
+    }
+
+    return repository;
   }
 }

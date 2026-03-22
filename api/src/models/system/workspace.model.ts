@@ -68,6 +68,20 @@ export class Workspace extends Entity {
 
   @property({
     type: 'boolean',
+    postgresql: {columnName: 'issue_sync_done'},
+    default: false,
+  })
+  issueSyncDone?: boolean;
+
+  @property({
+    type: 'boolean',
+    postgresql: {columnName: 'pr_sync_done'},
+    default: false,
+  })
+  prSyncDone?: boolean;
+
+  @property({
+    type: 'boolean',
     postgresql: {columnName: 'capacity_planning_sync'},
     default: true,
   })

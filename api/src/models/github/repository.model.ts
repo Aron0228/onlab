@@ -7,6 +7,8 @@ import {
 } from '@loopback/repository';
 import {Workspace} from '../system';
 import {GithubIssue} from './issue.model';
+import {GithubLabel} from './label.model';
+import {GithubPullRequest} from './pull-request.model';
 
 @model({
   settings: {
@@ -57,6 +59,12 @@ export class GithubRepository extends Entity {
   @hasMany(() => GithubIssue, {keyTo: 'repositoryId'})
   issues?: GithubIssue[];
 
+  @hasMany(() => GithubLabel, {keyTo: 'repositoryId'})
+  labels?: GithubLabel[];
+
+  @hasMany(() => GithubPullRequest, {keyTo: 'repositoryId'})
+  pullRequests?: GithubPullRequest[];
+
   constructor(data?: Partial<GithubRepository>) {
     super(data);
   }
@@ -64,6 +72,8 @@ export class GithubRepository extends Entity {
 
 export type GithubRepositoryRelations = {
   issues?: GithubIssue[];
+  labels?: GithubLabel[];
+  pullRequests?: GithubPullRequest[];
   workspace?: Workspace;
 };
 

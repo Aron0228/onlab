@@ -20,6 +20,9 @@ type GithubServiceInternals = {
     workspaceId: number,
     installationId: number,
   ): Promise<void>;
+  listInstallationRepositories(
+    installationId: number,
+  ): Promise<GithubInstallationRepository[]>;
 };
 
 describe('GithubService (unit)', () => {
@@ -36,6 +39,7 @@ describe('GithubService (unit)', () => {
   };
   let queueService: {
     enqueueGithubIssuesSync: ReturnType<typeof vi.fn>;
+    enqueueGithubLabelsSync: ReturnType<typeof vi.fn>;
   };
   let service: GithubService;
   let internals: GithubServiceInternals;
@@ -58,6 +62,7 @@ describe('GithubService (unit)', () => {
       deleteCascade: vi.fn().mockResolvedValue(undefined),
     };
     queueService = {
+      enqueueGithubLabelsSync: vi.fn().mockResolvedValue(undefined),
       enqueueGithubIssuesSync: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -106,6 +111,8 @@ describe('GithubService (unit)', () => {
 
     expect(workspaceRepository.updateById).toHaveBeenCalledWith(7, {
       githubInstallationId: '99',
+      issueSyncDone: false,
+      prSyncDone: false,
     });
     expect(githubRepositoryRepository.find).toHaveBeenCalledWith({
       where: {workspaceId: 7},
@@ -164,6 +171,22 @@ describe('GithubService (unit)', () => {
     expect(syncWorkspaceInstallationSpy).toHaveBeenCalledWith(42, 77);
   });
 
+  it('enqueues label sync alongside issue sync when syncing a workspace installation', async () => {
+    githubRepositoryRepository.find.mockResolvedValue([]);
+    vi.spyOn(internals, 'listInstallationRepositories').mockResolvedValue([]);
+
+    await internals.syncWorkspaceInstallation(8, 88);
+
+    expect(queueService.enqueueGithubLabelsSync).toHaveBeenCalledWith({
+      installationId: 88,
+      workspaceId: 8,
+    });
+    expect(queueService.enqueueGithubIssuesSync).toHaveBeenCalledWith({
+      installationId: 88,
+      workspaceId: 8,
+    });
+  });
+
   it('disconnects an installation and deletes its repositories with cascade', async () => {
     workspaceRepository.find.mockResolvedValue([{id: 9}]);
     githubRepositoryRepository.find.mockResolvedValue([
@@ -181,6 +204,8 @@ describe('GithubService (unit)', () => {
     expect(githubRepositoryRepository.deleteCascade).toHaveBeenCalledWith(3);
     expect(workspaceRepository.updateById).toHaveBeenCalledWith(9, {
       githubInstallationId: undefined,
+      issueSyncDone: false,
+      prSyncDone: false,
     });
   });
 });

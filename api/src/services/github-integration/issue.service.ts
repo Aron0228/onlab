@@ -1,5 +1,5 @@
 import {BindingScope, injectable} from '@loopback/core';
-import {DataObject, repository} from '@loopback/repository';
+import {DataObject, repository, Where} from '@loopback/repository';
 import {GithubIssue} from '../../models';
 import {GithubIssueRepository} from '../../repositories';
 
@@ -14,6 +14,24 @@ export class IssueService {
 
   public async deleteByRepositoryId(repositoryId: number): Promise<void> {
     await this.githubIssueRepository.deleteAll({repositoryId});
+  }
+
+  public async upsertIssue(
+    issue: DataObject<GithubIssue>,
+    where: Where<GithubIssue>,
+  ): Promise<void> {
+    const existingIssue = await this.githubIssueRepository.findOne({where});
+
+    if (!existingIssue) {
+      await this.githubIssueRepository.create(issue);
+      return;
+    }
+
+    await this.githubIssueRepository.updateById(existingIssue.id, issue);
+  }
+
+  public async deleteOne(where: Where<GithubIssue>): Promise<void> {
+    await this.githubIssueRepository.deleteAll(where);
   }
 
   public async saveIssuesBulk(
