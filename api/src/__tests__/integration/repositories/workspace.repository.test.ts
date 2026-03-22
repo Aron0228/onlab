@@ -1,40 +1,47 @@
-import {beforeEach, describe, expect, it} from 'vitest';
-import {juggler} from '@loopback/repository';
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
+import {RestApi} from '../../..';
+import {UserRepository, WorkspaceRepository} from '../../../repositories';
+import {
+  createTestUser,
+  createTestWorkspace,
+  getTestRepository,
+  resetTestDataSource,
+  setupRepositoryTestApp,
+  teardownRepositoryTestApp,
+} from './test-helpers';
 
-import {User, Workspace} from '../../../models';
-import {buildSystemRepositories, createMemoryDataSource} from './test-helpers';
-
-describe('WorkspaceRepository (unit)', () => {
-  let dataSource: juggler.DataSource;
-  let workspaceRepository: ReturnType<
-    typeof buildSystemRepositories
-  >['workspaceRepository'];
+describe('WorkspaceRepository (integration)', () => {
+  let app: RestApi;
+  let dataSource: Awaited<
+    ReturnType<typeof setupRepositoryTestApp>
+  >['dataSource'];
+  let workspaceRepository: WorkspaceRepository;
+  let userRepository: UserRepository;
   let userId: number;
 
-  beforeEach(async () => {
-    dataSource = createMemoryDataSource();
-    const repositories = buildSystemRepositories(dataSource);
-    workspaceRepository = repositories.workspaceRepository;
-    const {userRepository} = repositories;
-    const user = await userRepository.create(
-      new User({
-        githubId: 1,
-        username: 'aron0228',
-        fullName: 'Reszegi Aron',
-        email: 'aron@example.com',
-        avatarUrl: 'https://example.com/avatar.png',
-      }),
+  beforeAll(async () => {
+    ({app, dataSource} = await setupRepositoryTestApp());
+    workspaceRepository = await getTestRepository<WorkspaceRepository>(
+      app,
+      'WorkspaceRepository',
     );
+    userRepository = await getTestRepository<UserRepository>(
+      app,
+      'UserRepository',
+    );
+  });
+
+  beforeEach(async () => {
+    await resetTestDataSource(dataSource);
+    const user = await createTestUser(userRepository);
     userId = user.id;
   });
 
-  const createWorkspace = () =>
-    workspaceRepository.create(
-      new Workspace({
-        name: 'Demo Workspace',
-        ownerId: userId,
-      }),
-    );
+  afterAll(async () => {
+    await teardownRepositoryTestApp(app, dataSource);
+  });
+
+  const createWorkspace = () => createTestWorkspace(workspaceRepository, userId);
 
   it('creates workspaces', async () => {
     await createWorkspace();
@@ -69,8 +76,6 @@ describe('WorkspaceRepository (unit)', () => {
   });
 
   it('registers owner, files, and invitations relations', () => {
-    const {workspaceRepository} = buildSystemRepositories(dataSource);
-
     expect(workspaceRepository.inclusionResolvers.has('owner')).toBe(true);
     expect(workspaceRepository.inclusionResolvers.has('files')).toBe(true);
     expect(workspaceRepository.inclusionResolvers.has('invitations')).toBe(

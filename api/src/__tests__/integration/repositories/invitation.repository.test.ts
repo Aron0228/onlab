@@ -1,44 +1,67 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {juggler} from '@loopback/repository';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import {HttpErrors} from '@loopback/rest';
+import {RestApi} from '../../..';
 
-import {Invitation, User, Workspace} from '../../../models';
-import {InvitationRepository} from '../../../repositories';
+import {Invitation} from '../../../models';
+import {
+  InvitationRepository,
+  UserRepository,
+  WorkspaceRepository,
+} from '../../../repositories';
 import {WORKSPACE_MEMBER_ROLE} from '../../../constants';
 import {
-  buildSystemRepositories,
-  createMemoryDataSource,
+  createTestUser,
+  createTestWorkspace,
+  getTestRepository,
+  setupRepositoryTestApp,
+  teardownRepositoryTestApp,
   givenCurrentUser,
+  resetTestDataSource,
 } from './test-helpers';
 
-describe('InvitationRepository (unit)', () => {
-  let dataSource: juggler.DataSource;
-  let invitationRepository: ReturnType<
-    typeof buildSystemRepositories
-  >['invitationRepository'];
+describe('InvitationRepository (integration)', () => {
+  let app: RestApi;
+  let dataSource: Awaited<
+    ReturnType<typeof setupRepositoryTestApp>
+  >['dataSource'];
+  let invitationRepository: InvitationRepository;
+  let userRepository: UserRepository;
+  let workspaceRepository: WorkspaceRepository;
   let workspaceId: number;
 
+  beforeAll(async () => {
+    ({app, dataSource} = await setupRepositoryTestApp());
+    invitationRepository = await getTestRepository<InvitationRepository>(
+      app,
+      'InvitationRepository',
+    );
+    userRepository = await getTestRepository<UserRepository>(
+      app,
+      'UserRepository',
+    );
+    workspaceRepository = await getTestRepository<WorkspaceRepository>(
+      app,
+      'WorkspaceRepository',
+    );
+  });
+
   beforeEach(async () => {
-    dataSource = createMemoryDataSource();
-    const repositories = buildSystemRepositories(dataSource);
-    invitationRepository = repositories.invitationRepository;
-    const {userRepository, workspaceRepository} = repositories;
-    const user = await userRepository.create(
-      new User({
-        githubId: 1,
-        username: 'aron0228',
-        fullName: 'Reszegi Aron',
-        email: 'aron@example.com',
-        avatarUrl: 'https://example.com/avatar.png',
-      }),
-    );
-    const workspace = await workspaceRepository.create(
-      new Workspace({
-        name: 'Demo Workspace',
-        ownerId: user.id,
-      }),
-    );
+    await resetTestDataSource(dataSource);
+    const user = await createTestUser(userRepository);
+    const workspace = await createTestWorkspace(workspaceRepository, user.id);
     workspaceId = workspace.id;
+  });
+
+  afterAll(async () => {
+    await teardownRepositoryTestApp(app, dataSource);
   });
 
   const createInvitation = () =>
@@ -82,8 +105,6 @@ describe('InvitationRepository (unit)', () => {
   });
 
   it('registers the workspace relation', () => {
-    const {invitationRepository} = buildSystemRepositories(dataSource);
-
     expect(invitationRepository.inclusionResolvers.has('workspace')).toBe(true);
   });
 
