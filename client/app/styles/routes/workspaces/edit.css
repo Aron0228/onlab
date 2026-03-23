@@ -1,0 +1,202 @@
+.route-workspaces-edit {
+  .mobile-nav-toggle {
+    display: none;
+  }
+
+  .mobile-nav-collapse {
+    display: none;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+  }
+
+  .workspace-header-panel {
+    display: flex;
+    align-items: center;
+  }
+
+  .workspace-summary {
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .workspace-summary__identity,
+  .workspace-header-panel__workspace {
+    flex-grow: 1;
+  }
+
+  .workspace-header-panel__workspace {
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+
+  .workspace-header-panel__title {
+    color: var(--text-on-primary);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .body {
+    display: grid;
+    grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+    grid-template-rows: max-content minmax(0, 1fr);
+    grid-template-areas:
+      'summary header'
+      'nav content';
+    height: 100dvh;
+    gap: 0;
+
+    > * {
+      border: 1px solid var(--border-subtle);
+    }
+  }
+
+  .workspace-summary {
+    grid-area: summary;
+    padding: var(--space-md);
+  }
+
+  .workspace-header-panel {
+    grid-area: header;
+    padding: var(--space-md);
+  }
+
+  .workspace-nav {
+    grid-area: nav;
+    padding: var(--space-sm);
+  }
+
+  .workspace-content-panel {
+    grid-area: content;
+    min-width: 0;
+  }
+
+  .nav-item {
+    border-radius: var(--radius-md);
+    padding: var(--space-sm);
+
+    &:hover {
+      background: var(--bg-active);
+      transform: translateX(1px);
+    }
+
+    &.active {
+      background: var(--color-primary-600);
+    }
+  }
+
+  .workspace-summary,
+  .workspace-header-panel {
+    background: var(--bg-header);
+  }
+
+  .workspace-nav,
+  .workspace-content-panel {
+    background: var(--bg-app);
+  }
+
+  @media (width <= 768px) {
+    .mobile-nav-toggle {
+      display: inline-flex;
+      width: 3rem;
+      height: 3rem;
+      padding: 0;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
+
+    .mobile-nav-collapse {
+      display: inline-flex;
+      width: 3rem;
+      height: 3rem;
+      padding: 0;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
+
+    .body {
+      display: block;
+      position: relative;
+      min-height: 100dvh;
+
+      > * {
+        border: 0;
+      }
+    }
+
+    .body::after {
+      content: '';
+      position: fixed;
+      inset: 0 0 0 min(19rem, 84vw);
+      background: rgb(from var(--text-primary) r g b / var(--opacity-disabled));
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 0.24s ease-in-out,
+        backdrop-filter 0.24s ease-in-out;
+      z-index: 15;
+    }
+
+    .workspace-nav {
+      position: fixed;
+      left: 0;
+      width: min(19rem, 84vw);
+      z-index: 20;
+      background: var(--bg-sidebar);
+      transition:
+        transform 0.24s ease-in-out,
+        opacity 0.24s ease-in-out;
+    }
+
+    .workspace-summary {
+      top: 0;
+      display: flex;
+      min-height: 5rem;
+      padding: var(--space-sm);
+    }
+
+    .workspace-header-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 5rem;
+    }
+
+    .body.--collapsed .workspace-summary,
+    .body.--collapsed .workspace-nav {
+      transform: translateX(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .body:not(.--collapsed)::after {
+      opacity: 1;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+    }
+
+    .workspace-nav {
+      top: 5rem;
+      height: calc(100dvh - 5rem);
+      overflow-y: auto;
+      padding: var(--space-sm);
+      box-shadow: 0 24px 48px rgb(0 0 0 / 0.35);
+    }
+
+    .workspace-content-panel {
+      min-height: 100dvh;
+      padding-top: 0;
+    }
+
+    .nav-item {
+      border-radius: var(--radius-md);
+      padding: var(--space-sm);
+    }
+  }
+}
