@@ -1,13 +1,10 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
-import UiThemeSwitcher from 'client/components/ui/theme-switcher';
 import UiIcon from 'client/components/ui/icon';
-import RouteProfile from 'client/components/route-profile';
 import { task } from 'ember-concurrency';
 import { inject as service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import UiAvatar from 'client/components/ui/avatar';
-import UiLanguageSelector from 'client/components/ui/language-selector';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import type InvitationModel from 'client/models/invitation';
 import type WorkspaceModel from 'client/models/workspace';
@@ -17,6 +14,7 @@ import { or } from 'ember-truth-helpers';
 import type User from 'client/models/user';
 import RoutesWorkspacesIndexInvitationCard from 'client/components/routes/workspaces/index/invitation-card';
 import RoutesWorkspacesIndexWorkspaceCard from 'client/components/routes/workspaces/index/workspace-card';
+import RoutesWorkspacesHeaderActions from 'client/components/routes/workspaces/header-actions';
 
 type SessionAccountServiceLike = {
   id?: number;
@@ -239,12 +237,7 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
           <UiIcon @name="app-logo" @size="lg" @custom={{true}} />
           <h1>Workspaces</h1>
         </div>
-        <div class="layout-horizontal --gap-md maring-left-auto">
-          <UiLanguageSelector />
-          <UiThemeSwitcher />
-          <hr class="separator --vertical" />
-          <RouteProfile @routeBack="workspaces.index" />
-        </div>
+        <RoutesWorkspacesHeaderActions />
       </div>
       <div class="body layout-vertical --gap-xl">
         {{#if

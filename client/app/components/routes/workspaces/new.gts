@@ -8,15 +8,13 @@ import { inject as service } from '@ember/service';
 import UiForm from 'client/components/ui/form';
 import UiFormGroup from 'client/components/ui/form-group';
 import UiInput from 'client/components/ui/input';
-import UiThemeSwitcher from 'client/components/ui/theme-switcher';
 import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
 import UiAvatar from 'client/components/ui/avatar';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
-import RouteProfile from 'client/components/route-profile';
-import UiLanguageSelector from 'client/components/ui/language-selector';
 import { LinkTo } from '@ember/routing';
 import { not } from 'ember-truth-helpers';
+import RoutesWorkspacesHeaderActions from 'client/components/routes/workspaces/header-actions';
 
 export interface RoutesWorkspacesNewSignature {
   // The arguments accepted by the component
@@ -166,12 +164,7 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
             <h1 class="margin-zero">Create New Workspace</h1>
           </div>
         </div>
-        <div class="layout-horizontal --gap-md maring-left-auto">
-          <UiLanguageSelector />
-          <UiThemeSwitcher />
-          <hr class="separator --vertical" />
-          <RouteProfile @routeBack="workspaces.new" />
-        </div>
+        <RoutesWorkspacesHeaderActions />
       </div>
       <div class="body">
         <UiContainer @bordered={{true}}>
