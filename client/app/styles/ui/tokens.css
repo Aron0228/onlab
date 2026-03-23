@@ -28,6 +28,31 @@
   --color-success-bg: #d1fae5;
   --color-warning-bg: #fef3c7;
 
+  --color-very-high-bg-disabled: #feebeb;
+  --color-very-high-disabled: #f47c7c;
+  --color-very-high-bg: #fee2e2;
+  --color-very-high: #ef4444;
+
+  --color-high-bg-disabled: #fef7d8;
+  --color-high-disabled: #f8bb54;
+  --color-high-bg: #fef3c7;
+  --color-high: #f59e0b;
+
+  --color-medium-bg-disabled: #e6f0fe;
+  --color-medium-disabled: #75a7f9;
+  --color-medium-bg: #dbeafe;
+  --color-medium: #3c83f6;
+
+  --color-low-bg-disabled: #f7f7f9;
+  --color-low-disabled: #585d67;
+  --color-low-bg: #f3f4f6;
+  --color-low: #4d5765;
+
+  --color-unknown-bg-disabled: #f9f3fe;
+  --color-unknown-disabled: #c288f9;
+  --color-unknown-bg: #f6eefe;
+  --color-unknown: #a855f7;
+
   --bg-app: #f3f4f6;
   --bg-sidebar: #e5e7eb;
   --bg-header: #ffffff;
@@ -86,6 +111,31 @@
   --color-error-bg: #ef4444;
   --color-success-bg: #10b981;
   --color-warning-bg: #f59e0b;
+
+  --color-very-high-bg-disabled: #4a2125;
+  --color-very-high-disabled: #bbabaf;
+  --color-very-high-bg: #5c1e1e;
+  --color-very-high: #fee2e2;
+
+  --color-high-bg-disabled: #4a4025;
+  --color-high-disabled: #bbb79c;
+  --color-high-bg: #5c4a1e;
+  --color-high: #fef3c7;
+
+  --color-medium-bg-disabled: #1e3553;
+  --color-medium-disabled: #3367bd;
+  --color-medium-bg: #1e3a5f;
+  --color-medium: #3b81f5;
+
+  --color-low-bg-disabled: #3e4856;
+  --color-low-disabled: #b8bcc1;
+  --color-low-bg: #4b5563;
+  --color-low: #d1d5db;
+
+  --color-unknown-bg-disabled: #292c45;
+  --color-unknown-disabled: #7f48be;
+  --color-unknown-bg: #2d2e4a;
+  --color-unknown: #a554f3;
 
   --bg-app: #111827;
   --bg-sidebar: #0b0f1a;

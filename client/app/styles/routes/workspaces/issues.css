@@ -1,0 +1,109 @@
+.route-workspaces-edit-issues {
+  background: var(--bg-app);
+  flex: 1;
+  min-height: 0;
+
+  .issues-header {
+    background: var(--bg-surface);
+    padding: var(--space-md);
+
+    .issues-filters {
+      width: 100%;
+    }
+
+    .issue-filter {
+      --issue-filter-bg: var(--bg-hover);
+      --issue-filter-color: var(--text-secondary);
+      --issue-filter-active-bg: var(--bg-active);
+      --issue-filter-active-color: var(--text-primary);
+      appearance: none;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex: 1 1 10rem;
+      gap: var(--space-sm);
+      min-width: 10rem;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      background: var(--issue-filter-bg);
+      color: var(--issue-filter-color);
+      cursor: pointer;
+      text-align: left;
+
+      &:hover {
+        border-color: var(--issue-filter-color);
+      }
+
+      &.--active {
+        background: var(--issue-filter-active-bg);
+        color: var(--issue-filter-active-color);
+        border-color: var(--issue-filter-active-color);
+      }
+
+      &.--very-high {
+        --issue-filter-bg: var(--color-very-high-bg-disabled);
+        --issue-filter-color: var(--color-very-high-disabled);
+        --issue-filter-active-bg: var(--color-very-high-bg);
+        --issue-filter-active-color: var(--color-very-high);
+      }
+
+      &.--high {
+        --issue-filter-bg: var(--color-high-bg-disabled);
+        --issue-filter-color: var(--color-high-disabled);
+        --issue-filter-active-bg: var(--color-high-bg);
+        --issue-filter-active-color: var(--color-high);
+      }
+
+      &.--medium {
+        --issue-filter-bg: var(--color-medium-bg-disabled);
+        --issue-filter-color: var(--color-medium-disabled);
+        --issue-filter-active-bg: var(--color-medium-bg);
+        --issue-filter-active-color: var(--color-medium);
+      }
+
+      &.--low {
+        --issue-filter-bg: var(--color-low-bg-disabled);
+        --issue-filter-color: var(--color-low-disabled);
+        --issue-filter-active-bg: var(--color-low-bg);
+        --issue-filter-active-color: var(--color-low);
+      }
+
+      &.--unknown {
+        --issue-filter-bg: var(--color-unknown-bg-disabled);
+        --issue-filter-color: var(--color-unknown-disabled);
+        --issue-filter-active-bg: var(--color-unknown-bg);
+        --issue-filter-active-color: var(--color-unknown);
+      }
+    }
+  }
+
+  .issues-body {
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-app);
+    padding: var(--space-md);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+      background: transparent;
+    }
+
+    .issue-card .ui-container__header {
+      padding-bottom: 0;
+    }
+
+    .issue-status {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-primary-500);
+      padding: var(--space-sm);
+      background: var(--bg-input);
+    }
+  }
+}
