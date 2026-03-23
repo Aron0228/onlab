@@ -1,8 +1,8 @@
-import Model, {attr, belongsTo} from '@warp-drive/legacy/model';
+import Model, { attr, belongsTo } from '@warp-drive/legacy/model';
 import type GithubRepositoryModel from './github-repository';
 
 export default class GithubIssueModel extends Model {
-  @belongsTo('github-repository', {async: false, inverse: 'issues'})
+  @belongsTo('github-repository', { async: false, inverse: 'issues' })
   declare repository: GithubRepositoryModel | null;
 
   @attr('number') declare repositoryId: number;
@@ -11,4 +11,6 @@ export default class GithubIssueModel extends Model {
   @attr('string') declare title: string;
   @attr('string') declare status: string;
   @attr('string') declare description: string | null;
+  @attr('string') declare priority: string | null;
+  @attr('string') declare priorityReason: string | null;
 }

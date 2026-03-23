@@ -64,6 +64,36 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     ];
   }
 
+  prioritySelector = (priority: string | null | undefined): string => {
+    switch (priority) {
+      case 'Very-High':
+        return '--very-high';
+      case 'High':
+        return '--high';
+      case 'Medium':
+        return '--medium';
+      case 'Low':
+        return '--low';
+      default:
+        return '--unknown';
+    }
+  };
+
+  priorityLabel = (priority: string | null | undefined): string => {
+    switch (priority) {
+      case 'Very-High':
+        return 'VERY HIGH';
+      case 'High':
+        return 'HIGH';
+      case 'Medium':
+        return 'MEDIUM';
+      case 'Low':
+        return 'LOW';
+      default:
+        return 'UNKNOWN';
+    }
+  };
+
   isFilterActive = (selector: string) => {
     return this.activeFilters.includes(selector);
   };
@@ -131,6 +161,17 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
                 <span class="font-weight-bold">
                   #{{workspaceIssue.githubIssueNumber}}
                 </span>
+                <div
+                  class="issue-ai-priority
+                    {{this.prioritySelector workspaceIssue.priority}}
+                    layout-horizontal --gap-xs"
+                >
+                  <UiIcon @name="circle-arrow-up" @size="sm" />
+
+                  <span class="font-size-text-sm">{{this.priorityLabel
+                      workspaceIssue.priority
+                    }}</span>
+                </div>
 
                 <div
                   class="issue-status layout-horizontal --gap-xs margin-left-auto"
