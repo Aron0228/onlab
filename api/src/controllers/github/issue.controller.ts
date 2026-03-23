@@ -7,7 +7,7 @@ const GithubIssueBaseCrudController = createBaseCrudController<
   GithubIssue,
   typeof GithubIssue.prototype.id,
   GithubIssueRelations
->('/github-issues');
+>('/githubIssues');
 
 export class GithubIssueController extends GithubIssueBaseCrudController {
   constructor(

@@ -7,7 +7,7 @@ const GithubRepositoryBaseCrudController = createBaseCrudController<
   GithubRepository,
   typeof GithubRepository.prototype.id,
   GithubRepositoryRelations
->('/github-repositories');
+>('/githubRepositories');
 
 export class GithubRepositoryController extends GithubRepositoryBaseCrudController {
   constructor(

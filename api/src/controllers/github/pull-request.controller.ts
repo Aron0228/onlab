@@ -7,7 +7,7 @@ const GithubPullRequestBaseCrudController = createBaseCrudController<
   GithubPullRequest,
   typeof GithubPullRequest.prototype.id,
   GithubPullRequestRelations
->('/github-pull-requests');
+>('/githubPullRequests');
 
 export class GithubPullRequestController extends GithubPullRequestBaseCrudController {
   constructor(
