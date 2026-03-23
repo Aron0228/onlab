@@ -4,6 +4,10 @@ import {repository} from '@loopback/repository';
 import {HttpErrors, Response} from '@loopback/rest';
 import {App} from 'octokit';
 import {
+  IssuePriorityService,
+  type IssuePriorityPrediction,
+} from '../issue-priority.service';
+import {
   GithubRepositoryRepository,
   WorkspaceRepository,
 } from '../../repositories';
@@ -77,6 +81,8 @@ export class GithubService {
     private githubRepositoryRepositoryGetter: Getter<GithubRepositoryRepository>,
     @service(QueueService)
     private queueService: QueueService,
+    @service(IssuePriorityService)
+    private issuePriorityService: IssuePriorityService,
   ) {
     this.app = new App({
       appId: process.env.GITHUB_APP_ID!,
@@ -461,26 +467,20 @@ export class GithubService {
     installationId: number,
     repositoryFullName: string,
   ): Promise<GithubRepositoryLabel[]> {
-    const [owner, repo] = repositoryFullName.split('/');
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'label sync',
+    );
 
-    if (!owner || !repo) {
-      console.warn('Unable to resolve repository owner/name for label sync', {
-        repositoryFullName,
-      });
+    if (!repositoryCoordinates) {
       return [];
     }
 
+    const {owner, repo} = repositoryCoordinates;
     const octokit = await this.getInstallationClient(installationId);
-    const priorityLabels = [
-      {name: 'Priority: Unknown', color: '8b5cf6'},
-      {name: 'Priority: Low', color: '22c55e'},
-      {name: 'Priority: Medium', color: 'eab308'},
-      {name: 'Priority: High', color: 'f97316'},
-      {name: 'Priority: VeryHigh', color: 'ef4444'},
-    ];
     const syncedLabels: GithubRepositoryLabel[] = [];
 
-    for (const label of priorityLabels) {
+    for (const label of this.getPriorityLabels()) {
       try {
         const response = await octokit.request(
           'POST /repos/{owner}/{repo}/labels',
@@ -543,6 +543,112 @@ export class GithubService {
     return syncedLabels;
   }
 
+  public async applyPriorityPredictionToIssue(
+    installationId: number,
+    repositoryFullName: string,
+    issueNumber: number,
+    prediction: IssuePriorityPrediction,
+    description: string | null,
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'issue priority update',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const priorityLabels = this.getPriorityLabels().map(label => label.name);
+    const activePriorityLabel = this.issuePriorityService.getPriorityLabelName(
+      prediction.priority,
+    );
+
+    for (const priorityLabel of priorityLabels) {
+      if (priorityLabel === activePriorityLabel) {
+        continue;
+      }
+
+      try {
+        await octokit.request(
+          'DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}',
+          {
+            owner,
+            repo,
+            issue_number: issueNumber,
+            name: priorityLabel,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          },
+        );
+      } catch (error: unknown) {
+        const status = (error as {status?: number})?.status;
+
+        if (status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    await octokit.request(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
+      {
+        owner,
+        repo,
+        issue_number: issueNumber,
+        labels: [activePriorityLabel],
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    await octokit.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+      owner,
+      repo,
+      issue_number: issueNumber,
+      body: this.issuePriorityService.upsertPredictionNote(
+        description,
+        prediction,
+      ),
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  }
+
+  public async markIssueAsProcessing(
+    installationId: number,
+    repositoryFullName: string,
+    issueNumber: number,
+    description: string | null,
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'issue processing marker update',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    await octokit.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+      owner,
+      repo,
+      issue_number: issueNumber,
+      body: this.issuePriorityService.prependProcessingEmoji(description),
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  }
+
   private async listInstallationRepositories(
     installationId: number,
   ): Promise<GithubInstallationRepository[]> {
@@ -577,5 +683,46 @@ export class GithubService {
     }
 
     return repositories;
+  }
+
+  private getRepositoryCoordinates(
+    repositoryFullName: string,
+    purpose: string,
+  ): {owner: string; repo: string} | null {
+    const [owner, repo] = repositoryFullName.split('/');
+
+    if (!owner || !repo) {
+      console.warn(`Unable to resolve repository owner/name for ${purpose}`, {
+        repositoryFullName,
+      });
+      return null;
+    }
+
+    return {owner, repo};
+  }
+
+  private getPriorityLabels(): Array<{name: string; color: string}> {
+    return [
+      {
+        name: this.issuePriorityService.getPriorityLabelName('Unknown'),
+        color: '8b5cf6',
+      },
+      {
+        name: this.issuePriorityService.getPriorityLabelName('Low'),
+        color: '22c55e',
+      },
+      {
+        name: this.issuePriorityService.getPriorityLabelName('Medium'),
+        color: 'eab308',
+      },
+      {
+        name: this.issuePriorityService.getPriorityLabelName('High'),
+        color: 'f97316',
+      },
+      {
+        name: this.issuePriorityService.getPriorityLabelName('Very-High'),
+        color: 'ef4444',
+      },
+    ];
   }
 }

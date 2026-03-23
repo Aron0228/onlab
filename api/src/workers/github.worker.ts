@@ -16,6 +16,8 @@ import {
 import {
   GITHUB_ISSUES_QUEUE_NAME,
   GithubService,
+  type IssuePriorityPrediction,
+  IssuePriorityService,
   IssueService,
   LabelService,
   PullRequestService,
@@ -36,6 +38,9 @@ async function startWorker() {
   const redisService = await app.get<RedisService>('services.RedisService');
   const githubService = await app.get<GithubService>('services.GithubService');
   const issueService = await app.get<IssueService>('services.IssueService');
+  const issuePriorityService = await app.get<IssuePriorityService>(
+    'services.IssuePriorityService',
+  );
   const labelService = await app.get<LabelService>('services.LabelService');
   const pullRequestService = await app.get<PullRequestService>(
     'services.PullRequestService',
@@ -72,6 +77,7 @@ async function startWorker() {
         githubService,
         githubRepositoryRepository,
         workspaceRepository,
+        issuePriorityService,
         issueService,
         pullRequestService,
         userRepository,
@@ -119,6 +125,7 @@ async function processSyncIssuesJob(
   githubService: GithubService,
   githubRepositoryRepository: GithubRepositoryRepository,
   workspaceRepository: WorkspaceRepository,
+  issuePriorityService: IssuePriorityService,
   issueService: IssueService,
   pullRequestService: PullRequestService,
   userRepository: UserRepository,
@@ -132,6 +139,7 @@ async function processSyncIssuesJob(
       repository,
       job.data.installationId,
       githubService,
+      issuePriorityService,
       issueService,
     );
   }
@@ -179,8 +187,10 @@ async function syncRepositoryIssues(
   repository: GithubRepository,
   installationId: number,
   githubService: GithubService,
+  issuePriorityService: IssuePriorityService,
   issueService: IssueService,
 ) {
+  await githubService.syncRepositoryLabels(installationId, repository.fullName);
   await issueService.deleteByRepositoryId(repository.id);
 
   let page = 1;
@@ -188,13 +198,49 @@ async function syncRepositoryIssues(
   let hasMoreIssues = true;
 
   while (hasMoreIssues) {
-    const issues = await githubService.listRepositoryIssuesPage(
+    const githubIssues = await githubService.listRepositoryIssuesPage(
       installationId,
       repository.fullName,
       page,
       ISSUE_BATCH_SIZE,
     );
-    const records = issues.map(issue => mapIssueToModel(repository.id, issue));
+    const records: DataObject<GithubIssue>[] = [];
+    const issueUpdates: Array<{
+      issueNumber: number;
+      description: string;
+      prediction: Awaited<
+        ReturnType<IssuePriorityService['predictIssuePriority']>
+      >;
+    }> = [];
+
+    for (const githubIssue of githubIssues) {
+      const description = issuePriorityService.sanitizeIssueDescription(
+        githubIssue.body ?? '',
+      );
+      const processingDescription =
+        issuePriorityService.prependProcessingEmoji(description);
+
+      await githubService.markIssueAsProcessing(
+        installationId,
+        repository.fullName,
+        githubIssue.number,
+        description,
+      );
+
+      const prediction = await issuePriorityService.predictIssuePriority({
+        title: githubIssue.title,
+        description,
+      });
+
+      records.push(
+        mapIssueToModel(repository.id, githubIssue, description, prediction),
+      );
+      issueUpdates.push({
+        issueNumber: githubIssue.number,
+        description: processingDescription,
+        prediction,
+      });
+    }
 
     if (records.length && !loggedSample) {
       console.log('GitHub worker issue sample', {
@@ -206,7 +252,17 @@ async function syncRepositoryIssues(
 
     await issueService.saveIssuesBulk(records);
 
-    hasMoreIssues = issues.length === ISSUE_BATCH_SIZE;
+    for (const issueUpdate of issueUpdates) {
+      await githubService.applyPriorityPredictionToIssue(
+        installationId,
+        repository.fullName,
+        issueUpdate.issueNumber,
+        issueUpdate.prediction,
+        issueUpdate.description,
+      );
+    }
+
+    hasMoreIssues = githubIssues.length === ISSUE_BATCH_SIZE;
 
     if (hasMoreIssues) {
       page += 1;
@@ -267,6 +323,8 @@ async function syncRepositoryPullRequests(
 function mapIssueToModel(
   repositoryId: number,
   issue: Awaited<ReturnType<GithubService['listRepositoryIssuesPage']>>[number],
+  description: string,
+  prediction: IssuePriorityPrediction,
 ): DataObject<GithubIssue> {
   return {
     repositoryId,
@@ -274,7 +332,9 @@ function mapIssueToModel(
     githubIssueNumber: issue.number,
     title: issue.title,
     status: issue.state,
-    description: issue.body ?? '',
+    description,
+    priority: prediction.priority,
+    priorityReason: prediction.reason,
   };
 }
 

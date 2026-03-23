@@ -41,6 +41,10 @@ describe('GithubService (unit)', () => {
     enqueueGithubIssuesSync: ReturnType<typeof vi.fn>;
     enqueueGithubLabelsSync: ReturnType<typeof vi.fn>;
   };
+  let issuePriorityService: {
+    getPriorityLabelName: ReturnType<typeof vi.fn>;
+    upsertPredictionNote: ReturnType<typeof vi.fn>;
+  };
   let service: GithubService;
   let internals: GithubServiceInternals;
 
@@ -65,11 +69,20 @@ describe('GithubService (unit)', () => {
       enqueueGithubLabelsSync: vi.fn().mockResolvedValue(undefined),
       enqueueGithubIssuesSync: vi.fn().mockResolvedValue(undefined),
     };
+    issuePriorityService = {
+      getPriorityLabelName: vi
+        .fn()
+        .mockImplementation(priority => `Priority: ${String(priority)}`),
+      upsertPredictionNote: vi
+        .fn()
+        .mockImplementation((description: string) => description),
+    };
 
     service = new GithubService(
       async () => workspaceRepository as never,
       async () => githubRepositoryRepository as never,
       queueService as never,
+      issuePriorityService as never,
     );
     internals = service as unknown as GithubServiceInternals;
   });

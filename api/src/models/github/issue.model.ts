@@ -60,6 +60,18 @@ export class GithubIssue extends Entity {
   })
   description: string;
 
+  @property({
+    type: 'string',
+    postgresql: {columnName: 'priority'},
+  })
+  priority?: string;
+
+  @property({
+    type: 'string',
+    postgresql: {columnName: 'priority_reason'},
+  })
+  priorityReason?: string;
+
   constructor(data?: Partial<GithubIssue>) {
     super(data);
   }

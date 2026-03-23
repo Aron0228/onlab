@@ -6,6 +6,14 @@ describe('GithubWebhookService (unit)', () => {
   let githubService: {
     syncInstallationForConnectedWorkspace: ReturnType<typeof vi.fn>;
     disconnectInstallation: ReturnType<typeof vi.fn>;
+    syncRepositoryLabels: ReturnType<typeof vi.fn>;
+    applyPriorityPredictionToIssue: ReturnType<typeof vi.fn>;
+    markIssueAsProcessing: ReturnType<typeof vi.fn>;
+  };
+  let issuePriorityService: {
+    sanitizeIssueDescription: ReturnType<typeof vi.fn>;
+    prependProcessingEmoji: ReturnType<typeof vi.fn>;
+    predictIssuePriority: ReturnType<typeof vi.fn>;
   };
   let issueService: {
     upsertIssue: ReturnType<typeof vi.fn>;
@@ -32,6 +40,21 @@ describe('GithubWebhookService (unit)', () => {
         .fn()
         .mockResolvedValue(undefined),
       disconnectInstallation: vi.fn().mockResolvedValue(undefined),
+      syncRepositoryLabels: vi.fn().mockResolvedValue(undefined),
+      applyPriorityPredictionToIssue: vi.fn().mockResolvedValue(undefined),
+      markIssueAsProcessing: vi.fn().mockResolvedValue(undefined),
+    };
+    issuePriorityService = {
+      sanitizeIssueDescription: vi
+        .fn()
+        .mockImplementation((description: string) => description),
+      prependProcessingEmoji: vi
+        .fn()
+        .mockImplementation((description: string) => `👀 ${description}`),
+      predictIssuePriority: vi.fn().mockResolvedValue({
+        priority: 'High',
+        reason: 'The module is unusable.',
+      }),
     };
     issueService = {
       upsertIssue: vi.fn().mockResolvedValue(undefined),
@@ -52,6 +75,7 @@ describe('GithubWebhookService (unit)', () => {
 
     service = new GithubWebhookService(
       githubService as never,
+      issuePriorityService as never,
       issueService as never,
       pullRequestService as never,
       githubRepositoryRepository as never,
@@ -108,6 +132,7 @@ describe('GithubWebhookService (unit)', () => {
   it('upserts issues on issue edits', async () => {
     await service.handleWebhook('issues', {
       action: 'edited',
+      installation: {id: 123},
       repository: {
         owner: {login: 'team'},
         name: 'api',
@@ -131,11 +156,33 @@ describe('GithubWebhookService (unit)', () => {
         title: 'Broken',
         status: 'open',
         description: 'Updated body',
+        priority: 'High',
+        priorityReason: 'The module is unusable.',
       },
       {
         repositoryId: 99,
         githubId: 11,
       },
+    );
+    expect(githubService.syncRepositoryLabels).toHaveBeenCalledWith(
+      123,
+      'team/api',
+    );
+    expect(githubService.markIssueAsProcessing).toHaveBeenCalledWith(
+      123,
+      'team/api',
+      101,
+      'Updated body',
+    );
+    expect(githubService.applyPriorityPredictionToIssue).toHaveBeenCalledWith(
+      123,
+      'team/api',
+      101,
+      {
+        priority: 'High',
+        reason: 'The module is unusable.',
+      },
+      '👀 Updated body',
     );
   });
 

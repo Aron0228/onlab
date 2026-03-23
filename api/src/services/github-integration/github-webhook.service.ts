@@ -5,6 +5,7 @@ import {GithubRepositoryRepository, UserRepository} from '../../repositories';
 import {GithubService} from './github.service';
 import {IssueService} from './issue.service';
 import {PullRequestService} from './pull-request.service';
+import {IssuePriorityService} from '../issue-priority.service';
 
 export type GithubWebhookPayload = {
   action?: string;
@@ -46,6 +47,8 @@ export class GithubWebhookService {
 
   constructor(
     @service(GithubService) private githubService: GithubService,
+    @service(IssuePriorityService)
+    private issuePriorityService: IssuePriorityService,
     @service(IssueService) private issueService: IssueService,
     @service(PullRequestService) private pullRequestService: PullRequestService,
     @repository(GithubRepositoryRepository)
@@ -95,10 +98,6 @@ export class GithubWebhookService {
       case 'reopened':
       case 'closed':
         await this.upsertIssue(payload);
-
-        if (payload.action === 'opened') {
-          await this.handleIssueOpened(payload);
-        }
         break;
       case 'deleted':
         await this.deleteIssue(payload);
@@ -214,57 +213,33 @@ export class GithubWebhookService {
     console.log(`Commented on PR #${payload.pull_request.number}`);
   }
 
-  private async handleIssueOpened(payload: GithubWebhookPayload) {
-    const installationId = payload.installation?.id;
-
-    if (
-      !installationId ||
-      !payload.issue?.node_id ||
-      !payload.issue.number ||
-      !payload.repository?.owner.login ||
-      !payload.repository.name
-    ) {
-      console.warn('GitHub issues webhook payload is incomplete', payload);
-      return;
-    }
-
-    const octokit = await this.getInstallationClient(installationId);
-
-    // await octokit.graphql(
-    //   `
-    //     mutation AddLabelToIssue($labelableId: ID!, $labelIds: [ID!]!) {
-    //       addLabelsToLabelable(
-    //         input: {labelableId: $labelableId, labelIds: $labelIds}
-    //       ) {
-    //         clientMutationId
-    //       }
-    //     }
-    //   `,
-    //   {
-    //     labelableId: payload.issue.node_id,
-    //     labelIds: [this.issueOpenedLabelId],
-    //   },
-    // );
-
-    await octokit.request(
-      'POST /repos/{owner}/{repo}/issues/{issue_number}/comments',
-      {
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        issue_number: payload.issue.number,
-        body: '🚀 Thanks for opening this issue!',
-      },
-    );
-
-    console.log(`Labeled and commented on issue #${payload.issue.number}`);
-  }
-
   private async upsertIssue(payload: GithubWebhookPayload): Promise<void> {
     const repository = await this.resolveRepository(payload);
 
     if (!repository || !payload.issue) {
       return;
     }
+
+    const cleanedDescription =
+      this.issuePriorityService.sanitizeIssueDescription(
+        payload.issue.body ?? '',
+      );
+    const processingDescription =
+      this.issuePriorityService.prependProcessingEmoji(cleanedDescription);
+
+    if (payload.installation?.id) {
+      await this.githubService.markIssueAsProcessing(
+        payload.installation.id,
+        repository.fullName,
+        payload.issue.number,
+        cleanedDescription,
+      );
+    }
+
+    const prediction = await this.issuePriorityService.predictIssuePriority({
+      title: payload.issue.title,
+      description: cleanedDescription,
+    });
 
     await this.issueService.upsertIssue(
       {
@@ -273,12 +248,38 @@ export class GithubWebhookService {
         githubIssueNumber: payload.issue.number,
         title: payload.issue.title,
         status: payload.issue.state,
-        description: payload.issue.body ?? '',
+        description: cleanedDescription,
+        priority: prediction.priority,
+        priorityReason: prediction.reason,
       },
       {
         repositoryId: repository.id,
         githubId: payload.issue.id,
       },
+    );
+
+    if (!payload.installation?.id) {
+      console.warn(
+        'GitHub issues webhook payload missing installation id for priority sync',
+        {
+          action: payload.action,
+          issueNumber: payload.issue.number,
+          repositoryFullName: repository.fullName,
+        },
+      );
+      return;
+    }
+
+    await this.githubService.syncRepositoryLabels(
+      payload.installation.id,
+      repository.fullName,
+    );
+    await this.githubService.applyPriorityPredictionToIssue(
+      payload.installation.id,
+      repository.fullName,
+      payload.issue.number,
+      prediction,
+      processingDescription,
     );
   }
 
