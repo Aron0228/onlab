@@ -1,7 +1,7 @@
-import type {TOC} from '@ember/component/template-only';
-import {pageTitle} from 'ember-page-title';
+import type { TOC } from '@ember/component/template-only';
+import { pageTitle } from 'ember-page-title';
 import RoutesWorkspacesEditIssues from 'client/components/routes/workspaces/edit/issues';
-import type {WorkspacesEditIssuesRouteModel} from 'client/routes/workspaces/edit/issues';
+import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';
 
 interface IssuesSignature {
   Args: {
@@ -12,5 +12,8 @@ interface IssuesSignature {
 
 <template>
   {{pageTitle "Issues"}}
-  <RoutesWorkspacesEditIssues @model={{@model}} />
+  <div class="workspaces-edit-issues-layout">
+    <RoutesWorkspacesEditIssues @model={{@model}} />
+    {{outlet}}
+  </div>
 </template> satisfies TOC<IssuesSignature>;

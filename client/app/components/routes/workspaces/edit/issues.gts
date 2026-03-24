@@ -1,6 +1,7 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
+import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { inject as service } from '@ember/service';
@@ -11,6 +12,10 @@ import UiIcon from 'client/components/ui/icon';
 import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
+
+type RouterLike = {
+  transitionTo(route: string): void;
+};
 
 export interface RoutesWorkspacesEditIssuesSignature {
   // The arguments accepted by the component
@@ -27,6 +32,7 @@ export interface RoutesWorkspacesEditIssuesSignature {
 
 export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspacesEditIssuesSignature> {
   @service store;
+  @service declare router: RouterLike;
 
   @tracked activeFilters: string[] = [];
 
@@ -94,6 +100,10 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     }
   };
 
+  issueEditModels = (issueId: string | number): [number, string | number] => {
+    return [this.args.model.workspace.id, issueId];
+  };
+
   isFilterActive = (selector: string) => {
     return this.activeFilters.includes(selector);
   };
@@ -108,6 +118,11 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     }
 
     this.activeFilters = [...this.activeFilters, selector];
+  }
+
+  @action
+  openNewIssue(): void {
+    this.router.transitionTo('workspaces.edit.issues.new');
   }
 
   <template>
@@ -129,7 +144,11 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
             </span>
           </div>
           <div class="margin-left-auto">
-            <UiButton @iconLeft="plus" @text="Create Issue" />
+            <UiButton
+              @iconLeft="plus"
+              @text="Create Issue"
+              @onClick={{this.openNewIssue}}
+            />
           </div>
         </div>
 
@@ -154,39 +173,45 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
       <div class="issues-body layout-vertical --gap-lg">
 
         {{#each this.workspaceIssues as |workspaceIssue|}}
-          <UiContainer class="issue-card">
-            <:header>
-              <div class="layout-horizontal --gap-sm">
-                <UiIcon @name="exclamation-circle" />
-                <span class="font-weight-bold">
-                  #{{workspaceIssue.githubIssueNumber}}
+          <LinkTo
+            @route="workspaces.edit.issues.edit"
+            @models={{this.issueEditModels workspaceIssue.id}}
+            class="issue-card-link {{this.prioritySelector workspaceIssue.priority}}"
+          >
+            <UiContainer class="issue-card">
+              <:header>
+                <div class="layout-horizontal --gap-sm">
+                  <UiIcon @name="exclamation-circle" />
+                  <span class="font-weight-bold">
+                    #{{workspaceIssue.githubIssueNumber}}
+                  </span>
+                  <div
+                    class="issue-ai-priority
+                      {{this.prioritySelector workspaceIssue.priority}}
+                      layout-horizontal --gap-xs"
+                  >
+                    <UiIcon @name="circle-arrow-up" @size="sm" />
+
+                    <span class="font-size-text-sm">{{this.priorityLabel
+                        workspaceIssue.priority
+                      }}</span>
+                  </div>
+
+                  <div
+                    class="issue-status layout-horizontal --gap-xs margin-left-auto"
+                  >
+                    <UiIcon @name="info-circle" @variant="primary" />
+                    {{workspaceIssue.status}}
+                  </div>
+                </div>
+              </:header>
+              <:default>
+                <span class="font-weight-medium font-size-text-lg">
+                  {{workspaceIssue.title}}
                 </span>
-                <div
-                  class="issue-ai-priority
-                    {{this.prioritySelector workspaceIssue.priority}}
-                    layout-horizontal --gap-xs"
-                >
-                  <UiIcon @name="circle-arrow-up" @size="sm" />
-
-                  <span class="font-size-text-sm">{{this.priorityLabel
-                      workspaceIssue.priority
-                    }}</span>
-                </div>
-
-                <div
-                  class="issue-status layout-horizontal --gap-xs margin-left-auto"
-                >
-                  <UiIcon @name="info-circle" @variant="primary" />
-                  {{workspaceIssue.status}}
-                </div>
-              </div>
-            </:header>
-            <:default>
-              <span class="font-weight-medium font-size-text-lg">
-                {{workspaceIssue.title}}
-              </span>
-            </:default>
-          </UiContainer>
+              </:default>
+            </UiContainer>
+          </LinkTo>
         {{/each}}
       </div>
     </div>

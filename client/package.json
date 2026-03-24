@@ -114,5 +114,9 @@
   },
   "ember": {
     "edition": "octane"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.3",
+    "marked": "^17.0.5"
   }
 }
