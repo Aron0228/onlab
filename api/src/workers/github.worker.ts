@@ -14,8 +14,11 @@ import {
   WorkspaceRepository,
 } from '../repositories';
 import {
+  CREATE_GITHUB_ISSUE_JOB_NAME,
+  type CreateGithubIssueJobData,
   GITHUB_ISSUES_QUEUE_NAME,
   GithubService,
+  type GithubIssuesJobData,
   type IssuePriorityPrediction,
   IssuePriorityService,
   IssueService,
@@ -23,7 +26,6 @@ import {
   PullRequestService,
   RedisService,
   SYNC_GITHUB_LABELS_JOB_NAME,
-  SYNC_GITHUB_ISSUES_JOB_NAME,
   SyncGithubIssuesJobData,
 } from '../services';
 
@@ -55,16 +57,12 @@ async function startWorker() {
     'repositories.WorkspaceRepository',
   );
 
-  const worker = new Worker<SyncGithubIssuesJobData>(
+  const worker = new Worker<GithubIssuesJobData>(
     GITHUB_ISSUES_QUEUE_NAME,
     async job => {
-      if (job.name !== SYNC_GITHUB_ISSUES_JOB_NAME) {
-        if (job.name !== SYNC_GITHUB_LABELS_JOB_NAME) {
-          return;
-        }
-
+      if (job.name === SYNC_GITHUB_LABELS_JOB_NAME) {
         await processSyncLabelsJob(
-          job,
+          job as Job<SyncGithubIssuesJobData>,
           githubService,
           githubRepositoryRepository,
           labelService,
@@ -72,8 +70,21 @@ async function startWorker() {
         return;
       }
 
+      if (job.name === CREATE_GITHUB_ISSUE_JOB_NAME) {
+        await processCreateIssueJob(
+          job as Job<CreateGithubIssueJobData>,
+          githubService,
+          githubRepositoryRepository,
+          workspaceRepository,
+          issuePriorityService,
+          issueService,
+          labelService,
+        );
+        return;
+      }
+
       await processSyncIssuesJob(
-        job,
+        job as Job<SyncGithubIssuesJobData>,
         githubService,
         githubRepositoryRepository,
         workspaceRepository,
@@ -89,20 +100,22 @@ async function startWorker() {
   );
 
   worker.on('completed', job => {
+    const metadata = getJobMetadata(job.data);
+
     console.log('GitHub sync job completed', {
       jobName: job.name,
       jobId: job.id,
-      workspaceId: job.data.workspaceId,
-      installationId: job.data.installationId,
+      ...metadata,
     });
   });
 
   worker.on('failed', (job, error) => {
+    const metadata = job ? getJobMetadata(job.data) : {};
+
     console.error('GitHub sync job failed', {
       jobName: job?.name,
       jobId: job?.id,
-      workspaceId: job?.data.workspaceId,
-      installationId: job?.data.installationId,
+      ...metadata,
       error,
     });
   });
@@ -183,6 +196,65 @@ async function processSyncLabelsJob(
   }
 }
 
+async function processCreateIssueJob(
+  job: Job<CreateGithubIssueJobData>,
+  githubService: GithubService,
+  githubRepositoryRepository: GithubRepositoryRepository,
+  workspaceRepository: WorkspaceRepository,
+  issuePriorityService: IssuePriorityService,
+  issueService: IssueService,
+  labelService: LabelService,
+) {
+  const repository = await githubRepositoryRepository.findById(
+    job.data.repositoryId,
+  );
+  const workspace = await workspaceRepository.findById(repository.workspaceId);
+  const installationId = Number(workspace.githubInstallationId);
+
+  if (!workspace.githubInstallationId || Number.isNaN(installationId)) {
+    throw new Error('Workspace is not connected to a GitHub installation');
+  }
+
+  await syncRepositoryLabels(
+    repository,
+    installationId,
+    githubService,
+    labelService,
+  );
+
+  const prediction = await issuePriorityService.predictIssuePriority({
+    title: job.data.title,
+    description: job.data.description,
+  });
+  const githubIssue = await githubService.createIssue(
+    installationId,
+    repository.fullName,
+    job.data.title,
+    issuePriorityService.upsertPredictionNote(job.data.description, prediction),
+  );
+
+  await githubService.applyPriorityPredictionToIssue(
+    installationId,
+    repository.fullName,
+    githubIssue.number,
+    prediction,
+    job.data.description,
+  );
+
+  await issueService.upsertIssue(
+    mapIssueToModel(
+      repository.id,
+      githubIssue,
+      issuePriorityService.sanitizeIssueDescription(job.data.description),
+      prediction,
+    ),
+    {
+      repositoryId: repository.id,
+      githubId: githubIssue.id,
+    },
+  );
+}
+
 async function syncRepositoryIssues(
   repository: GithubRepository,
   installationId: number,
@@ -208,6 +280,7 @@ async function syncRepositoryIssues(
     const issueUpdates: Array<{
       issueNumber: number;
       description: string;
+      processingReactionId: number | null;
       prediction: Awaited<
         ReturnType<IssuePriorityService['predictIssuePriority']>
       >;
@@ -217,14 +290,10 @@ async function syncRepositoryIssues(
       const description = issuePriorityService.sanitizeIssueDescription(
         githubIssue.body ?? '',
       );
-      const processingDescription =
-        issuePriorityService.prependProcessingEmoji(description);
-
-      await githubService.markIssueAsProcessing(
+      const processingReactionId = await githubService.markIssueAsProcessing(
         installationId,
         repository.fullName,
         githubIssue.number,
-        description,
       );
 
       const prediction = await issuePriorityService.predictIssuePriority({
@@ -237,7 +306,8 @@ async function syncRepositoryIssues(
       );
       issueUpdates.push({
         issueNumber: githubIssue.number,
-        description: processingDescription,
+        description,
+        processingReactionId,
         prediction,
       });
     }
@@ -259,6 +329,7 @@ async function syncRepositoryIssues(
         issueUpdate.issueNumber,
         issueUpdate.prediction,
         issueUpdate.description,
+        issueUpdate.processingReactionId,
       );
     }
 
@@ -335,6 +406,19 @@ function mapIssueToModel(
     description,
     priority: prediction.priority,
     priorityReason: prediction.reason,
+  };
+}
+
+function getJobMetadata(jobData: GithubIssuesJobData): Record<string, number> {
+  if ('workspaceId' in jobData) {
+    return {
+      workspaceId: jobData.workspaceId,
+      installationId: jobData.installationId,
+    };
+  }
+
+  return {
+    repositoryId: jobData.repositoryId,
   };
 }
 

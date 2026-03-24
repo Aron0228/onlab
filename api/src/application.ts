@@ -22,10 +22,12 @@ import {QueryTokenStrategy} from './strategies/query-token.strategy';
 import {
   GithubService,
   GithubWebhookService,
+  IssuePriorityService,
   GithubOauthService,
   IssueService,
   JwtTokenService,
   LabelService,
+  OllamaService,
   PullRequestService,
   QueueService,
   RedisService,
@@ -66,6 +68,8 @@ export class RestApi extends BootMixin(
     this.service(QueueService);
     this.service(JwtTokenService);
     this.service(GithubOauthService);
+    this.service(OllamaService);
+    this.service(IssuePriorityService);
     this.service(GithubService);
     this.service(GithubWebhookService);
     this.service(IssueService);

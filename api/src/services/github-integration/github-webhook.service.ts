@@ -9,6 +9,10 @@ import {IssuePriorityService} from '../issue-priority.service';
 
 export type GithubWebhookPayload = {
   action?: string;
+  sender?: {
+    login?: string;
+    type?: string;
+  };
   installation?: {
     id: number;
   };
@@ -92,6 +96,10 @@ export class GithubWebhookService {
   }
 
   private async handleIssueEvent(payload: GithubWebhookPayload) {
+    if (this.isAppAuthoredIssueEvent(payload)) {
+      return;
+    }
+
     switch (payload.action) {
       case 'opened':
       case 'edited':
@@ -224,15 +232,13 @@ export class GithubWebhookService {
       this.issuePriorityService.sanitizeIssueDescription(
         payload.issue.body ?? '',
       );
-    const processingDescription =
-      this.issuePriorityService.prependProcessingEmoji(cleanedDescription);
+    let processingReactionId: number | null = null;
 
     if (payload.installation?.id) {
-      await this.githubService.markIssueAsProcessing(
+      processingReactionId = await this.githubService.markIssueAsProcessing(
         payload.installation.id,
         repository.fullName,
         payload.issue.number,
-        cleanedDescription,
       );
     }
 
@@ -279,8 +285,19 @@ export class GithubWebhookService {
       repository.fullName,
       payload.issue.number,
       prediction,
-      processingDescription,
+      cleanedDescription,
+      processingReactionId,
     );
+  }
+
+  private isAppAuthoredIssueEvent(payload: GithubWebhookPayload): boolean {
+    const action = payload.action;
+
+    if (action !== 'opened' && action !== 'edited' && action !== 'reopened') {
+      return false;
+    }
+
+    return payload.sender?.type === 'Bot';
   }
 
   private async deleteIssue(payload: GithubWebhookPayload): Promise<void> {

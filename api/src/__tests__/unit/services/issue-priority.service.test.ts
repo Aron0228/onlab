@@ -1,8 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {
-  IssuePriorityService,
-  type IssuePriorityPrediction,
-} from '../../../services';
+import {IssuePriorityService} from '../../../services';
 
 describe('IssuePriorityService (unit)', () => {
   let ollamaService: {

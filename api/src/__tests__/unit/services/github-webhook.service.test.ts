@@ -12,7 +12,6 @@ describe('GithubWebhookService (unit)', () => {
   };
   let issuePriorityService: {
     sanitizeIssueDescription: ReturnType<typeof vi.fn>;
-    prependProcessingEmoji: ReturnType<typeof vi.fn>;
     predictIssuePriority: ReturnType<typeof vi.fn>;
   };
   let issueService: {
@@ -48,9 +47,6 @@ describe('GithubWebhookService (unit)', () => {
       sanitizeIssueDescription: vi
         .fn()
         .mockImplementation((description: string) => description),
-      prependProcessingEmoji: vi
-        .fn()
-        .mockImplementation((description: string) => `👀 ${description}`),
       predictIssuePriority: vi.fn().mockResolvedValue({
         priority: 'High',
         reason: 'The module is unusable.',
@@ -132,6 +128,10 @@ describe('GithubWebhookService (unit)', () => {
   it('upserts issues on issue edits', async () => {
     await service.handleWebhook('issues', {
       action: 'edited',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
       installation: {id: 123},
       repository: {
         owner: {login: 'team'},
@@ -172,7 +172,6 @@ describe('GithubWebhookService (unit)', () => {
       123,
       'team/api',
       101,
-      'Updated body',
     );
     expect(githubService.applyPriorityPredictionToIssue).toHaveBeenCalledWith(
       123,
@@ -182,8 +181,37 @@ describe('GithubWebhookService (unit)', () => {
         priority: 'High',
         reason: 'The module is unusable.',
       },
-      '👀 Updated body',
+      'Updated body',
+      undefined,
     );
+  });
+
+  it('ignores issue events authored by the GitHub app bot', async () => {
+    await service.handleWebhook('issues', {
+      action: 'edited',
+      sender: {
+        login: 'devteams-demo[bot]',
+        type: 'Bot',
+      },
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+    });
+
+    expect(githubService.markIssueAsProcessing).not.toHaveBeenCalled();
+    expect(githubService.applyPriorityPredictionToIssue).not.toHaveBeenCalled();
+    expect(issueService.upsertIssue).not.toHaveBeenCalled();
   });
 
   it('deletes issues on issue deletion events', async () => {

@@ -422,6 +422,48 @@ export class GithubService {
       }));
   }
 
+  public async createIssue(
+    installationId: number,
+    repositoryFullName: string,
+    title: string,
+    description: string | null,
+  ): Promise<GithubRepositoryIssue> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'issue creation',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for issue creation',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request(
+      'POST /repos/{owner}/{repo}/issues',
+      {
+        owner,
+        repo,
+        title,
+        body: description ?? undefined,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    return {
+      id: response.data.id,
+      number: response.data.number,
+      title: response.data.title,
+      state: response.data.state,
+      html_url: response.data.html_url,
+      body: response.data.body ?? null,
+    };
+  }
+
   public async listRepositoryPullRequestsPage(
     installationId: number,
     repositoryFullName: string,
@@ -549,6 +591,7 @@ export class GithubService {
     issueNumber: number,
     prediction: IssuePriorityPrediction,
     description: string | null,
+    processingReactionId?: number | null,
   ): Promise<void> {
     const repositoryCoordinates = this.getRepositoryCoordinates(
       repositoryFullName,
@@ -618,17 +661,58 @@ export class GithubService {
         'X-GitHub-Api-Version': '2022-11-28',
       },
     });
+
+    await this.unmarkIssueAsProcessing(
+      installationId,
+      repositoryFullName,
+      issueNumber,
+      processingReactionId,
+    );
   }
 
   public async markIssueAsProcessing(
     installationId: number,
     repositoryFullName: string,
     issueNumber: number,
-    description: string | null,
-  ): Promise<void> {
+  ): Promise<number | null> {
     const repositoryCoordinates = this.getRepositoryCoordinates(
       repositoryFullName,
       'issue processing marker update',
+    );
+
+    if (!repositoryCoordinates) {
+      return null;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    const response = await octokit.request(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/reactions',
+      {
+        owner,
+        repo,
+        issue_number: issueNumber,
+        content: 'eyes',
+        headers: {
+          accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    return response.data.id ?? null;
+  }
+
+  public async unmarkIssueAsProcessing(
+    installationId: number,
+    repositoryFullName: string,
+    issueNumber: number,
+    reactionId?: number | null,
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'issue processing marker cleanup',
     );
 
     if (!repositoryCoordinates) {
@@ -638,15 +722,53 @@ export class GithubService {
     const {owner, repo} = repositoryCoordinates;
     const octokit = await this.getInstallationClient(installationId);
 
-    await octokit.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
-      owner,
-      repo,
-      issue_number: issueNumber,
-      body: this.issuePriorityService.prependProcessingEmoji(description),
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
+    if (reactionId) {
+      await octokit.request(
+        'DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}',
+        {
+          owner,
+          repo,
+          issue_number: issueNumber,
+          reaction_id: reactionId,
+          headers: {
+            accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+      return;
+    }
+
+    const response = await octokit.request(
+      'GET /repos/{owner}/{repo}/issues/{issue_number}/reactions',
+      {
+        owner,
+        repo,
+        issue_number: issueNumber,
+        headers: {
+          accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
       },
-    });
+    );
+    const reactionsToRemove = response.data.filter(
+      reaction => reaction.content === 'eyes' && reaction.user?.type === 'Bot',
+    );
+
+    for (const reaction of reactionsToRemove) {
+      await octokit.request(
+        'DELETE /repos/{owner}/{repo}/issues/reactions/{reaction_id}',
+        {
+          owner,
+          repo,
+          reaction_id: reaction.id,
+          headers: {
+            accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+    }
   }
 
   private async listInstallationRepositories(
