@@ -15,6 +15,9 @@
 @import url('routes/login.css');
 @import url('routes/workspaces/index.css');
 @import url('routes/workspaces/new.css');
+@import url('routes/workspaces/edit.css');
+@import url('routes/workspaces/issues.css');
+@import url('routes/workspaces/pull-requests.css');
 @import url('routes/profile.css');
 
 @import url('utils.css');

@@ -1,34 +1,44 @@
-import {beforeEach, describe, expect, it} from 'vitest';
-import {juggler} from '@loopback/repository';
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
+import {RestApi} from '../../..';
+import {AccessToken} from '../../../models';
+import {AccessTokenRepository, UserRepository} from '../../../repositories';
+import {
+  createTestUser,
+  getTestRepository,
+  resetTestDataSource,
+  setupRepositoryTestApp,
+  teardownRepositoryTestApp,
+} from './test-helpers';
 
-import {AccessToken, User} from '../../../models';
-import {AccessTokenRepository} from '../../../repositories';
-import {UserRepository} from '../../../repositories';
-import {createMemoryDataSource} from './test-helpers';
-
-describe('AccessTokenRepository (unit)', () => {
-  let dataSource: juggler.DataSource;
+describe('AccessTokenRepository (integration)', () => {
+  let app: RestApi;
+  let dataSource: Awaited<
+    ReturnType<typeof setupRepositoryTestApp>
+  >['dataSource'];
   let repository: AccessTokenRepository;
   let userRepository: UserRepository;
   let userId: number;
 
+  beforeAll(async () => {
+    ({app, dataSource} = await setupRepositoryTestApp());
+    userRepository = await getTestRepository<UserRepository>(
+      app,
+      'UserRepository',
+    );
+    repository = await getTestRepository<AccessTokenRepository>(
+      app,
+      'AccessTokenRepository',
+    );
+  });
+
   beforeEach(async () => {
-    dataSource = createMemoryDataSource();
-    userRepository = new UserRepository(dataSource as never);
-    repository = new AccessTokenRepository(
-      dataSource as never,
-      async () => userRepository,
-    );
-    const user = await userRepository.create(
-      new User({
-        githubId: 1,
-        username: 'aron0228',
-        fullName: 'Reszegi Aron',
-        email: 'aron@example.com',
-        avatarUrl: 'https://example.com/avatar.png',
-      }),
-    );
+    await resetTestDataSource(dataSource);
+    const user = await createTestUser(userRepository);
     userId = user.id;
+  });
+
+  afterAll(async () => {
+    await teardownRepositoryTestApp(app, dataSource);
   });
 
   const createToken = () =>

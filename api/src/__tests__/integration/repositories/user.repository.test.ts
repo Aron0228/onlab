@@ -1,29 +1,35 @@
-import {beforeEach, describe, expect, it} from 'vitest';
-import {juggler} from '@loopback/repository';
-
-import {User} from '../../../models';
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
+import {RestApi} from '../../..';
 import {UserRepository} from '../../../repositories';
-import {createMemoryDataSource} from './test-helpers';
+import {
+  createTestUser,
+  getTestRepository,
+  resetTestDataSource,
+  setupRepositoryTestApp,
+  teardownRepositoryTestApp,
+} from './test-helpers';
 
-describe('UserRepository (unit)', () => {
-  let dataSource: juggler.DataSource;
+describe('UserRepository (integration)', () => {
+  let app: RestApi;
+  let dataSource: Awaited<
+    ReturnType<typeof setupRepositoryTestApp>
+  >['dataSource'];
   let repository: UserRepository;
 
-  beforeEach(() => {
-    dataSource = createMemoryDataSource();
-    repository = new UserRepository(dataSource as never);
+  beforeAll(async () => {
+    ({app, dataSource} = await setupRepositoryTestApp());
+    repository = await getTestRepository<UserRepository>(app, 'UserRepository');
   });
 
-  const createUser = () =>
-    repository.create(
-      new User({
-        githubId: 1,
-        username: 'aron0228',
-        fullName: 'Reszegi Aron',
-        email: 'aron@example.com',
-        avatarUrl: 'https://example.com/avatar.png',
-      }),
-    );
+  beforeEach(async () => {
+    await resetTestDataSource(dataSource);
+  });
+
+  afterAll(async () => {
+    await teardownRepositoryTestApp(app, dataSource);
+  });
+
+  const createUser = () => createTestUser(repository);
 
   it('creates users', async () => {
     await createUser();

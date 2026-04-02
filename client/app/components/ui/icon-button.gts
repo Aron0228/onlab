@@ -29,6 +29,7 @@ export default class UiIconButton extends Component<UiIconButtonSignature> {
       <LinkTo
         @route={{@route}}
         class="ui-icon-button --{{this.iconVariant}} --route-action"
+        ...attributes
       >
         <UiIcon
           @name={{@iconName}}
@@ -41,6 +42,7 @@ export default class UiIconButton extends Component<UiIconButtonSignature> {
         type="button"
         class="ui-icon-button --{{this.iconVariant}}"
         {{on "click" this.onClick}}
+        ...attributes
       >
         <UiIcon
           @name={{@iconName}}

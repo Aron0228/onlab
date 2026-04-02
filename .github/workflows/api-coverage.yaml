@@ -19,6 +19,28 @@ jobs:
   api-tests:
     name: API tests (Vitest + Coverage)
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DATABASE: onlab_test
+      POSTGRES_URL: postgres://postgres:postgres@localhost:5432/onlab_test
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: onlab_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d onlab_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repo
@@ -39,6 +61,18 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Wait for Postgres
+        env:
+          PGPASSWORD: postgres
+        run: |
+          until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE"; do
+            sleep 1
+          done
+
+      - name: Run API migrations
+        working-directory: api
+        run: pnpm exec db-migrate up --env dev
 
       - name: Run API tests with coverage
         working-directory: api

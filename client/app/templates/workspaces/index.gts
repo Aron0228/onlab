@@ -4,7 +4,7 @@ import RoutesWorkspacesIndex from 'client/components/routes/workspaces/index';
 
 interface IndexSignature {
   Args: {
-    model: unknown;
+    model: object | null;
     controller: unknown;
   };
 }

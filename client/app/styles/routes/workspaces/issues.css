@@ -1,0 +1,499 @@
+.workspaces-edit-issues-layout {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.route-workspaces-edit-issues {
+  background: var(--bg-app);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+
+  .issues-header {
+    background: var(--bg-surface);
+    padding: var(--space-md);
+
+    .issues-filters {
+      width: 100%;
+    }
+
+    .issue-filter {
+      --issue-filter-bg: var(--bg-hover);
+      --issue-filter-color: var(--text-secondary);
+      --issue-filter-active-bg: var(--bg-active);
+      --issue-filter-active-color: var(--text-primary);
+      appearance: none;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex: 1 1 10rem;
+      gap: var(--space-sm);
+      min-width: 10rem;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      background: var(--issue-filter-bg);
+      color: var(--issue-filter-color);
+      cursor: pointer;
+      text-align: left;
+
+      &:hover {
+        border-color: var(--issue-filter-color);
+      }
+
+      &.--active {
+        background: var(--issue-filter-active-bg);
+        color: var(--issue-filter-active-color);
+        border-color: var(--issue-filter-active-color);
+      }
+
+      &.--very-high {
+        --issue-filter-bg: var(--color-very-high-bg-disabled);
+        --issue-filter-color: var(--color-very-high-disabled);
+        --issue-filter-active-bg: var(--color-very-high-bg);
+        --issue-filter-active-color: var(--color-very-high);
+      }
+
+      &.--high {
+        --issue-filter-bg: var(--color-high-bg-disabled);
+        --issue-filter-color: var(--color-high-disabled);
+        --issue-filter-active-bg: var(--color-high-bg);
+        --issue-filter-active-color: var(--color-high);
+      }
+
+      &.--medium {
+        --issue-filter-bg: var(--color-medium-bg-disabled);
+        --issue-filter-color: var(--color-medium-disabled);
+        --issue-filter-active-bg: var(--color-medium-bg);
+        --issue-filter-active-color: var(--color-medium);
+      }
+
+      &.--low {
+        --issue-filter-bg: var(--color-low-bg-disabled);
+        --issue-filter-color: var(--color-low-disabled);
+        --issue-filter-active-bg: var(--color-low-bg);
+        --issue-filter-active-color: var(--color-low);
+      }
+
+      &.--unknown {
+        --issue-filter-bg: var(--color-unknown-bg-disabled);
+        --issue-filter-color: var(--color-unknown-disabled);
+        --issue-filter-active-bg: var(--color-unknown-bg);
+        --issue-filter-active-color: var(--color-unknown);
+      }
+    }
+  }
+
+  .issues-body {
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-app);
+    padding: var(--space-md);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+      background: transparent;
+    }
+
+    .issue-card-link {
+      --issue-card-border-color: var(--border-subtle);
+      display: block;
+      color: inherit;
+      text-decoration: none;
+
+      .issue-card {
+        border: 1px solid transparent;
+        transition:
+          border-color 0.18s ease-in-out,
+          transform 0.18s ease-in-out;
+      }
+
+      &:hover .issue-card,
+      &.active .issue-card,
+      &:focus-visible .issue-card {
+        border-color: var(--issue-card-border-color);
+      }
+
+      &:focus-visible {
+        outline: none;
+      }
+
+      &.--very-high {
+        --issue-card-border-color: var(--color-very-high);
+      }
+
+      &.--high {
+        --issue-card-border-color: var(--color-high);
+      }
+
+      &.--medium {
+        --issue-card-border-color: var(--color-medium);
+      }
+
+      &.--low {
+        --issue-card-border-color: var(--color-low);
+      }
+
+      &.--unknown {
+        --issue-card-border-color: var(--color-unknown);
+      }
+    }
+
+    .issue-card .ui-container__header {
+      padding-bottom: 0;
+    }
+  }
+}
+
+.issue-status {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary-500);
+  padding: var(--space-sm);
+  background: var(--bg-input);
+}
+
+.issue-ai-priority {
+  --issue-priority-bg: var(--bg-active);
+  --issue-priority-color: var(--text-primary);
+  align-items: center;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--issue-priority-bg);
+  color: var(--issue-priority-color);
+  border: 1px solid var(--issue-priority-color);
+
+  .ui-icon-wrapper {
+    color: inherit;
+  }
+
+  &.--very-high {
+    --issue-priority-bg: var(--color-very-high-bg);
+    --issue-priority-color: var(--color-very-high);
+  }
+
+  &.--high {
+    --issue-priority-bg: var(--color-high-bg);
+    --issue-priority-color: var(--color-high);
+  }
+
+  &.--medium {
+    --issue-priority-bg: var(--color-medium-bg);
+    --issue-priority-color: var(--color-medium);
+  }
+
+  &.--low {
+    --issue-priority-bg: var(--color-low-bg);
+    --issue-priority-color: var(--color-low);
+  }
+
+  &.--unknown {
+    --issue-priority-bg: var(--color-unknown-bg);
+    --issue-priority-color: var(--color-unknown);
+  }
+}
+
+.route-workspaces-edit-issues-edit {
+  display: flex;
+  flex: 0 0 min(30rem, 100%);
+  width: min(30rem, 100%);
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border-subtle);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-surface) 92%, var(--color-accent-subtle) 8%),
+    var(--bg-surface)
+  );
+
+  .issue-edit-panel {
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-lg);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+      background: transparent;
+    }
+  }
+
+  .issue-edit-panel__header {
+    align-items: center;
+  }
+
+  .issue-edit-panel__title {
+    font-size: clamp(1.4rem, 2vw, 2rem);
+    line-height: 1.2;
+  }
+
+  .issue-edit-panel__badges {
+    align-items: center;
+  }
+
+  .issue-edit-analysis {
+    .ui-container__header {
+      padding-bottom: var(--space-sm);
+    }
+  }
+
+  .issue-edit-analysis__content,
+  .issue-edit-section__content {
+    color: var(--text-secondary);
+    white-space: pre-line;
+  }
+
+  .issue-edit-markdown {
+    white-space: normal;
+    line-height: 1.7;
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    p,
+    ul,
+    ol,
+    blockquote,
+    pre {
+      margin: 0 0 var(--space-md);
+    }
+
+    ul,
+    ol {
+      padding-left: 1.25rem;
+    }
+
+    li + li {
+      margin-top: var(--space-xs);
+    }
+
+    a {
+      color: var(--color-accent-500);
+      text-decoration: underline;
+      text-underline-offset: 0.12em;
+    }
+
+    blockquote {
+      margin-left: 0;
+      padding: var(--space-sm) var(--space-md);
+      border-left: 3px solid var(--color-primary-500);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      background: color-mix(
+        in srgb,
+        var(--color-accent-subtle) 35%,
+        transparent
+      );
+      color: var(--text-primary);
+    }
+
+    code {
+      padding: 0.1rem 0.35rem;
+      border-radius: var(--radius-sm);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+    }
+
+    pre code {
+      display: block;
+      padding: 0;
+      background: transparent;
+    }
+  }
+
+  .issue-edit-section__label {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+  }
+
+  .issue-edit-metadata {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-md);
+  }
+
+  .issue-edit-metadata__item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-surface) 88%, var(--bg-hover) 12%);
+  }
+
+  .issue-edit-metadata__label {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .issue-edit-metadata__value {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+.issue-panel__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: var(--space-xs);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  transition:
+    background-color 0.18s ease-in-out,
+    color 0.18s ease-in-out;
+
+  .ui-icon-wrapper {
+    color: inherit;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: var(--bg-hover);
+    color: var(--color-primary-500);
+    outline: none;
+  }
+}
+
+.route-workspaces-edit-issues-new {
+  display: flex;
+  flex: 0 0 min(34rem, 100%);
+  width: min(34rem, 100%);
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border-subtle);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-surface) 92%, var(--color-accent-subtle) 8%),
+    var(--bg-surface)
+  );
+
+  .issue-new-panel {
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-lg);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+      background: transparent;
+    }
+  }
+
+  .issue-new-panel__header {
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .issue-new-panel__textarea {
+    min-height: 14rem;
+    resize: vertical;
+    line-height: 1.6;
+  }
+
+  .issue-new-panel__analysis-header {
+    align-items: center;
+  }
+
+  .issue-new-panel__footer {
+    margin-top: auto;
+  }
+
+  .issue-new-panel__action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .issue-new-panel__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+  }
+
+  .issue-new-panel__create,
+  .issue-new-panel__analyze {
+    flex-shrink: 1;
+  }
+}
+
+.issue-edit-loading {
+  .issue-edit-loading__body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg);
+  }
+}
+
+@media (width <= 768px) {
+  .workspaces-edit-issues-layout {
+    flex-direction: column;
+  }
+
+  .route-workspaces-edit-issues-edit {
+    width: 100%;
+    flex-basis: auto;
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+
+    .issue-edit-panel {
+      max-height: none;
+    }
+
+    .issue-edit-metadata {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .route-workspaces-edit-issues-new {
+    width: 100%;
+    flex-basis: auto;
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+
+    .issue-new-panel__footer {
+      flex-direction: column;
+    }
+  }
+}

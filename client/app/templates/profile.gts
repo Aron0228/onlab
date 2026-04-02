@@ -6,6 +6,7 @@ interface ProfileSignature {
   Args: {
     model: {
       routeBack: string;
+      routeBackUrl: string | null;
     };
     controller: unknown;
   };
@@ -13,6 +14,9 @@ interface ProfileSignature {
 
 <template>
   {{pageTitle "Profile"}}
-  <RoutesProfile @routeBack={{@model.routeBack}} />
+  <RoutesProfile
+    @routeBack={{@model.routeBack}}
+    @routeBackUrl={{@model.routeBackUrl}}
+  />
   {{outlet}}
 </template> satisfies TOC<ProfileSignature>;

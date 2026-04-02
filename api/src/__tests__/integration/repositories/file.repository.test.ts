@@ -1,9 +1,27 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {juggler} from '@loopback/repository';
-
-import {File, User, Workspace} from '../../../models';
-import {FileRepository} from '../../../repositories';
-import {buildSystemRepositories, createMemoryDataSource} from './test-helpers';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import {RestApi} from '../../..';
+import {File} from '../../../models';
+import {
+  FileRepository,
+  UserRepository,
+  WorkspaceRepository,
+} from '../../../repositories';
+import {
+  createTestUser,
+  createTestWorkspace,
+  getTestRepository,
+  resetTestDataSource,
+  setupRepositoryTestApp,
+  teardownRepositoryTestApp,
+} from './test-helpers';
 
 vi.mock('multer', () => ({
   default: vi.fn(() => ({
@@ -29,34 +47,41 @@ vi.mock('fs', () => ({
   },
 }));
 
-describe('FileRepository (unit)', () => {
-  let dataSource: juggler.DataSource;
-  let fileRepository: ReturnType<
-    typeof buildSystemRepositories
-  >['fileRepository'];
+describe('FileRepository (integration)', () => {
+  let app: RestApi;
+  let dataSource: Awaited<
+    ReturnType<typeof setupRepositoryTestApp>
+  >['dataSource'];
+  let fileRepository: FileRepository;
+  let userRepository: UserRepository;
+  let workspaceRepository: WorkspaceRepository;
   let workspaceId: number;
 
+  beforeAll(async () => {
+    ({app, dataSource} = await setupRepositoryTestApp());
+    fileRepository = await getTestRepository<FileRepository>(
+      app,
+      'FileRepository',
+    );
+    userRepository = await getTestRepository<UserRepository>(
+      app,
+      'UserRepository',
+    );
+    workspaceRepository = await getTestRepository<WorkspaceRepository>(
+      app,
+      'WorkspaceRepository',
+    );
+  });
+
   beforeEach(async () => {
-    dataSource = createMemoryDataSource();
-    const repositories = buildSystemRepositories(dataSource);
-    fileRepository = repositories.fileRepository;
-    const {userRepository, workspaceRepository} = repositories;
-    const user = await userRepository.create(
-      new User({
-        githubId: 1,
-        username: 'aron0228',
-        fullName: 'Reszegi Aron',
-        email: 'aron@example.com',
-        avatarUrl: 'https://example.com/avatar.png',
-      }),
-    );
-    const workspace = await workspaceRepository.create(
-      new Workspace({
-        name: 'Demo Workspace',
-        ownerId: user.id,
-      }),
-    );
+    await resetTestDataSource(dataSource);
+    const user = await createTestUser(userRepository);
+    const workspace = await createTestWorkspace(workspaceRepository, user.id);
     workspaceId = workspace.id;
+  });
+
+  afterAll(async () => {
+    await teardownRepositoryTestApp(app, dataSource);
   });
 
   const createFile = () =>
@@ -101,8 +126,6 @@ describe('FileRepository (unit)', () => {
   });
 
   it('registers the workspace relation', () => {
-    const {fileRepository} = buildSystemRepositories(dataSource);
-
     expect(fileRepository.inclusionResolvers.has('workspace')).toBe(true);
   });
 
