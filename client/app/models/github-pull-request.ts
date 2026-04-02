@@ -10,5 +10,7 @@ export default class GithubPullRequestModel extends Model {
   @attr('string') declare title: string;
   @attr('string') declare status: string;
   @attr('string') declare description: string | null;
+  @attr('string') declare priority: string | null;
+  @attr('string') declare priorityReason: string | null;
   @attr('number') declare authorId: number | null;
 }

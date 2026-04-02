@@ -12,5 +12,8 @@ interface PullRequestsSignature {
 
 <template>
   {{pageTitle "PullRequests"}}
-  <RoutesWorkspacesEditPullRequests @model={{@model}} />
+  <div class="workspaces-edit-pull-requests-layout">
+    <RoutesWorkspacesEditPullRequests @model={{@model}} />
+    {{outlet}}
+  </div>
 </template> satisfies TOC<PullRequestsSignature>;

@@ -21,7 +21,9 @@ Router.map(function () {
         this.route('edit', { path: '/:issue_id' });
         this.route('new');
       });
-      this.route('pull-requests');
+      this.route('pull-requests', function () {
+        this.route('edit', { path: '/:pull_request_id' });
+      });
     });
   });
   this.route('debug', function () {
