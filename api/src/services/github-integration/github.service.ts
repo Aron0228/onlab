@@ -1302,9 +1302,9 @@ export class GithubService {
     pullRequestNumber: number,
   ): Promise<void> {
     let page = 1;
-    let hasMoreComments = true;
+    const aiCommentIds: number[] = [];
 
-    while (hasMoreComments) {
+    while (true) {
       const response = await octokit.request(
         'GET /repos/{owner}/{repo}/pulls/{pull_number}/comments',
         {
@@ -1319,28 +1319,35 @@ export class GithubService {
         },
       );
 
-      const aiComments = response.data.filter(
-        comment =>
-          typeof comment.body === 'string' &&
-          comment.body.includes(AI_REVIEW_COMMENT_MARKER),
+      aiCommentIds.push(
+        ...response.data
+          .filter(
+            comment =>
+              typeof comment.body === 'string' &&
+              comment.body.includes(AI_REVIEW_COMMENT_MARKER),
+          )
+          .map(comment => comment.id),
       );
 
-      for (const comment of aiComments) {
-        await octokit.request(
-          'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
-          {
-            owner,
-            repo,
-            comment_id: comment.id,
-            headers: {
-              'X-GitHub-Api-Version': '2022-11-28',
-            },
-          },
-        );
+      if (response.data.length < 100) {
+        break;
       }
 
-      hasMoreComments = response.data.length === 100;
       page += 1;
+    }
+
+    for (const commentId of aiCommentIds) {
+      await octokit.request(
+        'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
+        {
+          owner,
+          repo,
+          comment_id: commentId,
+          headers: {
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
     }
   }
 

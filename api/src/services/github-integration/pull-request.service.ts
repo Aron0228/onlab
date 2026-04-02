@@ -16,13 +16,17 @@ export class PullRequestService {
     await this.githubPullRequestRepository.deleteAll({repositoryId});
   }
 
+  public async findOne(
+    where: Where<GithubPullRequest>,
+  ): Promise<GithubPullRequest | null> {
+    return this.githubPullRequestRepository.findOne({where});
+  }
+
   public async upsertPullRequest(
     pullRequest: DataObject<GithubPullRequest>,
     where: Where<GithubPullRequest>,
   ): Promise<void> {
-    const existingPullRequest = await this.githubPullRequestRepository.findOne({
-      where,
-    });
+    const existingPullRequest = await this.findOne(where);
 
     if (!existingPullRequest) {
       await this.githubPullRequestRepository.create(pullRequest);

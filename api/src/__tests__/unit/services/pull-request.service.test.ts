@@ -50,6 +50,18 @@ describe('PullRequestService (unit)', () => {
     expect(githubPullRequestRepository.updateById).not.toHaveBeenCalled();
   });
 
+  it('finds a pull request by where clause', async () => {
+    const existingPullRequest = {id: 4, githubPrNumber: 7};
+    githubPullRequestRepository.findOne.mockResolvedValue(existingPullRequest);
+
+    await expect(
+      service.findOne({repositoryId: 1, githubPrNumber: 7}),
+    ).resolves.toEqual(existingPullRequest);
+    expect(githubPullRequestRepository.findOne).toHaveBeenCalledWith({
+      where: {repositoryId: 1, githubPrNumber: 7},
+    });
+  });
+
   it('updates a pull request when upsert finds an existing row', async () => {
     githubPullRequestRepository.findOne.mockResolvedValue({id: 4});
 

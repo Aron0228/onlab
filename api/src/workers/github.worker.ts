@@ -348,13 +348,21 @@ async function processPrioritizePullRequestJob(
         where: {githubId: job.data.authorGithubId},
       })
     : null;
+  const existingPullRequest = await pullRequestService.findOne({
+    repositoryId: job.data.repositoryId,
+    githubPrNumber: job.data.pullRequestNumber,
+  });
+  const nextStatus = resolveQueuedPullRequestStatus(
+    job.data.status,
+    existingPullRequest?.status,
+  );
 
   await pullRequestService.upsertPullRequest(
     {
       repositoryId: job.data.repositoryId,
       githubPrNumber: job.data.pullRequestNumber,
       title: job.data.title,
-      status: job.data.status,
+      status: nextStatus,
       description,
       priority: prediction.priority,
       priorityReason: prediction.reason,
@@ -365,6 +373,23 @@ async function processPrioritizePullRequestJob(
       githubPrNumber: job.data.pullRequestNumber,
     },
   );
+}
+
+function resolveQueuedPullRequestStatus(
+  queuedStatus: string,
+  persistedStatus: string | undefined,
+): string {
+  if (queuedStatus === 'open' && isTerminalPullRequestStatus(persistedStatus)) {
+    return persistedStatus!;
+  }
+
+  return queuedStatus;
+}
+
+function isTerminalPullRequestStatus(
+  status: string | undefined,
+): status is 'closed' | 'merged' {
+  return status === 'closed' || status === 'merged';
 }
 
 async function syncRepositoryIssues(

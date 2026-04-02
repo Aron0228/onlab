@@ -519,6 +519,60 @@ describe('GithubService (unit)', () => {
     );
   });
 
+  it('removes AI review comments across multiple pages without skipping shifted entries', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    const firstPage = Array.from({length: 100}, (_, index) => ({
+      id: index + 1,
+      body:
+        index >= 98
+          ? `AI note ${index}\n\n<!-- onlab-ai-review-comment -->`
+          : `Human note ${index}`,
+    }));
+    const secondPage = [
+      {id: 101, body: 'AI note 101\n\n<!-- onlab-ai-review-comment -->'},
+      {id: 102, body: 'Human note 102'},
+    ];
+    octokit.request
+      .mockResolvedValueOnce({data: firstPage})
+      .mockResolvedValueOnce({data: secondPage})
+      .mockResolvedValueOnce({data: {}})
+      .mockResolvedValueOnce({data: {}})
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewComments(4, 'team/api', 17, []);
+
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      1,
+      'GET /repos/{owner}/{repo}/pulls/{pull_number}/comments',
+      expect.objectContaining({page: 1}),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      2,
+      'GET /repos/{owner}/{repo}/pulls/{pull_number}/comments',
+      expect.objectContaining({page: 2}),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      3,
+      'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
+      expect.objectContaining({comment_id: 99}),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      4,
+      'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
+      expect.objectContaining({comment_id: 100}),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      5,
+      'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
+      expect.objectContaining({comment_id: 101}),
+    );
+  });
+
   it('drops findings without matching line content even if the hinted line exists', async () => {
     const octokit = {
       request: vi.fn(),
