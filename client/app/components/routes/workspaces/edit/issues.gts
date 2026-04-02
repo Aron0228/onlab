@@ -8,6 +8,7 @@ import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
 import { task as trackedTask } from 'reactiveweb/ember-concurrency';
 import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';
+import type GithubIssueModel from 'client/models/github-issue';
 import UiIcon from 'client/components/ui/icon';
 import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
@@ -15,6 +16,13 @@ import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 
 type RouterLike = {
   transitionTo(route: string): void;
+};
+
+type StoreLike = {
+  query(
+    modelName: 'github-issue',
+    options: Record<string, unknown>
+  ): Promise<GithubIssueModel[]> | GithubIssueModel[];
 };
 
 export interface RoutesWorkspacesEditIssuesSignature {
@@ -31,7 +39,7 @@ export interface RoutesWorkspacesEditIssuesSignature {
 }
 
 export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspacesEditIssuesSignature> {
-  @service store;
+  @service declare store: StoreLike;
   @service declare router: RouterLike;
 
   @tracked activeFilters: string[] = [];
@@ -39,7 +47,8 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
   fetchWorkspaceIssuesTask = task(async () => {
     const repositoryIds = this.args.model.repositories.map((repo) => repo.id);
 
-    const issues = this.store.query('github-issue', {
+    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
+    const issues = await this.store.query('github-issue', {
       filter: {
         where: {
           repositoryId: { inq: repositoryIds },
@@ -56,17 +65,41 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     () => []
   );
 
-  get workspaceIssues() {
-    return this.lastWorkspaceIssues.value ?? [];
+  get workspaceIssues(): GithubIssueModel[] {
+    return (this.lastWorkspaceIssues.value as GithubIssueModel[]) ?? [];
   }
 
   get filters() {
+    const issues = this.workspaceIssues;
+
     return [
-      { title: 'VERY HIGH', count: 2, selector: '--very-high' },
-      { title: 'HIGH', count: 2, selector: '--high' },
-      { title: 'MEDIUM', count: 2, selector: '--medium' },
-      { title: 'LOW', count: 2, selector: '--low' },
-      { title: 'UNKNOWN', count: 2, selector: '--unknown' },
+      {
+        title: 'VERY HIGH',
+        count: issues.filter((issue) => issue.priority === 'Very-High').length,
+        selector: '--very-high',
+      },
+      {
+        title: 'HIGH',
+        count: issues.filter((issue) => issue.priority === 'High').length,
+        selector: '--high',
+      },
+      {
+        title: 'MEDIUM',
+        count: issues.filter((issue) => issue.priority === 'Medium').length,
+        selector: '--medium',
+      },
+      {
+        title: 'LOW',
+        count: issues.filter((issue) => issue.priority === 'Low').length,
+        selector: '--low',
+      },
+      {
+        title: 'UNKNOWN',
+        count: issues.filter(
+          (issue) => !issue.priority || issue.priority === 'Unknown'
+        ).length,
+        selector: '--unknown',
+      },
     ];
   }
 
@@ -100,9 +133,22 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     }
   };
 
-  issueEditModels = (issueId: string | number): [number, string | number] => {
-    return [this.args.model.workspace.id, issueId];
+  issueEditModels = (
+    issueId: string | number | null | undefined,
+    githubIssueNumber: number
+  ): [number, string | number] => {
+    return [Number(this.args.model.workspace.id), issueId ?? githubIssueNumber];
   };
+
+  get filteredWorkspaceIssues() {
+    if (!this.activeFilters.length) {
+      return this.workspaceIssues;
+    }
+
+    return this.workspaceIssues.filter((issue) =>
+      this.activeFilters.includes(this.prioritySelector(issue.priority))
+    );
+  }
 
   isFilterActive = (selector: string) => {
     return this.activeFilters.includes(selector);
@@ -172,11 +218,15 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
 
       <div class="issues-body layout-vertical --gap-lg">
 
-        {{#each this.workspaceIssues as |workspaceIssue|}}
+        {{#each this.filteredWorkspaceIssues as |workspaceIssue|}}
           <LinkTo
             @route="workspaces.edit.issues.edit"
-            @models={{this.issueEditModels workspaceIssue.id}}
-            class="issue-card-link {{this.prioritySelector workspaceIssue.priority}}"
+            @models={{this.issueEditModels
+              workspaceIssue.id
+              workspaceIssue.githubIssueNumber
+            }}
+            class="issue-card-link
+              {{this.prioritySelector workspaceIssue.priority}}"
           >
             <UiContainer class="issue-card">
               <:header>
@@ -213,6 +263,20 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
             </UiContainer>
           </LinkTo>
         {{/each}}
+
+        {{#unless this.filteredWorkspaceIssues.length}}
+          <UiContainer class="issue-empty-state">
+            <:default>
+              <div class="layout-vertical --gap-sm">
+                <span class="font-weight-medium">No issues match these filters.</span>
+                <span class="font-color-text-secondary">
+                  Try removing a priority filter or wait for the next repository
+                  sync.
+                </span>
+              </div>
+            </:default>
+          </UiContainer>
+        {{/unless}}
       </div>
     </div>
   </template>

@@ -152,7 +152,6 @@
     .issue-card .ui-container__header {
       padding-bottom: 0;
     }
-
   }
 }
 
@@ -452,7 +451,7 @@
 
   .issue-new-panel__create,
   .issue-new-panel__analyze {
-    flex: 1 1 0;
+    flex-shrink: 1;
   }
 }
 
