@@ -223,6 +223,33 @@ describe('GithubWebhookService (unit)', () => {
     expect(issueService.upsertIssue).not.toHaveBeenCalled();
   });
 
+  it('still processes issue events authored by third-party bots', async () => {
+    await service.handleWebhook('issues', {
+      action: 'edited',
+      sender: {
+        login: 'dependabot[bot]',
+        type: 'Bot',
+      },
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+    });
+
+    expect(issueService.upsertIssue).toHaveBeenCalled();
+    expect(githubService.markIssueAsProcessing).toHaveBeenCalled();
+  });
+
   it('deletes issues on issue deletion events', async () => {
     await service.handleWebhook('issues', {
       action: 'deleted',
@@ -325,6 +352,35 @@ describe('GithubWebhookService (unit)', () => {
     expect(
       queueService.enqueueGithubPullRequestPrioritization,
     ).not.toHaveBeenCalled();
+  });
+
+  it('still processes pull request events authored by third-party bots', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'edited',
+      sender: {
+        login: 'dependabot[bot]',
+        type: 'Bot',
+      },
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 17,
+        number: 202,
+        title: 'Ship it',
+        body: 'Merged body',
+        state: 'open',
+        user: {id: 55},
+      },
+    });
+
+    expect(pullRequestService.upsertPullRequest).toHaveBeenCalled();
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).toHaveBeenCalled();
   });
 
   it('stores closed pull requests without queueing AI prioritization', async () => {

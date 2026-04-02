@@ -205,6 +205,80 @@ describe('GithubService (unit)', () => {
     });
   });
 
+  it('signs workspace state in the installation URL and accepts it on callback', async () => {
+    vi.spyOn(service as never, 'getGithubAppInfo').mockResolvedValue({
+      slug: 'devteams-demo',
+      name: 'DevTeams Demo',
+    });
+    vi.spyOn(service as never, 'getInstallation').mockResolvedValue({
+      id: 77,
+      account: null,
+      app_id: 1,
+      app_slug: 'devteams-demo',
+      target_id: 2,
+      target_type: 'Organization',
+      permissions: {},
+      events: [],
+    });
+    vi.spyOn(internals, 'listInstallationRepositories').mockResolvedValue([]);
+    const syncWorkspaceInstallationSpy = vi
+      .spyOn(internals, 'syncWorkspaceInstallation')
+      .mockResolvedValue(undefined);
+    const response = {
+      redirect: vi.fn(),
+    };
+
+    const installationUrl = await service.getInstallationUrl('42');
+    const signedState = new URL(installationUrl).searchParams.get('state');
+
+    expect(signedState).toBeTruthy();
+    expect(signedState).not.toBe('42');
+
+    await service.callback(response as never, '77', 'install', signedState!);
+
+    expect(syncWorkspaceInstallationSpy).toHaveBeenCalledWith(42, 77);
+    expect(response.redirect).toHaveBeenCalledWith(
+      'https://client.example.com/workspaces/callback?workspaceId=42',
+    );
+  });
+
+  it('does not trust a tampered callback state token', async () => {
+    vi.spyOn(service as never, 'getGithubAppInfo').mockResolvedValue({
+      slug: 'devteams-demo',
+      name: 'DevTeams Demo',
+    });
+    vi.spyOn(service as never, 'getInstallation').mockResolvedValue({
+      id: 77,
+      account: null,
+      app_id: 1,
+      app_slug: 'devteams-demo',
+      target_id: 2,
+      target_type: 'Organization',
+      permissions: {},
+      events: [],
+    });
+    vi.spyOn(internals, 'listInstallationRepositories').mockResolvedValue([]);
+    const syncWorkspaceInstallationSpy = vi
+      .spyOn(internals, 'syncWorkspaceInstallation')
+      .mockResolvedValue(undefined);
+    const response = {
+      redirect: vi.fn(),
+    };
+
+    const installationUrl = await service.getInstallationUrl('42');
+    const signedState = new URL(installationUrl).searchParams.get('state')!;
+    const tamperedState = `${signedState.slice(0, -1)}${
+      signedState.endsWith('a') ? 'b' : 'a'
+    }`;
+
+    await service.callback(response as never, '77', 'install', tamperedState);
+
+    expect(syncWorkspaceInstallationSpy).not.toHaveBeenCalled();
+    expect(response.redirect).toHaveBeenCalledWith(
+      'https://client.example.com/workspaces/callback',
+    );
+  });
+
   it('lists all pull requests during repository sync', async () => {
     const octokit = {
       request: vi.fn().mockResolvedValue({

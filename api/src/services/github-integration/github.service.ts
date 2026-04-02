@@ -2,6 +2,7 @@
 import {BindingScope, Getter, injectable, service} from '@loopback/core';
 import {repository} from '@loopback/repository';
 import {HttpErrors, Response} from '@loopback/rest';
+import {createHmac, timingSafeEqual} from 'crypto';
 import {App} from 'octokit';
 import {
   IssuePriorityService,
@@ -103,11 +104,13 @@ type GithubRepositoryLabel = {
 };
 
 const AI_REVIEW_COMMENT_MARKER = '<!-- onlab-ai-review-comment -->';
+const INSTALLATION_STATE_TTL_MS = 15 * 60 * 1000;
 
 @injectable({scope: BindingScope.SINGLETON})
 export class GithubService {
   private app: App;
   private clientUrl: string;
+  private appStateSecret: string;
   private cachedAppInfo?: GithubAppInfo;
 
   constructor(
@@ -128,6 +131,8 @@ export class GithubService {
       },
     });
     this.clientUrl = process.env.CLIENT_URL!;
+    this.appStateSecret =
+      process.env.GITHUB_APP_STATE_SECRET ?? process.env.GITHUB_WEBHOOK_SECRET!;
   }
 
   public async getInstallationUrl(workspaceId?: string): Promise<string> {
@@ -138,7 +143,10 @@ export class GithubService {
     );
 
     if (workspaceId) {
-      installationUrl.searchParams.set('state', workspaceId);
+      installationUrl.searchParams.set(
+        'state',
+        this.createInstallationStateToken(workspaceId),
+      );
     }
 
     return installationUrl.toString();
@@ -281,16 +289,65 @@ export class GithubService {
       return undefined;
     }
 
-    const workspaceId = Number(state.trim());
+    const [workspaceIdText, issuedAtText, signature] = state.trim().split('.');
 
-    if (!workspaceId || Number.isNaN(workspaceId)) {
+    if (!workspaceIdText || !issuedAtText || !signature) {
       console.warn('GitHub App callback received invalid workspace state', {
         state,
       });
       return undefined;
     }
 
+    const workspaceId = Number(workspaceIdText);
+    const issuedAt = Number(issuedAtText);
+
+    if (
+      !workspaceId ||
+      Number.isNaN(workspaceId) ||
+      !issuedAt ||
+      Number.isNaN(issuedAt)
+    ) {
+      console.warn('GitHub App callback received invalid workspace state', {
+        state,
+      });
+      return undefined;
+    }
+
+    if (Date.now() - issuedAt > INSTALLATION_STATE_TTL_MS) {
+      console.warn('GitHub App callback received expired workspace state', {
+        workspaceId,
+        issuedAt,
+      });
+      return undefined;
+    }
+
+    const signedPayload = `${workspaceId}.${issuedAt}`;
+    const expectedSignature = createHmac('sha256', this.appStateSecret)
+      .update(signedPayload)
+      .digest('hex');
+
+    if (
+      signature.length !== expectedSignature.length ||
+      !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
+    ) {
+      console.warn('GitHub App callback received tampered workspace state', {
+        workspaceId,
+      });
+      return undefined;
+    }
+
     return workspaceId;
+  }
+
+  private createInstallationStateToken(workspaceId: string): string {
+    const normalizedWorkspaceId = workspaceId.trim();
+    const issuedAt = Date.now();
+    const signedPayload = `${normalizedWorkspaceId}.${issuedAt}`;
+    const signature = createHmac('sha256', this.appStateSecret)
+      .update(signedPayload)
+      .digest('hex');
+
+    return `${signedPayload}.${signature}`;
   }
 
   private async saveInstallationRepositories(

@@ -47,6 +47,12 @@ export type GithubWebhookPayload = {
 
 @injectable({scope: BindingScope.SINGLETON})
 export class GithubWebhookService {
+  private readonly appBotLogin =
+    process.env.GITHUB_APP_BOT_LOGIN ??
+    (process.env.GITHUB_APP_SLUG
+      ? `${process.env.GITHUB_APP_SLUG}[bot]`
+      : 'devteams-demo[bot]');
+
   constructor(
     @service(GithubService) private githubService: GithubService,
     @service(IssuePriorityService)
@@ -275,7 +281,7 @@ export class GithubWebhookService {
       return false;
     }
 
-    return payload.sender?.type === 'Bot';
+    return this.isAppBotSender(payload);
   }
 
   private isAppAuthoredPullRequestEvent(
@@ -294,7 +300,11 @@ export class GithubWebhookService {
       return false;
     }
 
-    return payload.sender?.type === 'Bot';
+    return this.isAppBotSender(payload);
+  }
+
+  private isAppBotSender(payload: GithubWebhookPayload): boolean {
+    return payload.sender?.login === this.appBotLogin;
   }
 
   private async deleteIssue(payload: GithubWebhookPayload): Promise<void> {
