@@ -28,6 +28,7 @@ import {
   JwtTokenService,
   LabelService,
   OllamaService,
+  PullRequestMergeRiskService,
   PullRequestService,
   QueueService,
   RedisService,
@@ -70,6 +71,7 @@ export class RestApi extends BootMixin(
     this.service(GithubOauthService);
     this.service(OllamaService);
     this.service(IssuePriorityService);
+    this.service(PullRequestMergeRiskService);
     this.service(GithubService);
     this.service(GithubWebhookService);
     this.service(IssueService);

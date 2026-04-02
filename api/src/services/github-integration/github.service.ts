@@ -57,9 +57,43 @@ type GithubRepositoryPullRequest = {
   state: string;
   merged_at: string | null;
   body: string | null;
+  draft: boolean;
   user: {
     id: number;
   } | null;
+};
+
+type GithubPullRequestOverview = {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  draft: boolean;
+  mergeable_state: string | null;
+  additions: number;
+  deletions: number;
+  changed_files: number;
+  commits: number;
+  base_ref: string | null;
+  head_ref: string | null;
+  head_sha: string | null;
+};
+
+type GithubPullRequestFile = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch?: string;
+  previous_filename?: string;
+};
+
+type GithubPullRequestReviewCommentInput = {
+  path: string;
+  line: number;
+  body: string;
+  lineContent?: string;
 };
 
 type GithubRepositoryLabel = {
@@ -67,6 +101,8 @@ type GithubRepositoryLabel = {
   name: string;
   color: string;
 };
+
+const AI_REVIEW_COMMENT_MARKER = '<!-- onlab-ai-review-comment -->';
 
 @injectable({scope: BindingScope.SINGLETON})
 export class GithubService {
@@ -501,8 +537,168 @@ export class GithubService {
       state: pullRequest.state,
       merged_at: pullRequest.merged_at,
       body: pullRequest.body ?? null,
+      draft: pullRequest.draft ?? false,
       user: pullRequest.user ? {id: pullRequest.user.id} : null,
     }));
+  }
+
+  public async getPullRequestOverview(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+  ): Promise<GithubPullRequestOverview> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request overview lookup',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for pull request overview lookup',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request(
+      'GET /repos/{owner}/{repo}/pulls/{pull_number}',
+      {
+        owner,
+        repo,
+        pull_number: pullRequestNumber,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    return {
+      number: response.data.number,
+      title: response.data.title,
+      body: response.data.body ?? null,
+      state: response.data.state,
+      draft: response.data.draft ?? false,
+      mergeable_state: response.data.mergeable_state ?? null,
+      additions: response.data.additions ?? 0,
+      deletions: response.data.deletions ?? 0,
+      changed_files: response.data.changed_files ?? 0,
+      commits: response.data.commits ?? 0,
+      base_ref: response.data.base?.ref ?? null,
+      head_ref: response.data.head?.ref ?? null,
+      head_sha: response.data.head?.sha ?? null,
+    };
+  }
+
+  public async listPullRequestFiles(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+  ): Promise<GithubPullRequestFile[]> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request file lookup',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for pull request file lookup',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const files: GithubPullRequestFile[] = [];
+    let page = 1;
+    let hasMoreFiles = true;
+
+    while (hasMoreFiles) {
+      const response = await octokit.request(
+        'GET /repos/{owner}/{repo}/pulls/{pull_number}/files',
+        {
+          owner,
+          repo,
+          pull_number: pullRequestNumber,
+          page,
+          per_page: 100,
+          headers: {
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+
+      files.push(
+        ...response.data.map(file => ({
+          filename: file.filename,
+          status: file.status,
+          additions: file.additions ?? 0,
+          deletions: file.deletions ?? 0,
+          changes: file.changes ?? 0,
+          patch: file.patch ?? undefined,
+          previous_filename: file.previous_filename ?? undefined,
+        })),
+      );
+
+      hasMoreFiles = response.data.length === 100;
+      page += 1;
+    }
+
+    return files;
+  }
+
+  public async getPullRequestFileContents(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+    path: string,
+  ): Promise<string> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request file content lookup',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for pull request file content lookup',
+      );
+    }
+
+    const overview = await this.getPullRequestOverview(
+      installationId,
+      repositoryFullName,
+      pullRequestNumber,
+    );
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request(
+      'GET /repos/{owner}/{repo}/contents/{path}',
+      {
+        owner,
+        repo,
+        path,
+        ref: overview.head_sha ?? undefined,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    if (typeof response.data === 'string') {
+      return response.data;
+    }
+
+    if (
+      response.data &&
+      typeof response.data === 'object' &&
+      'content' in response.data &&
+      typeof response.data.content === 'string'
+    ) {
+      return Buffer.from(
+        response.data.content,
+        response.data.encoding === 'base64' ? 'base64' : 'utf8',
+      ).toString('utf8');
+    }
+
+    return '';
   }
 
   public async syncRepositoryLabels(
@@ -522,7 +718,10 @@ export class GithubService {
     const octokit = await this.getInstallationClient(installationId);
     const syncedLabels: GithubRepositoryLabel[] = [];
 
-    for (const label of this.getPriorityLabels()) {
+    for (const label of [
+      ...this.getPriorityLabels(),
+      ...this.getRiskLabels(),
+    ]) {
       try {
         const response = await octokit.request(
           'POST /repos/{owner}/{repo}/labels',
@@ -670,6 +869,171 @@ export class GithubService {
     );
   }
 
+  public async applyMergeRiskPredictionToPullRequest(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+    prediction: IssuePriorityPrediction,
+    description: string | null,
+    processingReactionId?: number | null,
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request merge risk update',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const riskLabels = this.getRiskLabels().map(label => label.name);
+    const activeRiskLabel = this.issuePriorityService.getRiskLabelName(
+      prediction.priority,
+    );
+
+    for (const riskLabel of riskLabels) {
+      if (riskLabel === activeRiskLabel) {
+        continue;
+      }
+
+      try {
+        await octokit.request(
+          'DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}',
+          {
+            owner,
+            repo,
+            issue_number: pullRequestNumber,
+            name: riskLabel,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          },
+        );
+      } catch (error: unknown) {
+        const status = (error as {status?: number})?.status;
+
+        if (status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    await octokit.request(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
+      {
+        owner,
+        repo,
+        issue_number: pullRequestNumber,
+        labels: [activeRiskLabel],
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    await octokit.request('PATCH /repos/{owner}/{repo}/pulls/{pull_number}', {
+      owner,
+      repo,
+      pull_number: pullRequestNumber,
+      body: this.issuePriorityService.upsertPredictionNote(
+        description,
+        prediction,
+        {kind: 'risk'},
+      ),
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    await this.unmarkPullRequestAsProcessing(
+      installationId,
+      repositoryFullName,
+      pullRequestNumber,
+      processingReactionId,
+    );
+  }
+
+  public async syncPullRequestReviewComments(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+    findings: GithubPullRequestReviewCommentInput[],
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request review comment sync',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    await this.deleteExistingAiPullRequestReviewComments(
+      octokit,
+      owner,
+      repo,
+      pullRequestNumber,
+    );
+
+    if (!findings.length) {
+      return;
+    }
+
+    const overview = await this.getPullRequestOverview(
+      installationId,
+      repositoryFullName,
+      pullRequestNumber,
+    );
+    const files = await this.listPullRequestFiles(
+      installationId,
+      repositoryFullName,
+      pullRequestNumber,
+    );
+    const validFindings = findings
+      .map(finding =>
+        resolvePullRequestReviewCommentLocation(
+          files.find(file => file.filename === finding.path),
+          finding,
+        ),
+      )
+      .filter(
+        (
+          finding,
+        ): finding is GithubPullRequestReviewCommentInput & {line: number} =>
+          finding !== null,
+      );
+
+    if (!validFindings.length) {
+      return;
+    }
+
+    await octokit.request(
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+      {
+        owner,
+        repo,
+        pull_number: pullRequestNumber,
+        commit_id: overview.head_sha ?? undefined,
+        event: 'COMMENT',
+        body: 'DevTeams AI review findings.',
+        comments: validFindings.map(finding => ({
+          path: finding.path,
+          line: finding.line,
+          side: 'RIGHT',
+          body: buildAiReviewCommentBody(finding.body),
+        })),
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+  }
+
   public async markIssueAsProcessing(
     installationId: number,
     repositoryFullName: string,
@@ -693,6 +1057,40 @@ export class GithubService {
         owner,
         repo,
         issue_number: issueNumber,
+        content: 'eyes',
+        headers: {
+          accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    return response.data.id ?? null;
+  }
+
+  public async markPullRequestAsProcessing(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+  ): Promise<number | null> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request processing marker update',
+    );
+
+    if (!repositoryCoordinates) {
+      return null;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    const response = await octokit.request(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/reactions',
+      {
+        owner,
+        repo,
+        issue_number: pullRequestNumber,
         content: 'eyes',
         headers: {
           accept: 'application/vnd.github+json',
@@ -757,10 +1155,11 @@ export class GithubService {
 
     for (const reaction of reactionsToRemove) {
       await octokit.request(
-        'DELETE /repos/{owner}/{repo}/issues/reactions/{reaction_id}',
+        'DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}',
         {
           owner,
           repo,
+          issue_number: issueNumber,
           reaction_id: reaction.id,
           headers: {
             accept: 'application/vnd.github+json',
@@ -768,6 +1167,123 @@ export class GithubService {
           },
         },
       );
+    }
+  }
+
+  public async unmarkPullRequestAsProcessing(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+    reactionId?: number | null,
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request processing marker cleanup',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    if (reactionId) {
+      await octokit.request(
+        'DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}',
+        {
+          owner,
+          repo,
+          issue_number: pullRequestNumber,
+          reaction_id: reactionId,
+          headers: {
+            accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+      return;
+    }
+
+    const response = await octokit.request(
+      'GET /repos/{owner}/{repo}/issues/{issue_number}/reactions',
+      {
+        owner,
+        repo,
+        issue_number: pullRequestNumber,
+        headers: {
+          accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+    const reactionsToRemove = response.data.filter(
+      reaction => reaction.content === 'eyes' && reaction.user?.type === 'Bot',
+    );
+
+    for (const reaction of reactionsToRemove) {
+      await octokit.request(
+        'DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}',
+        {
+          owner,
+          repo,
+          issue_number: pullRequestNumber,
+          reaction_id: reaction.id,
+          headers: {
+            accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+    }
+  }
+
+  private async deleteExistingAiPullRequestReviewComments(
+    octokit: Awaited<ReturnType<App['getInstallationOctokit']>>,
+    owner: string,
+    repo: string,
+    pullRequestNumber: number,
+  ): Promise<void> {
+    let page = 1;
+    let hasMoreComments = true;
+
+    while (hasMoreComments) {
+      const response = await octokit.request(
+        'GET /repos/{owner}/{repo}/pulls/{pull_number}/comments',
+        {
+          owner,
+          repo,
+          pull_number: pullRequestNumber,
+          page,
+          per_page: 100,
+          headers: {
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+
+      const aiComments = response.data.filter(
+        comment =>
+          typeof comment.body === 'string' &&
+          comment.body.includes(AI_REVIEW_COMMENT_MARKER),
+      );
+
+      for (const comment of aiComments) {
+        await octokit.request(
+          'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
+          {
+            owner,
+            repo,
+            comment_id: comment.id,
+            headers: {
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          },
+        );
+      }
+
+      hasMoreComments = response.data.length === 100;
+      page += 1;
     }
   }
 
@@ -847,4 +1363,153 @@ export class GithubService {
       },
     ];
   }
+
+  private getRiskLabels(): Array<{name: string; color: string}> {
+    return [
+      {
+        name: this.issuePriorityService.getRiskLabelName('Unknown'),
+        color: '8b5cf6',
+      },
+      {
+        name: this.issuePriorityService.getRiskLabelName('Low'),
+        color: '22c55e',
+      },
+      {
+        name: this.issuePriorityService.getRiskLabelName('Medium'),
+        color: 'eab308',
+      },
+      {
+        name: this.issuePriorityService.getRiskLabelName('High'),
+        color: 'f97316',
+      },
+      {
+        name: this.issuePriorityService.getRiskLabelName('Very-High'),
+        color: 'ef4444',
+      },
+    ];
+  }
+}
+
+function buildAiReviewCommentBody(body: string): string {
+  return `${body.trim()}\n\n${AI_REVIEW_COMMENT_MARKER}`;
+}
+
+function resolvePullRequestReviewCommentLocation(
+  file: GithubPullRequestFile | undefined,
+  finding: GithubPullRequestReviewCommentInput,
+): GithubPullRequestReviewCommentInput | null {
+  if (!file?.patch || !Number.isInteger(finding.line) || finding.line < 1) {
+    return null;
+  }
+
+  const addedLines = collectAddedLines(file.patch);
+  const normalizedRequestedContent = normalizeDiffLineContent(
+    finding.lineContent,
+  );
+
+  if (!normalizedRequestedContent) {
+    const exactLine = addedLines.find(line => line.lineNumber === finding.line);
+
+    return exactLine ? finding : null;
+  }
+
+  const bestMatchingLine = selectClosestMatchingAddedLine(
+    addedLines,
+    normalizedRequestedContent,
+    finding.line,
+  );
+
+  if (bestMatchingLine) {
+    return {
+      ...finding,
+      line: bestMatchingLine.lineNumber,
+    };
+  }
+
+  return null;
+}
+
+function collectAddedLines(
+  patch: string,
+): Array<{lineNumber: number; content: string}> {
+  const addedLines: Array<{lineNumber: number; content: string}> = [];
+  let nextNewLineNumber = 0;
+
+  for (const line of patch.split('\n')) {
+    const hunkHeaderMatch = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+
+    if (hunkHeaderMatch) {
+      nextNewLineNumber = Number(hunkHeaderMatch[1]);
+      continue;
+    }
+
+    if (!nextNewLineNumber) {
+      continue;
+    }
+
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      addedLines.push({
+        lineNumber: nextNewLineNumber,
+        content: line.slice(1),
+      });
+      nextNewLineNumber += 1;
+      continue;
+    }
+
+    if (line.startsWith('-') && !line.startsWith('---')) {
+      continue;
+    }
+
+    if (line.startsWith(' ')) {
+      nextNewLineNumber += 1;
+    }
+  }
+
+  return addedLines;
+}
+
+function selectClosestMatchingAddedLine(
+  addedLines: Array<{lineNumber: number; content: string}>,
+  normalizedRequestedContent: string,
+  requestedLine: number,
+): {lineNumber: number; content: string} | null {
+  const matches = addedLines.filter(line =>
+    doesDiffLineContentMatch(
+      normalizeDiffLineContent(line.content),
+      normalizedRequestedContent,
+    ),
+  );
+
+  if (!matches.length) {
+    return null;
+  }
+
+  return matches.reduce(
+    (closest, candidate) => {
+      if (!closest) {
+        return candidate;
+      }
+
+      return Math.abs(candidate.lineNumber - requestedLine) <
+        Math.abs(closest.lineNumber - requestedLine)
+        ? candidate
+        : closest;
+    },
+    null as {lineNumber: number; content: string} | null,
+  );
+}
+
+function doesDiffLineContentMatch(
+  candidateContent: string,
+  requestedContent: string,
+): boolean {
+  return (
+    candidateContent === requestedContent ||
+    candidateContent.includes(requestedContent) ||
+    requestedContent.includes(candidateContent)
+  );
+}
+
+function normalizeDiffLineContent(value: string | undefined): string {
+  return value?.replace(/\s+/g, ' ').trim().toLowerCase() ?? '';
 }

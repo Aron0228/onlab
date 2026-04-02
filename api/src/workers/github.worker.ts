@@ -23,6 +23,9 @@ import {
   IssuePriorityService,
   IssueService,
   LabelService,
+  PRIORITIZE_GITHUB_PULL_REQUEST_JOB_NAME,
+  type PrioritizeGithubPullRequestJobData,
+  PullRequestMergeRiskService,
   PullRequestService,
   RedisService,
   SYNC_GITHUB_LABELS_JOB_NAME,
@@ -32,6 +35,7 @@ import {
 dotenv.config();
 
 const ISSUE_BATCH_SIZE = 100;
+const MIN_PULL_REQUEST_PROCESSING_REACTION_MS = 2000;
 
 async function startWorker() {
   const app = new RestApi();
@@ -44,6 +48,10 @@ async function startWorker() {
     'services.IssuePriorityService',
   );
   const labelService = await app.get<LabelService>('services.LabelService');
+  const pullRequestMergeRiskService =
+    await app.get<PullRequestMergeRiskService>(
+      'services.PullRequestMergeRiskService',
+    );
   const pullRequestService = await app.get<PullRequestService>(
     'services.PullRequestService',
   );
@@ -83,6 +91,18 @@ async function startWorker() {
         return;
       }
 
+      if (job.name === PRIORITIZE_GITHUB_PULL_REQUEST_JOB_NAME) {
+        await processPrioritizePullRequestJob(
+          job as Job<PrioritizeGithubPullRequestJobData>,
+          githubService,
+          issuePriorityService,
+          pullRequestMergeRiskService,
+          pullRequestService,
+          userRepository,
+        );
+        return;
+      }
+
       await processSyncIssuesJob(
         job as Job<SyncGithubIssuesJobData>,
         githubService,
@@ -90,6 +110,8 @@ async function startWorker() {
         workspaceRepository,
         issuePriorityService,
         issueService,
+        labelService,
+        pullRequestMergeRiskService,
         pullRequestService,
         userRepository,
       );
@@ -140,6 +162,8 @@ async function processSyncIssuesJob(
   workspaceRepository: WorkspaceRepository,
   issuePriorityService: IssuePriorityService,
   issueService: IssueService,
+  labelService: LabelService,
+  pullRequestMergeRiskService: PullRequestMergeRiskService,
   pullRequestService: PullRequestService,
   userRepository: UserRepository,
 ) {
@@ -166,6 +190,9 @@ async function processSyncIssuesJob(
       repository,
       job.data.installationId,
       githubService,
+      issuePriorityService,
+      labelService,
+      pullRequestMergeRiskService,
       pullRequestService,
       userRepository,
     );
@@ -251,6 +278,91 @@ async function processCreateIssueJob(
     {
       repositoryId: repository.id,
       githubId: githubIssue.id,
+    },
+  );
+}
+
+async function processPrioritizePullRequestJob(
+  job: Job<PrioritizeGithubPullRequestJobData>,
+  githubService: GithubService,
+  issuePriorityService: IssuePriorityService,
+  pullRequestMergeRiskService: PullRequestMergeRiskService,
+  pullRequestService: PullRequestService,
+  userRepository: UserRepository,
+) {
+  const processingStartedAt = Date.now();
+
+  await githubService.syncRepositoryLabels(
+    job.data.installationId,
+    job.data.repositoryFullName,
+  );
+
+  const processingReactionId = await githubService.markPullRequestAsProcessing(
+    job.data.installationId,
+    job.data.repositoryFullName,
+    job.data.pullRequestNumber,
+  );
+  console.log('Pull request processing reaction added', {
+    repositoryFullName: job.data.repositoryFullName,
+    pullRequestNumber: job.data.pullRequestNumber,
+    reactionId: processingReactionId,
+  });
+  const description = issuePriorityService.sanitizeIssueDescription(
+    job.data.description,
+  );
+  const prediction = await pullRequestMergeRiskService.predictMergeRisk({
+    installationId: job.data.installationId,
+    repositoryFullName: job.data.repositoryFullName,
+    pullRequestNumber: job.data.pullRequestNumber,
+    title: job.data.title,
+    description,
+  });
+
+  try {
+    await githubService.syncPullRequestReviewComments(
+      job.data.installationId,
+      job.data.repositoryFullName,
+      job.data.pullRequestNumber,
+      prediction.findings,
+    );
+  } catch (error) {
+    console.warn('Pull request AI review comment sync failed', {
+      repositoryFullName: job.data.repositoryFullName,
+      pullRequestNumber: job.data.pullRequestNumber,
+      error,
+    });
+  }
+
+  await ensureMinimumProcessingReactionDuration(processingStartedAt);
+  await githubService.applyMergeRiskPredictionToPullRequest(
+    job.data.installationId,
+    job.data.repositoryFullName,
+    job.data.pullRequestNumber,
+    prediction,
+    description,
+    processingReactionId,
+  );
+
+  const author = job.data.authorGithubId
+    ? await userRepository.findOne({
+        where: {githubId: job.data.authorGithubId},
+      })
+    : null;
+
+  await pullRequestService.upsertPullRequest(
+    {
+      repositoryId: job.data.repositoryId,
+      githubPrNumber: job.data.pullRequestNumber,
+      title: job.data.title,
+      status: job.data.status,
+      description,
+      priority: prediction.priority,
+      priorityReason: prediction.reason,
+      authorId: author?.id ?? null,
+    },
+    {
+      repositoryId: job.data.repositoryId,
+      githubPrNumber: job.data.pullRequestNumber,
     },
   );
 }
@@ -360,10 +472,19 @@ async function syncRepositoryPullRequests(
   repository: GithubRepository,
   installationId: number,
   githubService: GithubService,
+  issuePriorityService: IssuePriorityService,
+  labelService: LabelService,
+  pullRequestMergeRiskService: PullRequestMergeRiskService,
   pullRequestService: PullRequestService,
   userRepository: UserRepository,
 ) {
   await pullRequestService.deleteByRepositoryId(repository.id);
+  await syncRepositoryLabels(
+    repository,
+    installationId,
+    githubService,
+    labelService,
+  );
 
   let page = 1;
   let hasMorePullRequests = true;
@@ -375,11 +496,66 @@ async function syncRepositoryPullRequests(
       page,
       ISSUE_BATCH_SIZE,
     );
-    const records = await Promise.all(
-      pullRequests.map(pullRequest =>
-        mapPullRequestToModel(repository.id, pullRequest, userRepository),
-      ),
-    );
+    const records: DataObject<GithubPullRequest>[] = [];
+
+    for (const pullRequest of pullRequests) {
+      const description = issuePriorityService.sanitizeIssueDescription(
+        pullRequest.body ?? '',
+      );
+      let prediction:
+        | Awaited<ReturnType<PullRequestMergeRiskService['predictMergeRisk']>>
+        | undefined;
+
+      if (pullRequest.state === 'open') {
+        const processingReactionId =
+          await githubService.markPullRequestAsProcessing(
+            installationId,
+            repository.fullName,
+            pullRequest.number,
+          );
+        prediction = await pullRequestMergeRiskService.predictMergeRisk({
+          installationId,
+          repositoryFullName: repository.fullName,
+          pullRequestNumber: pullRequest.number,
+          title: pullRequest.title,
+          description,
+        });
+
+        try {
+          await githubService.syncPullRequestReviewComments(
+            installationId,
+            repository.fullName,
+            pullRequest.number,
+            prediction.findings,
+          );
+        } catch (error) {
+          console.warn('Pull request AI review comment sync failed', {
+            repositoryFullName: repository.fullName,
+            pullRequestNumber: pullRequest.number,
+            error,
+          });
+        }
+
+        await githubService.applyMergeRiskPredictionToPullRequest(
+          installationId,
+          repository.fullName,
+          pullRequest.number,
+          prediction,
+          description,
+          processingReactionId,
+        );
+      }
+
+      records.push(
+        await mapPullRequestToModel(
+          repository.id,
+          pullRequest,
+          prediction,
+          description,
+          userRepository,
+        ),
+      );
+    }
 
     await pullRequestService.savePullRequestsBulk(records);
 
@@ -389,6 +565,20 @@ async function syncRepositoryPullRequests(
       page += 1;
     }
   }
+}
+
+async function ensureMinimumProcessingReactionDuration(
+  startedAt: number,
+): Promise<void> {
+  const elapsed = Date.now() - startedAt;
+
+  if (elapsed >= MIN_PULL_REQUEST_PROCESSING_REACTION_MS) {
+    return;
+  }
+
+  await new Promise(resolve =>
+    setTimeout(resolve, MIN_PULL_REQUEST_PROCESSING_REACTION_MS - elapsed),
+  );
 }
 
 function mapIssueToModel(
@@ -417,6 +607,14 @@ function getJobMetadata(jobData: GithubIssuesJobData): Record<string, number> {
     };
   }
 
+  if ('pullRequestNumber' in jobData) {
+    return {
+      repositoryId: jobData.repositoryId,
+      installationId: jobData.installationId,
+      pullRequestNumber: jobData.pullRequestNumber,
+    };
+  }
+
   return {
     repositoryId: jobData.repositoryId,
   };
@@ -427,6 +625,13 @@ async function mapPullRequestToModel(
   pullRequest: Awaited<
     ReturnType<GithubService['listRepositoryPullRequestsPage']>
   >[number],
+  prediction:
+    | {
+        priority: string;
+        reason: string;
+      }
+    | undefined,
+  description: string,
   userRepository: UserRepository,
 ): Promise<DataObject<GithubPullRequest>> {
   const author = pullRequest.user
@@ -440,7 +645,9 @@ async function mapPullRequestToModel(
     githubPrNumber: pullRequest.number,
     title: pullRequest.title,
     status: pullRequest.merged_at ? 'merged' : pullRequest.state,
-    description: pullRequest.body ?? '',
+    description,
+    priority: prediction?.priority,
+    priorityReason: prediction?.reason,
     authorId: author?.id ?? null,
   };
 }

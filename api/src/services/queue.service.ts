@@ -6,6 +6,8 @@ export const GITHUB_ISSUES_QUEUE_NAME = 'github-issues-queue';
 export const SYNC_GITHUB_ISSUES_JOB_NAME = 'sync-issues';
 export const SYNC_GITHUB_LABELS_JOB_NAME = 'sync-labels';
 export const CREATE_GITHUB_ISSUE_JOB_NAME = 'create-issue';
+export const PRIORITIZE_GITHUB_PULL_REQUEST_JOB_NAME =
+  'prioritize-pull-request';
 
 export type SyncGithubIssuesJobData = {
   installationId: number;
@@ -18,9 +20,22 @@ export type CreateGithubIssueJobData = {
   description: string;
 };
 
+export type PrioritizeGithubPullRequestJobData = {
+  installationId: number;
+  repositoryId: number;
+  repositoryFullName: string;
+  githubId: number;
+  pullRequestNumber: number;
+  title: string;
+  description: string;
+  status: string;
+  authorGithubId?: number | null;
+};
+
 export type GithubIssuesJobData =
   | SyncGithubIssuesJobData
-  | CreateGithubIssueJobData;
+  | CreateGithubIssueJobData
+  | PrioritizeGithubPullRequestJobData;
 
 @injectable({scope: BindingScope.SINGLETON})
 export class QueueService {
@@ -69,6 +84,19 @@ export class QueueService {
     return this.githubIssuesQueue.add(CREATE_GITHUB_ISSUE_JOB_NAME, data, {
       delay: options.delay,
     });
+  }
+
+  public async enqueueGithubPullRequestPrioritization(
+    data: PrioritizeGithubPullRequestJobData,
+    options: Pick<JobsOptions, 'delay'> = {},
+  ) {
+    return this.githubIssuesQueue.add(
+      PRIORITIZE_GITHUB_PULL_REQUEST_JOB_NAME,
+      data,
+      {
+        delay: options.delay,
+      },
+    );
   }
 
   public getGithubIssuesQueue(): Queue<GithubIssuesJobData> {

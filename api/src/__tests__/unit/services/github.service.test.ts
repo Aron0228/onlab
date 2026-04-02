@@ -11,6 +11,7 @@ type GithubInstallationRepository = {
 };
 
 type GithubServiceInternals = {
+  getInstallationClient(installationId: number): Promise<unknown>;
   saveInstallationRepositories(
     workspaceId: number,
     installationId: number,
@@ -43,6 +44,7 @@ describe('GithubService (unit)', () => {
   };
   let issuePriorityService: {
     getPriorityLabelName: ReturnType<typeof vi.fn>;
+    getRiskLabelName: ReturnType<typeof vi.fn>;
     upsertPredictionNote: ReturnType<typeof vi.fn>;
   };
   let service: GithubService;
@@ -73,6 +75,9 @@ describe('GithubService (unit)', () => {
       getPriorityLabelName: vi
         .fn()
         .mockImplementation(priority => `Priority: ${String(priority)}`),
+      getRiskLabelName: vi
+        .fn()
+        .mockImplementation(priority => `Risk: ${String(priority)}`),
       upsertPredictionNote: vi
         .fn()
         .mockImplementation((description: string) => description),
@@ -200,6 +205,54 @@ describe('GithubService (unit)', () => {
     });
   });
 
+  it('lists all pull requests during repository sync', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 17,
+            number: 6,
+            title: 'Open PR',
+            state: 'open',
+            merged_at: null,
+            body: 'Still active',
+            draft: false,
+            user: {id: 55},
+          },
+        ],
+      }),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await expect(
+      service.listRepositoryPullRequestsPage(4, 'team/api', 2, 25),
+    ).resolves.toEqual([
+      {
+        id: 17,
+        number: 6,
+        title: 'Open PR',
+        state: 'open',
+        merged_at: null,
+        body: 'Still active',
+        draft: false,
+        user: {id: 55},
+      },
+    ]);
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      'GET /repos/{owner}/{repo}/pulls',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        page: 2,
+        per_page: 25,
+        state: 'all',
+      }),
+    );
+  });
+
   it('disconnects an installation and deletes its repositories with cascade', async () => {
     workspaceRepository.find.mockResolvedValue([{id: 9}]);
     githubRepositoryRepository.find.mockResolvedValue([
@@ -220,5 +273,296 @@ describe('GithubService (unit)', () => {
       issueSyncDone: false,
       prSyncDone: false,
     });
+  });
+
+  it('replaces prior AI review comments and posts only findings anchored to changed lines', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: null,
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+    });
+    vi.spyOn(service, 'listPullRequestFiles').mockResolvedValue([
+      {
+        filename: 'src/auth/guard.ts',
+        status: 'modified',
+        additions: 3,
+        deletions: 1,
+        changes: 4,
+        patch:
+          '@@ -10,2 +10,3 @@\n old\n-oldCheck()\n+allowAll()\n+return true\n tail',
+      },
+    ]);
+    octokit.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 1,
+            body: 'Existing note\n\n<!-- onlab-ai-review-comment -->',
+          },
+          {
+            id: 2,
+            body: 'Human review comment',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({data: {}})
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewComments(4, 'team/api', 17, [
+      {
+        path: 'src/auth/guard.ts',
+        line: 11,
+        body: 'This bypasses the guard and grants access to every request.',
+        lineContent: 'return true',
+      },
+      {
+        path: 'src/auth/guard.ts',
+        line: 99,
+        body: 'Invalid line should be dropped.',
+      },
+    ]);
+
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      1,
+      'GET /repos/{owner}/{repo}/pulls/{pull_number}/comments',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        pull_number: 17,
+      }),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      2,
+      'DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        comment_id: 1,
+      }),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      3,
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        pull_number: 17,
+        commit_id: 'abc123',
+        event: 'COMMENT',
+        body: 'DevTeams AI review findings.',
+        comments: [
+          {
+            path: 'src/auth/guard.ts',
+            line: 12,
+            side: 'RIGHT',
+            body: 'This bypasses the guard and grants access to every request.\n\n<!-- onlab-ai-review-comment -->',
+          },
+        ],
+      }),
+    );
+  });
+
+  it('applies merge-risk labels and note wording to pull requests', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({data: {}}),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await service.applyMergeRiskPredictionToPullRequest(
+      4,
+      'team/api',
+      17,
+      {
+        priority: 'High',
+        reason: 'Touches a shared auth guard.',
+      },
+      'Original description',
+      99,
+    );
+
+    expect(issuePriorityService.getRiskLabelName).toHaveBeenCalledWith('High');
+    expect(issuePriorityService.upsertPredictionNote).toHaveBeenCalledWith(
+      'Original description',
+      {
+        priority: 'High',
+        reason: 'Touches a shared auth guard.',
+      },
+      {kind: 'risk'},
+    );
+    expect(octokit.request).toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        issue_number: 17,
+        labels: ['Risk: High'],
+      }),
+    );
+  });
+
+  it('removes prior AI review comments even when there are no fresh findings to post', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    octokit.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 3,
+            body: 'Old AI note\n\n<!-- onlab-ai-review-comment -->',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewComments(4, 'team/api', 17, []);
+
+    expect(octokit.request).toHaveBeenCalledTimes(2);
+    expect(octokit.request).not.toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+      expect.anything(),
+    );
+  });
+
+  it('drops findings without matching line content even if the hinted line exists', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: null,
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+    });
+    vi.spyOn(service, 'listPullRequestFiles').mockResolvedValue([
+      {
+        filename: 'src/auth/guard.ts',
+        status: 'modified',
+        additions: 3,
+        deletions: 1,
+        changes: 4,
+        patch:
+          '@@ -10,2 +10,3 @@\n old\n-oldCheck()\n+allowAll()\n+return true\n tail',
+      },
+    ]);
+    octokit.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 1,
+            body: 'Existing note\n\n<!-- onlab-ai-review-comment -->',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewComments(4, 'team/api', 17, [
+      {
+        path: 'src/auth/guard.ts',
+        line: 11,
+        body: 'This should be dropped because the content does not match.',
+        lineContent: 'nonexistentCall()',
+      },
+    ]);
+
+    expect(octokit.request).toHaveBeenCalledTimes(2);
+    expect(octokit.request).not.toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+      expect.anything(),
+    );
+  });
+
+  it('keeps findings without line content when the hinted line is an exact changed line', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: null,
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+    });
+    vi.spyOn(service, 'listPullRequestFiles').mockResolvedValue([
+      {
+        filename: 'src/auth/guard.ts',
+        status: 'modified',
+        additions: 3,
+        deletions: 1,
+        changes: 4,
+        patch:
+          '@@ -10,2 +10,3 @@\n old\n-oldCheck()\n+allowAll()\n+return true\n tail',
+      },
+    ]);
+    octokit.request
+      .mockResolvedValueOnce({
+        data: [],
+      })
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewComments(4, 'team/api', 17, [
+      {
+        path: 'src/auth/guard.ts',
+        line: 12,
+        body: 'This exact changed line should still be commentable.',
+      },
+    ]);
+
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      2,
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+      expect.objectContaining({
+        comments: [
+          expect.objectContaining({
+            path: 'src/auth/guard.ts',
+            line: 12,
+          }),
+        ],
+      }),
+    );
   });
 });

@@ -14,6 +14,9 @@ describe('GithubWebhookService (unit)', () => {
     sanitizeIssueDescription: ReturnType<typeof vi.fn>;
     predictIssuePriority: ReturnType<typeof vi.fn>;
   };
+  let queueService: {
+    enqueueGithubPullRequestPrioritization: ReturnType<typeof vi.fn>;
+  };
   let issueService: {
     upsertIssue: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
@@ -52,6 +55,11 @@ describe('GithubWebhookService (unit)', () => {
         reason: 'The module is unusable.',
       }),
     };
+    queueService = {
+      enqueueGithubPullRequestPrioritization: vi
+        .fn()
+        .mockResolvedValue(undefined),
+    };
     issueService = {
       upsertIssue: vi.fn().mockResolvedValue(undefined),
       deleteOne: vi.fn().mockResolvedValue(undefined),
@@ -72,6 +80,7 @@ describe('GithubWebhookService (unit)', () => {
     service = new GithubWebhookService(
       githubService as never,
       issuePriorityService as never,
+      queueService as never,
       issueService as never,
       pullRequestService as never,
       githubRepositoryRepository as never,
@@ -240,7 +249,8 @@ describe('GithubWebhookService (unit)', () => {
 
   it('upserts pull requests on pull request updates', async () => {
     await service.handleWebhook('pull_request', {
-      action: 'closed',
+      action: 'synchronize',
+      installation: {id: 123},
       repository: {
         owner: {login: 'team'},
         name: 'api',
@@ -251,8 +261,7 @@ describe('GithubWebhookService (unit)', () => {
         number: 202,
         title: 'Ship it',
         body: 'Merged body',
-        state: 'closed',
-        merged_at: '2026-03-20T20:00:00Z',
+        state: 'open',
         user: {id: 55},
       },
     });
@@ -265,7 +274,7 @@ describe('GithubWebhookService (unit)', () => {
         repositoryId: 99,
         githubPrNumber: 202,
         title: 'Ship it',
-        status: 'merged',
+        status: 'open',
         description: 'Merged body',
         authorId: 7,
       },
@@ -274,5 +283,86 @@ describe('GithubWebhookService (unit)', () => {
         githubPrNumber: 202,
       },
     );
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).toHaveBeenCalledWith({
+      installationId: 123,
+      repositoryId: 99,
+      repositoryFullName: 'team/api',
+      githubId: 17,
+      pullRequestNumber: 202,
+      title: 'Ship it',
+      description: 'Merged body',
+      status: 'open',
+      authorGithubId: 55,
+    });
+  });
+
+  it('ignores pull request events authored by the GitHub app bot', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'edited',
+      sender: {
+        login: 'devteams-demo[bot]',
+        type: 'Bot',
+      },
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 17,
+        number: 202,
+        title: 'Ship it',
+        body: 'Merged body',
+        state: 'open',
+        user: {id: 55},
+      },
+    });
+
+    expect(pullRequestService.upsertPullRequest).not.toHaveBeenCalled();
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('stores closed pull requests without queueing AI prioritization', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'closed',
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 18,
+        number: 203,
+        title: 'Already merged',
+        body: 'Final state',
+        state: 'closed',
+        merged_at: '2026-03-29T12:00:00Z',
+        user: {id: 55},
+      },
+    });
+
+    expect(pullRequestService.upsertPullRequest).toHaveBeenCalledWith(
+      {
+        repositoryId: 99,
+        githubPrNumber: 203,
+        title: 'Already merged',
+        status: 'merged',
+        description: 'Final state',
+        authorId: 7,
+      },
+      {
+        repositoryId: 99,
+        githubPrNumber: 203,
+      },
+    );
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).not.toHaveBeenCalled();
   });
 });

@@ -61,4 +61,18 @@ describe('IssuePriorityService (unit)', () => {
       reason: 'AI prioritization unavailable.',
     });
   });
+
+  it('can write a merge-risk note for pull requests', () => {
+    const updated = service.upsertPredictionNote(
+      'Original description',
+      {
+        priority: 'High',
+        reason: 'The auth guard change has broad blast radius.',
+      },
+      {kind: 'risk'},
+    );
+
+    expect(updated).toContain('AI merge risk prediction: High');
+    expect(updated).not.toContain('AI priority prediction: High');
+  });
 });

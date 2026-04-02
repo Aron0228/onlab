@@ -16,6 +16,8 @@ export type IssuePriorityPrediction = {
   reason: string;
 };
 
+type PredictionNoteKind = 'priority' | 'risk';
+
 type PredictIssuePriorityInput = {
   title: string;
   description: string | null;
@@ -165,12 +167,18 @@ export class IssuePriorityService {
   public upsertPredictionNote(
     description: string | null | undefined,
     prediction: IssuePriorityPrediction,
+    options: {
+      kind?: PredictionNoteKind;
+    } = {},
   ): string {
     const cleanDescription = this.sanitizeIssueDescription(description);
+    const kind = options.kind ?? 'priority';
+    const predictionLabel =
+      kind === 'risk' ? 'AI merge risk prediction' : 'AI priority prediction';
     const noteBlock = [
       AI_PRIORITY_NOTE_START,
       '> [!NOTE]',
-      `> AI priority prediction: ${prediction.priority}`,
+      `> ${predictionLabel}: ${prediction.priority}`,
       `> Reason: ${prediction.reason}`,
       '> Written by `DevTeams`',
       AI_PRIORITY_NOTE_END,
@@ -191,6 +199,10 @@ export class IssuePriorityService {
 
   public getPriorityLabelName(priority: IssuePriority): string {
     return `Priority: ${priority}`;
+  }
+
+  public getRiskLabelName(priority: IssuePriority): string {
+    return `Risk: ${priority}`;
   }
 
   private normalizePrediction(response: {

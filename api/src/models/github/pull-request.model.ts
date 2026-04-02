@@ -54,6 +54,18 @@ export class GithubPullRequest extends Entity {
   })
   description: string;
 
+  @property({
+    type: 'string',
+    postgresql: {columnName: 'priority'},
+  })
+  priority?: string;
+
+  @property({
+    type: 'string',
+    postgresql: {columnName: 'priority_reason'},
+  })
+  priorityReason?: string;
+
   @belongsTo(
     () => User,
     {},

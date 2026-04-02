@@ -1,11 +1,11 @@
 import {BindingScope, injectable, service} from '@loopback/core';
 import {repository} from '@loopback/repository';
-import {App} from 'octokit';
 import {GithubRepositoryRepository, UserRepository} from '../../repositories';
 import {GithubService} from './github.service';
 import {IssueService} from './issue.service';
 import {PullRequestService} from './pull-request.service';
 import {IssuePriorityService} from '../issue-priority.service';
+import {QueueService} from '../queue.service';
 
 export type GithubWebhookPayload = {
   action?: string;
@@ -47,33 +47,18 @@ export type GithubWebhookPayload = {
 
 @injectable({scope: BindingScope.SINGLETON})
 export class GithubWebhookService {
-  private app: App;
-
   constructor(
     @service(GithubService) private githubService: GithubService,
     @service(IssuePriorityService)
     private issuePriorityService: IssuePriorityService,
+    @service(QueueService) private queueService: QueueService,
     @service(IssueService) private issueService: IssueService,
     @service(PullRequestService) private pullRequestService: PullRequestService,
     @repository(GithubRepositoryRepository)
     private githubRepositoryRepository: GithubRepositoryRepository,
     @repository(UserRepository)
     private userRepository: UserRepository,
-  ) {
-    this.app = new App({
-      appId: process.env.GITHUB_APP_ID!,
-      privateKey: process.env.GITHUB_PRIVATE_KEY!,
-      webhooks: {
-        secret: process.env.GITHUB_WEBHOOK_SECRET!,
-      },
-    });
-  }
-
-  async getInstallationClient(
-    installationId: number,
-  ): ReturnType<App['getInstallationOctokit']> {
-    return this.app.getInstallationOctokit(installationId);
-  }
+  ) {}
 
   async handleWebhook(event: string, payload: GithubWebhookPayload) {
     switch (event) {
@@ -116,6 +101,10 @@ export class GithubWebhookService {
   }
 
   private async handlePullRequestEvent(payload: GithubWebhookPayload) {
+    if (this.isAppAuthoredPullRequestEvent(payload)) {
+      return;
+    }
+
     switch (payload.action) {
       case 'opened':
       case 'edited':
@@ -126,8 +115,28 @@ export class GithubWebhookService {
       case 'synchronize':
         await this.upsertPullRequest(payload);
 
-        if (payload.action === 'opened') {
-          await this.handlePullRequestOpened(payload);
+        if (
+          payload.installation?.id &&
+          payload.pull_request &&
+          payload.action !== 'closed'
+        ) {
+          const repository = await this.resolveRepository(payload);
+
+          if (repository) {
+            await this.queueService.enqueueGithubPullRequestPrioritization({
+              installationId: payload.installation.id,
+              repositoryId: repository.id,
+              repositoryFullName: repository.fullName,
+              githubId: payload.pull_request.id,
+              pullRequestNumber: payload.pull_request.number,
+              title: payload.pull_request.title,
+              description: payload.pull_request.body ?? '',
+              status: payload.pull_request.merged_at
+                ? 'merged'
+                : payload.pull_request.state,
+              authorGithubId: payload.pull_request.user?.id ?? null,
+            });
+          }
         }
         break;
       default:
@@ -188,37 +197,6 @@ export class GithubWebhookService {
           `Unhandled installation_repositories action: ${payload.action}`,
         );
     }
-  }
-
-  private async handlePullRequestOpened(payload: GithubWebhookPayload) {
-    const installationId = payload.installation?.id;
-
-    if (
-      !installationId ||
-      !payload.repository?.owner.login ||
-      !payload.repository.name ||
-      !payload.pull_request?.number
-    ) {
-      console.warn(
-        'GitHub pull_request webhook payload is incomplete',
-        payload,
-      );
-      return;
-    }
-
-    const octokit = await this.getInstallationClient(installationId);
-
-    await octokit.request(
-      'POST /repos/{owner}/{repo}/issues/{issue_number}/comments',
-      {
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        issue_number: payload.pull_request.number,
-        body: '🚀 Thanks for the PR!',
-      },
-    );
-
-    console.log(`Commented on PR #${payload.pull_request.number}`);
   }
 
   private async upsertIssue(payload: GithubWebhookPayload): Promise<void> {
@@ -294,6 +272,25 @@ export class GithubWebhookService {
     const action = payload.action;
 
     if (action !== 'opened' && action !== 'edited' && action !== 'reopened') {
+      return false;
+    }
+
+    return payload.sender?.type === 'Bot';
+  }
+
+  private isAppAuthoredPullRequestEvent(
+    payload: GithubWebhookPayload,
+  ): boolean {
+    const action = payload.action;
+
+    if (
+      action !== 'opened' &&
+      action !== 'edited' &&
+      action !== 'reopened' &&
+      action !== 'ready_for_review' &&
+      action !== 'converted_to_draft' &&
+      action !== 'synchronize'
+    ) {
       return false;
     }
 
