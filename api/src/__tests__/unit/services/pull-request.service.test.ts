@@ -71,14 +71,7 @@ describe('PullRequestService (unit)', () => {
       authorId: 3,
     });
     expect(githubPullRequestRepository.updateById).not.toHaveBeenCalled();
-    expect(aiPredictionService.syncPrediction).toHaveBeenCalledWith({
-      sourceType: 'github-pull-request',
-      sourceId: 1,
-      predictionType: 'pull-request-merge-risk',
-      priority: undefined,
-      reason: undefined,
-      findings: undefined,
-    });
+    expect(aiPredictionService.syncPrediction).not.toHaveBeenCalled();
   });
 
   it('creates a prediction alongside a pull request when prediction details are provided', async () => {
@@ -159,13 +152,36 @@ describe('PullRequestService (unit)', () => {
       authorId: null,
     });
     expect(githubPullRequestRepository.create).not.toHaveBeenCalled();
+    expect(aiPredictionService.syncPrediction).not.toHaveBeenCalled();
+  });
+
+  it('updates the related prediction only when a prediction payload is provided', async () => {
+    githubPullRequestRepository.findOne.mockResolvedValue({id: 4});
+
+    await service.upsertPullRequest(
+      {
+        repositoryId: 1,
+        githubPrNumber: 7,
+        title: 'Ship it',
+        status: 'merged',
+        description: 'Done',
+        authorId: null,
+      },
+      {repositoryId: 1, githubPrNumber: 7},
+      {
+        priority: 'Medium',
+        reason: 'Touches shared code paths.',
+        findings: [],
+      },
+    );
+
     expect(aiPredictionService.syncPrediction).toHaveBeenCalledWith({
       sourceType: 'github-pull-request',
       sourceId: 4,
       predictionType: 'pull-request-merge-risk',
-      priority: undefined,
-      reason: undefined,
-      findings: undefined,
+      priority: 'Medium',
+      reason: 'Touches shared code paths.',
+      findings: [],
     });
   });
 

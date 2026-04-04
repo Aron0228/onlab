@@ -59,14 +59,16 @@ export class PullRequestService {
     if (!existingPullRequest) {
       const createdPullRequest =
         await this.githubPullRequestRepository.create(pullRequest);
-      await this.aiPredictionService.syncPrediction({
-        sourceType: 'github-pull-request',
-        sourceId: createdPullRequest.id,
-        predictionType: 'pull-request-merge-risk',
-        priority: prediction?.priority,
-        reason: prediction?.reason,
-        findings: prediction?.findings,
-      });
+      if (prediction) {
+        await this.aiPredictionService.syncPrediction({
+          sourceType: 'github-pull-request',
+          sourceId: createdPullRequest.id,
+          predictionType: 'pull-request-merge-risk',
+          priority: prediction.priority,
+          reason: prediction.reason,
+          findings: prediction.findings,
+        });
+      }
       return;
     }
 
@@ -74,14 +76,16 @@ export class PullRequestService {
       existingPullRequest.id,
       pullRequest,
     );
-    await this.aiPredictionService.syncPrediction({
-      sourceType: 'github-pull-request',
-      sourceId: existingPullRequest.id,
-      predictionType: 'pull-request-merge-risk',
-      priority: prediction?.priority,
-      reason: prediction?.reason,
-      findings: prediction?.findings,
-    });
+    if (prediction) {
+      await this.aiPredictionService.syncPrediction({
+        sourceType: 'github-pull-request',
+        sourceId: existingPullRequest.id,
+        predictionType: 'pull-request-merge-risk',
+        priority: prediction.priority,
+        reason: prediction.reason,
+        findings: prediction.findings,
+      });
+    }
   }
 
   public async deleteOne(where: Where<GithubPullRequest>): Promise<void> {

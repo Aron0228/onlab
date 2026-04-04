@@ -44,7 +44,7 @@ describe('AIPredictionService (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'High',
       reason: 'Needs attention',
-      findings: undefined,
+      findings: [],
     });
   });
 
@@ -76,6 +76,25 @@ describe('AIPredictionService (unit)', () => {
           body: 'Guard was removed.',
         },
       ],
+    });
+  });
+
+  it('preserves explicit empty findings arrays so stale findings can be cleared', async () => {
+    aiPredictionRepository.findOne.mockResolvedValue({id: 6});
+
+    await service.syncPrediction({
+      sourceType: 'github-pull-request',
+      sourceId: 22,
+      predictionType: 'pull-request-merge-risk',
+      priority: 'Low',
+      reason: 'Latest run found no actionable review findings.',
+      findings: [],
+    });
+
+    expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(6, {
+      priority: 'Low',
+      reason: 'Latest run found no actionable review findings.',
+      findings: [],
     });
   });
 

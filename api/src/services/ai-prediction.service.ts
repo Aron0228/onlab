@@ -117,7 +117,7 @@ export class AIPredictionService {
       predictionType: input.predictionType,
       priority: input.priority?.trim() || undefined,
       reason: input.reason?.trim() || undefined,
-      findings: input.findings?.length ? input.findings : undefined,
+      findings: input.findings ?? undefined,
     };
   }
 
