@@ -5,6 +5,7 @@ import {IssueService} from '../../../services';
 describe('IssueService (unit)', () => {
   let githubIssueRepository: {
     deleteAll: ReturnType<typeof vi.fn>;
+    deleteById: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -21,6 +22,7 @@ describe('IssueService (unit)', () => {
   beforeEach(() => {
     githubIssueRepository = {
       deleteAll: vi.fn().mockResolvedValue(undefined),
+      deleteById: vi.fn().mockResolvedValue(undefined),
       find: vi.fn().mockResolvedValue([]),
       findOne: vi.fn(),
       create: vi.fn().mockResolvedValue(undefined),
@@ -184,6 +186,36 @@ describe('IssueService (unit)', () => {
     );
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 7,
+    });
+  });
+
+  it('deletes a single issue by id through the prediction-aware path', async () => {
+    githubIssueRepository.find.mockResolvedValue([{id: 11}]);
+
+    await service.deleteById(11);
+
+    expect(aiPredictionService.deleteForSources).toHaveBeenCalledWith(
+      'github-issue',
+      [11],
+      'issue-priority',
+    );
+    expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({id: 11});
+  });
+
+  it('returns the repository delete count when deleting multiple issues', async () => {
+    githubIssueRepository.find.mockResolvedValue([{id: 4}, {id: 8}]);
+    githubIssueRepository.deleteAll.mockResolvedValue({count: 2});
+
+    await expect(service.deleteAll({repositoryId: 1})).resolves.toEqual({
+      count: 2,
+    });
+    expect(aiPredictionService.deleteForSources).toHaveBeenCalledWith(
+      'github-issue',
+      [4, 8],
+      'issue-priority',
+    );
+    expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
+      repositoryId: 1,
     });
   });
 

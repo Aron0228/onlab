@@ -1,5 +1,5 @@
 import {BindingScope, injectable, service} from '@loopback/core';
-import {DataObject, repository, Where} from '@loopback/repository';
+import {Count, DataObject, repository, Where} from '@loopback/repository';
 import {GithubIssue} from '../../models';
 import {GithubIssueRepository} from '../../repositories';
 import {AIPredictionService} from '../ai-prediction.service';
@@ -79,6 +79,21 @@ export class IssueService {
       'issue-priority',
     );
     await this.githubIssueRepository.deleteAll(where);
+  }
+
+  public async deleteById(id: number): Promise<void> {
+    await this.deleteOne({id});
+  }
+
+  public async deleteAll(where: Where<GithubIssue>): Promise<Count> {
+    const issues = await this.githubIssueRepository.find({where});
+    await this.aiPredictionService.deleteForSources(
+      'github-issue',
+      issues.map(issue => issue.id),
+      'issue-priority',
+    );
+
+    return this.githubIssueRepository.deleteAll(where);
   }
 
   public async saveIssuesBulk(issues: GithubIssueWrite[]): Promise<void> {

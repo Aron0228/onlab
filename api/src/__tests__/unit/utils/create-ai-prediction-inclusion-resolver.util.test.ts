@@ -13,7 +13,7 @@ class TestPredictable extends Entity {
 }
 
 describe('createAIPredictionInclusionResolver (unit)', () => {
-  it('returns undefineds and skips repository access when no valid ids are present', async () => {
+  it('returns nulls and skips repository access when no valid ids are present', async () => {
     const getter = vi.fn();
     const resolver = createAIPredictionInclusionResolver(
       'github-issue',
@@ -26,7 +26,7 @@ describe('createAIPredictionInclusionResolver (unit)', () => {
       {} as never,
     );
 
-    expect(result).toEqual([undefined]);
+    expect(result).toEqual([null]);
     expect(getter).not.toHaveBeenCalled();
   });
 
@@ -69,7 +69,7 @@ describe('createAIPredictionInclusionResolver (unit)', () => {
     expect(result).toEqual([
       {id: 1, sourceId: 11, priority: 'Low'},
       {id: 2, sourceId: 22, priority: 'High'},
-      undefined,
+      null,
     ]);
   });
 });

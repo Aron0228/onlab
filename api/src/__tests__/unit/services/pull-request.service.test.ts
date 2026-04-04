@@ -5,6 +5,7 @@ import {PullRequestService} from '../../../services';
 describe('PullRequestService (unit)', () => {
   let githubPullRequestRepository: {
     deleteAll: ReturnType<typeof vi.fn>;
+    deleteById: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -21,6 +22,7 @@ describe('PullRequestService (unit)', () => {
   beforeEach(() => {
     githubPullRequestRepository = {
       deleteAll: vi.fn().mockResolvedValue(undefined),
+      deleteById: vi.fn().mockResolvedValue(undefined),
       find: vi.fn().mockResolvedValue([]),
       findOne: vi.fn(),
       create: vi.fn().mockImplementation(async pullRequest => ({
@@ -213,6 +215,38 @@ describe('PullRequestService (unit)', () => {
     );
     expect(githubPullRequestRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 3,
+    });
+  });
+
+  it('deletes a single pull request by id through the prediction-aware path', async () => {
+    githubPullRequestRepository.find.mockResolvedValue([{id: 21}]);
+
+    await service.deleteById(21);
+
+    expect(aiPredictionService.deleteForSources).toHaveBeenCalledWith(
+      'github-pull-request',
+      [21],
+      'pull-request-merge-risk',
+    );
+    expect(githubPullRequestRepository.deleteAll).toHaveBeenCalledWith({
+      id: 21,
+    });
+  });
+
+  it('returns the repository delete count when deleting multiple pull requests', async () => {
+    githubPullRequestRepository.find.mockResolvedValue([{id: 4}, {id: 5}]);
+    githubPullRequestRepository.deleteAll.mockResolvedValue({count: 2});
+
+    await expect(service.deleteAll({repositoryId: 1})).resolves.toEqual({
+      count: 2,
+    });
+    expect(aiPredictionService.deleteForSources).toHaveBeenCalledWith(
+      'github-pull-request',
+      [4, 5],
+      'pull-request-merge-risk',
+    );
+    expect(githubPullRequestRepository.deleteAll).toHaveBeenCalledWith({
+      repositoryId: 1,
     });
   });
 

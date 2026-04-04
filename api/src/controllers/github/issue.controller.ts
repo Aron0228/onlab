@@ -1,6 +1,6 @@
 import {service} from '@loopback/core';
-import {repository} from '@loopback/repository';
-import {HttpErrors, post, requestBody} from '@loopback/rest';
+import {Count, repository, Where} from '@loopback/repository';
+import {del, HttpErrors, param, post, requestBody} from '@loopback/rest';
 import {GithubIssue, GithubIssueRelations} from '../../models';
 import {
   GithubIssueRepository,
@@ -10,6 +10,7 @@ import {
 import {
   GithubService,
   IssuePriorityService,
+  IssueService,
   type IssuePriorityPrediction,
   QueueService,
 } from '../../services';
@@ -33,10 +34,24 @@ export class GithubIssueController extends GithubIssueBaseCrudController {
     private githubService: GithubService,
     @service(IssuePriorityService)
     private issuePriorityService: IssuePriorityService,
+    @service(IssueService)
+    private issueService: IssueService,
     @service(QueueService)
     private queueService: QueueService,
   ) {
     super(githubIssueRepository);
+  }
+
+  @del('/githubIssues/{id}')
+  public async deleteById(@param.path.number('id') id: number): Promise<void> {
+    await this.issueService.deleteById(id);
+  }
+
+  @del('/githubIssues')
+  public async deleteAll(
+    @param.query.object('where') where: Where<GithubIssue>,
+  ): Promise<Count> {
+    return this.issueService.deleteAll(where);
   }
 
   @post('/githubIssues/analyzePriority')

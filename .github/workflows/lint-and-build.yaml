@@ -6,6 +6,9 @@ on:
     paths:
       - "api/**"
       - "client/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - ".github/workflows/lint-and-build.yaml"
   pull_request:
     branches:
@@ -13,6 +16,9 @@ on:
     paths:
       - "api/**"
       - "client/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
       - ".github/workflows/lint-and-build.yaml"
 
 permissions:

@@ -1,5 +1,5 @@
 import {BindingScope, injectable, service} from '@loopback/core';
-import {DataObject, repository, Where} from '@loopback/repository';
+import {Count, DataObject, repository, Where} from '@loopback/repository';
 import {GithubPullRequest} from '../../models';
 import {GithubPullRequestRepository} from '../../repositories';
 import {AIPredictionService} from '../ai-prediction.service';
@@ -96,6 +96,21 @@ export class PullRequestService {
       'pull-request-merge-risk',
     );
     await this.githubPullRequestRepository.deleteAll(where);
+  }
+
+  public async deleteById(id: number): Promise<void> {
+    await this.deleteOne({id});
+  }
+
+  public async deleteAll(where: Where<GithubPullRequest>): Promise<Count> {
+    const pullRequests = await this.githubPullRequestRepository.find({where});
+    await this.aiPredictionService.deleteForSources(
+      'github-pull-request',
+      pullRequests.map(pullRequest => pullRequest.id),
+      'pull-request-merge-risk',
+    );
+
+    return this.githubPullRequestRepository.deleteAll(where);
   }
 
   public async savePullRequestsBulk(

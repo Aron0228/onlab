@@ -24,7 +24,11 @@ export function createAIPredictionInclusionResolver<
     );
 
     if (!entityIds.length) {
-      return entities.map(() => undefined);
+      // LoopBack's InclusionResolver type only models `undefined` misses,
+      // but the JSON:API serializer needs runtime `null` to clear relations.
+      return entities.map(() => null) as unknown as Array<
+        AIPrediction | undefined
+      >;
     }
 
     const aiPredictionRepository = await aiPredictionRepositoryGetter();
@@ -39,6 +43,8 @@ export function createAIPredictionInclusionResolver<
       predictions.map(prediction => [prediction.sourceId, prediction]),
     );
 
-    return entities.map(entity => predictionBySourceId.get(entity.id));
+    return entities.map(
+      entity => predictionBySourceId.get(entity.id) ?? null,
+    ) as unknown as Array<AIPrediction | undefined>;
   };
 }
