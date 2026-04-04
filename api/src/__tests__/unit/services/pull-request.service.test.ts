@@ -73,6 +73,56 @@ describe('PullRequestService (unit)', () => {
       authorId: 3,
     });
     expect(githubPullRequestRepository.updateById).not.toHaveBeenCalled();
+    expect(aiPredictionService.syncPrediction).toHaveBeenCalledWith({
+      sourceType: 'github-pull-request',
+      sourceId: 1,
+      predictionType: 'pull-request-merge-risk',
+      priority: undefined,
+      reason: undefined,
+      findings: undefined,
+    });
+  });
+
+  it('creates a prediction alongside a pull request when prediction details are provided', async () => {
+    githubPullRequestRepository.findOne.mockResolvedValue(null);
+
+    await service.upsertPullRequest(
+      {
+        repositoryId: 1,
+        githubPrNumber: 7,
+        title: 'Ship it',
+        status: 'open',
+        description: 'Ready',
+        authorId: 3,
+      },
+      {repositoryId: 1, githubPrNumber: 7},
+      {
+        priority: 'Very-High',
+        reason: 'Touches auth and migrations.',
+        findings: [
+          {
+            path: 'src/auth.ts',
+            line: 42,
+            body: 'Guard condition was removed.',
+          },
+        ],
+      },
+    );
+
+    expect(aiPredictionService.syncPrediction).toHaveBeenLastCalledWith({
+      sourceType: 'github-pull-request',
+      sourceId: 1,
+      predictionType: 'pull-request-merge-risk',
+      priority: 'Very-High',
+      reason: 'Touches auth and migrations.',
+      findings: [
+        {
+          path: 'src/auth.ts',
+          line: 42,
+          body: 'Guard condition was removed.',
+        },
+      ],
+    });
   });
 
   it('finds a pull request by where clause', async () => {
@@ -111,14 +161,44 @@ describe('PullRequestService (unit)', () => {
       authorId: null,
     });
     expect(githubPullRequestRepository.create).not.toHaveBeenCalled();
+    expect(aiPredictionService.syncPrediction).toHaveBeenCalledWith({
+      sourceType: 'github-pull-request',
+      sourceId: 4,
+      predictionType: 'pull-request-merge-risk',
+      priority: undefined,
+      reason: undefined,
+      findings: undefined,
+    });
   });
 
   it('deletes a single pull request by where clause', async () => {
+    githubPullRequestRepository.find.mockResolvedValue([{id: 4}, {id: 5}]);
+
     await service.deleteOne({repositoryId: 1, githubPrNumber: 7});
 
+    expect(aiPredictionService.deleteForSources).toHaveBeenCalledWith(
+      'github-pull-request',
+      [4, 5],
+      'pull-request-merge-risk',
+    );
     expect(githubPullRequestRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 1,
       githubPrNumber: 7,
+    });
+  });
+
+  it('deletes repository predictions before deleting repository pull requests', async () => {
+    githubPullRequestRepository.find.mockResolvedValue([{id: 10}, {id: 20}]);
+
+    await service.deleteByRepositoryId(3);
+
+    expect(aiPredictionService.deleteForSources).toHaveBeenCalledWith(
+      'github-pull-request',
+      [10, 20],
+      'pull-request-merge-risk',
+    );
+    expect(githubPullRequestRepository.deleteAll).toHaveBeenCalledWith({
+      repositoryId: 3,
     });
   });
 

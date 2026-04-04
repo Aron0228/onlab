@@ -8,6 +8,7 @@ import {UserRepository, WorkspaceRepository} from '../../../repositories';
 import * as repositoryExports from '../../../repositories';
 
 const TEST_TABLES = [
+  '"system"."ai_prediction"',
   'github."label"',
   'github."pull_request"',
   'github."issue"',
