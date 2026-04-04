@@ -1,17 +1,20 @@
 import {inject, LifeCycleObserver, lifeCycleObserver} from '@loopback/core';
 import {juggler} from '@loopback/repository';
 
-const config = {
-  name: 'postgres',
-  connector: 'postgresql',
-  url:
-    process.env.POSTGRES_URL ?? 'postgres://postgres:postgres@localhost/onlab',
-  host: process.env.POSTGRES_HOST ?? 'localhost',
-  port: process.env.POSTGRES_PORT ?? 5432,
-  user: process.env.POSTGRES_USER ?? 'postgres',
-  password: process.env.POSTGRES_PASSWORD ?? 'postgres',
-  database: process.env.POSTGRES_DATABASE ?? 'spring',
-};
+function getConfig() {
+  return {
+    name: 'postgres',
+    connector: 'postgresql',
+    url:
+      process.env.POSTGRES_URL ??
+      'postgres://postgres:postgres@localhost/onlab',
+    host: process.env.POSTGRES_HOST ?? 'localhost',
+    port: Number(process.env.POSTGRES_PORT ?? 5432),
+    user: process.env.POSTGRES_USER ?? 'postgres',
+    password: process.env.POSTGRES_PASSWORD ?? 'postgres',
+    database: process.env.POSTGRES_DATABASE ?? 'spring',
+  };
+}
 
 // Observe application's life cycle to disconnect the datasource when
 // application is stopped. This allows the application to be shut down
@@ -23,11 +26,11 @@ export class PostgresDbDataSource
   implements LifeCycleObserver
 {
   static dataSourceName = 'postgres';
-  static readonly defaultConfig = config;
+  static readonly defaultConfig = getConfig();
 
   constructor(
     @inject('datasources.config.postgres', {optional: true})
-    dsConfig: object = config,
+    dsConfig: object = getConfig(),
   ) {
     super(dsConfig);
   }
