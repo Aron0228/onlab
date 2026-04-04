@@ -4,10 +4,10 @@ import type GithubIssueModel from 'client/models/github-issue';
 import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';
 
 type StoreLike = {
-  findRecord(
+  query(
     modelName: 'github-issue',
-    id: string | number
-  ): Promise<GithubIssueModel>;
+    options: Record<string, unknown>
+  ): Promise<GithubIssueModel[]>;
 };
 
 export type WorkspacesEditIssuesEditRouteModel = {
@@ -25,8 +25,19 @@ export default class WorkspacesEditIssuesEditRoute extends Route {
     const issuesModel = this.modelFor(
       'workspaces.edit.issues'
     ) as WorkspacesEditIssuesRouteModel;
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
-    const issue = await this.store.findRecord('github-issue', params.issue_id);
+    const [issue] = await this.store.query('github-issue', {
+      filter: {
+        include: ['aiPrediction'],
+        where: {
+          id: Number(params.issue_id),
+        },
+      },
+    });
+
+    if (!issue) {
+      throw new Error(`GitHub issue ${params.issue_id} was not found`);
+    }
+
     const repository = issuesModel.repositories.find(
       (workspaceRepository) =>
         Number(workspaceRepository.id) === Number(issue.repositoryId)

@@ -165,12 +165,14 @@ describe('GithubWebhookService (unit)', () => {
         title: 'Broken',
         status: 'open',
         description: 'Updated body',
-        priority: 'High',
-        priorityReason: 'The module is unusable.',
       },
       {
         repositoryId: 99,
         githubId: 11,
+      },
+      {
+        priority: 'High',
+        reason: 'The module is unusable.',
       },
     );
     expect(githubService.syncRepositoryLabels).toHaveBeenCalledWith(

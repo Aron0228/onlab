@@ -1,3 +1,4 @@
+export * from './ai-prediction.service';
 export * from './auth';
 export * from './github-integration';
 export * from './issue-priority.service';

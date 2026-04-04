@@ -50,6 +50,7 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     const issues = await this.store.query('github-issue', {
       filter: {
+        include: ['aiPrediction'],
         where: {
           repositoryId: { inq: repositoryIds },
         },

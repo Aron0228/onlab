@@ -239,12 +239,14 @@ export class GithubWebhookService {
         title: payload.issue.title,
         status: payload.issue.state,
         description: cleanedDescription,
-        priority: prediction.priority,
-        priorityReason: prediction.reason,
       },
       {
         repositoryId: repository.id,
         githubId: payload.issue.id,
+      },
+      {
+        priority: prediction.priority,
+        reason: prediction.reason,
       },
     );
 

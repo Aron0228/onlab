@@ -5,23 +5,48 @@ import {PullRequestService} from '../../../services';
 describe('PullRequestService (unit)', () => {
   let githubPullRequestRepository: {
     deleteAll: ReturnType<typeof vi.fn>;
+    find: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     updateById: ReturnType<typeof vi.fn>;
     createAll: ReturnType<typeof vi.fn>;
+  };
+  let aiPredictionService: {
+    syncPrediction: ReturnType<typeof vi.fn>;
+    createPredictionsBulk: ReturnType<typeof vi.fn>;
+    deleteForSources: ReturnType<typeof vi.fn>;
   };
   let service: PullRequestService;
 
   beforeEach(() => {
     githubPullRequestRepository = {
       deleteAll: vi.fn().mockResolvedValue(undefined),
+      find: vi.fn().mockResolvedValue([]),
       findOne: vi.fn(),
-      create: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockImplementation(async pullRequest => ({
+        id: 1,
+        ...pullRequest,
+      })),
       updateById: vi.fn().mockResolvedValue(undefined),
-      createAll: vi.fn().mockResolvedValue(undefined),
+      createAll: vi
+        .fn()
+        .mockImplementation(async batch =>
+          batch.map((pullRequest: object, index: number) => ({
+            id: index + 1,
+            ...pullRequest,
+          })),
+        ),
+    };
+    aiPredictionService = {
+      syncPrediction: vi.fn().mockResolvedValue(undefined),
+      createPredictionsBulk: vi.fn().mockResolvedValue(undefined),
+      deleteForSources: vi.fn().mockResolvedValue(undefined),
     };
 
-    service = new PullRequestService(githubPullRequestRepository as never);
+    service = new PullRequestService(
+      githubPullRequestRepository as never,
+      aiPredictionService as never,
+    );
   });
 
   it('creates a pull request when upsert does not find an existing row', async () => {
@@ -99,12 +124,19 @@ describe('PullRequestService (unit)', () => {
 
   it('saves pull requests in batches of 100', async () => {
     const pullRequests = Array.from({length: 205}, (_, index) => ({
-      repositoryId: 1,
-      githubPrNumber: index + 1,
-      title: `PR ${index + 1}`,
-      status: 'open',
-      description: '',
-      authorId: null,
+      pullRequest: {
+        repositoryId: 1,
+        githubPrNumber: index + 1,
+        title: `PR ${index + 1}`,
+        status: 'open',
+        description: '',
+        authorId: null,
+      },
+      prediction: {
+        priority: 'High',
+        reason: `Reason ${index + 1}`,
+        findings: [],
+      },
     }));
 
     await service.savePullRequestsBulk(pullRequests);
@@ -112,15 +144,16 @@ describe('PullRequestService (unit)', () => {
     expect(githubPullRequestRepository.createAll).toHaveBeenCalledTimes(3);
     expect(githubPullRequestRepository.createAll).toHaveBeenNthCalledWith(
       1,
-      pullRequests.slice(0, 100),
+      pullRequests.slice(0, 100).map(entry => entry.pullRequest),
     );
     expect(githubPullRequestRepository.createAll).toHaveBeenNthCalledWith(
       2,
-      pullRequests.slice(100, 200),
+      pullRequests.slice(100, 200).map(entry => entry.pullRequest),
     );
     expect(githubPullRequestRepository.createAll).toHaveBeenNthCalledWith(
       3,
-      pullRequests.slice(200, 205),
+      pullRequests.slice(200, 205).map(entry => entry.pullRequest),
     );
+    expect(aiPredictionService.createPredictionsBulk).toHaveBeenCalledTimes(3);
   });
 });

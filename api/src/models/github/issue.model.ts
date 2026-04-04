@@ -1,4 +1,10 @@
-import {belongsTo, Entity, model, property} from '@loopback/repository';
+import {
+  belongsTo,
+  hasOne,
+  model,
+  property,
+} from '@loopback/repository';
+import {AIPrediction, AIPredictable} from '../system';
 import {GithubRepository} from './repository.model';
 
 @model({
@@ -7,7 +13,7 @@ import {GithubRepository} from './repository.model';
     postgresql: {schema: 'github', table: 'issue'},
   },
 })
-export class GithubIssue extends Entity {
+export class GithubIssue extends AIPredictable {
   @property({
     type: 'number',
     id: true,
@@ -60,17 +66,8 @@ export class GithubIssue extends Entity {
   })
   description: string;
 
-  @property({
-    type: 'string',
-    postgresql: {columnName: 'priority'},
-  })
-  priority?: string;
-
-  @property({
-    type: 'string',
-    postgresql: {columnName: 'priority_reason'},
-  })
-  priorityReason?: string;
+  @hasOne(() => AIPrediction, {keyTo: 'sourceId'})
+  aiPrediction?: AIPrediction | null;
 
   constructor(data?: Partial<GithubIssue>) {
     super(data);
@@ -79,6 +76,7 @@ export class GithubIssue extends Entity {
 
 export type GithubIssueRelations = {
   repository?: GithubRepository;
+  aiPrediction?: AIPrediction | null;
 };
 
 export type GithubIssueWithRelations = GithubIssue & GithubIssueRelations;
