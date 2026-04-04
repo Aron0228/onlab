@@ -81,9 +81,7 @@ export class IssueService {
     await this.githubIssueRepository.deleteAll(where);
   }
 
-  public async saveIssuesBulk(
-    issues: GithubIssueWrite[],
-  ): Promise<void> {
+  public async saveIssuesBulk(issues: GithubIssueWrite[]): Promise<void> {
     if (!issues.length) {
       return;
     }

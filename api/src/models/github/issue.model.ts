@@ -1,9 +1,4 @@
-import {
-  belongsTo,
-  hasOne,
-  model,
-  property,
-} from '@loopback/repository';
+import {belongsTo, hasOne, model, property} from '@loopback/repository';
 import {AIPrediction, AIPredictable} from '../system';
 import {GithubRepository} from './repository.model';
 

@@ -25,14 +25,12 @@ describe('IssueService (unit)', () => {
       findOne: vi.fn(),
       create: vi.fn().mockResolvedValue(undefined),
       updateById: vi.fn().mockResolvedValue(undefined),
-      createAll: vi
-        .fn()
-        .mockImplementation(async batch =>
-          batch.map((issue: object, index: number) => ({
-            id: index + 1,
-            ...issue,
-          })),
-        ),
+      createAll: vi.fn().mockImplementation(async batch =>
+        batch.map((issue: object, index: number) => ({
+          id: index + 1,
+          ...issue,
+        })),
+      ),
     };
     aiPredictionService = {
       syncPrediction: vi.fn().mockResolvedValue(undefined),

@@ -19,7 +19,6 @@ import {
   GITHUB_ISSUES_QUEUE_NAME,
   GithubService,
   type GithubIssuesJobData,
-  type IssuePriorityPrediction,
   IssuePriorityService,
   IssueService,
   LabelService,
@@ -418,7 +417,9 @@ async function syncRepositoryIssues(
     );
     const records: Array<{
       issue: DataObject<GithubIssue>;
-      prediction: Awaited<ReturnType<IssuePriorityService['predictIssuePriority']>>;
+      prediction: Awaited<
+        ReturnType<IssuePriorityService['predictIssuePriority']>
+      >;
     }> = [];
     const issueUpdates: Array<{
       issueNumber: number;

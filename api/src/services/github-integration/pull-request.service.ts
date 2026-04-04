@@ -103,9 +103,10 @@ export class PullRequestService {
 
     for (let index = 0; index < pullRequests.length; index += this.batchSize) {
       const batch = pullRequests.slice(index, index + this.batchSize);
-      const createdPullRequests = await this.githubPullRequestRepository.createAll(
-        batch.map(entry => entry.pullRequest),
-      );
+      const createdPullRequests =
+        await this.githubPullRequestRepository.createAll(
+          batch.map(entry => entry.pullRequest),
+        );
       await this.aiPredictionService.createPredictionsBulk(
         createdPullRequests.flatMap((pullRequest, batchIndex) => {
           const prediction = batch[batchIndex].prediction;

@@ -28,14 +28,12 @@ describe('PullRequestService (unit)', () => {
         ...pullRequest,
       })),
       updateById: vi.fn().mockResolvedValue(undefined),
-      createAll: vi
-        .fn()
-        .mockImplementation(async batch =>
-          batch.map((pullRequest: object, index: number) => ({
-            id: index + 1,
-            ...pullRequest,
-          })),
-        ),
+      createAll: vi.fn().mockImplementation(async batch =>
+        batch.map((pullRequest: object, index: number) => ({
+          id: index + 1,
+          ...pullRequest,
+        })),
+      ),
     };
     aiPredictionService = {
       syncPrediction: vi.fn().mockResolvedValue(undefined),
