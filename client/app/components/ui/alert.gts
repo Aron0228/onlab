@@ -8,7 +8,7 @@ export interface UiAlertSignature {
     type?: 'info' | 'success' | 'warning' | 'alert';
     onClose: () => void;
   };
-  Element: HtmlDivElement;
+  Element: HTMLDivElement;
 }
 
 const ICONS = [
@@ -16,17 +16,19 @@ const ICONS = [
   { name: 'circle-check', variant: 'success', alertType: 'success' },
   { name: 'alert-triangle', variant: 'warning', alertType: 'warning' },
   { name: 'circle-x', variant: 'error', alertType: 'alert' },
-];
+] as const satisfies Array<{
+  name: string;
+  variant: 'normal' | 'primary' | 'info' | 'error' | 'warning' | 'success';
+  alertType: NonNullable<UiAlertSignature['Args']['type']>;
+}>;
 
 export default class UiAlert extends Component<UiAlertSignature> {
-  get type() {
+  get type(): NonNullable<UiAlertSignature['Args']['type']> {
     return this.args.type ?? 'info';
   }
 
   get icon() {
-    const type = this.args.type ?? 'info';
-
-    return ICONS.find((icon) => icon.alertType === type);
+    return ICONS.find((icon) => icon.alertType === this.type) ?? ICONS[0];
   }
 
   <template>

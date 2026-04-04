@@ -12,42 +12,18 @@ import UiButton from 'client/components/ui/button';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { task } from 'ember-concurrency';
 import { or } from 'ember-truth-helpers';
-import type UserModel from 'client/models/user';
 import UiFormGroup from 'client/components/ui/form-group';
 import UiInput from 'client/components/ui/input';
-
-type ApiServiceLike = {
-  request(
-    path: string,
-    options: {
-      method: string;
-      body?: FormData | unknown;
-      params?: Record<string, string>;
-    }
-  ): Promise<unknown>;
-};
-
-type SessionServiceLike = {
-  data: {
-    authenticated?: {
-      token?: string;
-    };
-  };
-  invalidate(): Promise<void>;
-};
+import type {
+  ApiServiceLike,
+  AuthenticatedSessionLike,
+  FlashMessagesServiceLike,
+  RouterServiceLike,
+  SessionAccountServiceLike,
+} from 'client/types/services';
 
 type StoreLike = {
   saveRecord<T>(record: T): Promise<T>;
-};
-
-type FlashMessagesServiceLike = {
-  success(message: string, options?: { title?: string }): void;
-  danger(message: string, options?: { title?: string }): void;
-};
-
-type SessionAccountServiceLike = {
-  id?: number;
-  user: UserModel | null;
 };
 
 export interface RoutesProfileSignature {
@@ -67,8 +43,8 @@ export interface RoutesProfileSignature {
 export default class RoutesProfile extends Component<RoutesProfileSignature> {
   @service declare api: ApiServiceLike;
   @service declare flashMessages: FlashMessagesServiceLike;
-  @service declare router: {transitionTo(route: string): void};
-  @service declare session: SessionServiceLike;
+  @service declare router: RouterServiceLike;
+  @service declare session: AuthenticatedSessionLike;
   @service declare sessionAccount: SessionAccountServiceLike;
   @service declare store: StoreLike;
 
@@ -102,7 +78,7 @@ export default class RoutesProfile extends Component<RoutesProfileSignature> {
 
     this.selectedAvatarFile = null;
 
-    this.flashMessages.success('Your profile picture has been updated.', {
+    this.flashMessages.success?.('Your profile picture has been updated.', {
       title: 'Success',
     });
   });
@@ -121,11 +97,11 @@ export default class RoutesProfile extends Component<RoutesProfileSignature> {
     formData.append('originalName', file.name);
     formData.append('file', file);
 
-    return (await this.api.request('/files/upload', {
+    return await this.api.request<{ id: number }>('/files/upload', {
       method: 'POST',
       body: formData,
       params,
-    })) as { id: number };
+    });
   }
 
   deleteProfileTask = task(async () => {
@@ -133,7 +109,7 @@ export default class RoutesProfile extends Component<RoutesProfileSignature> {
       method: 'POST',
     });
 
-    this.sessionAccount.clear();
+    this.sessionAccount.clear?.();
     await this.session.invalidate();
     this.router.transitionTo('auth.login');
   });

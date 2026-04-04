@@ -1,10 +1,12 @@
 import Component from '@glimmer/component';
+import { fn } from '@ember/helper';
 import UiAlert from 'client/components/ui/alert';
 import { inject as service } from '@ember/service';
+import type { EmptyArgs } from 'client/types/component';
 
 export interface FlashMessagesSignature {
   // The arguments accepted by the component
-  Args: {};
+  Args: EmptyArgs;
   // Any blocks yielded by the component
   Blocks: {
     default: [];
@@ -19,7 +21,7 @@ type FlashMessagesServiceLike = {
 };
 
 type FlashMessageLike = {
-  message?: string;
+  message: string;
   type?: string;
   _guid?: string;
   destroyMessage?: () => void;
@@ -51,7 +53,7 @@ export default class FlashMessages extends Component<FlashMessagesSignature> {
         <UiAlert
           @message={{flash.message}}
           @type={{this.flashType flash.type}}
-          @onClose={{this.dismissFlash flash}}
+          @onClose={{fn this.dismissFlash flash}}
         />
       {{/each}}
     </div>

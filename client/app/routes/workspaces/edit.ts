@@ -27,9 +27,7 @@ export default class WorkspacesEditRoute extends Route {
   async model(params: { id: string }): Promise<WorkspacesIssuesRouteModel> {
     const workspaceId = Number.parseInt(params.id, 10);
 
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     const workspace = await this.store.findRecord('workspace', workspaceId);
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     const repositories = await this.store.query('github-repository', {
       filter: {
         where: {

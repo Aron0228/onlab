@@ -4,6 +4,9 @@ import { action } from '@ember/object';
 import UiDropdown from 'client/components/ui/dropdown';
 import { t } from 'ember-intl';
 import moment from 'moment';
+import type Owner from '@ember/owner';
+import type { EmptyArgs } from 'client/types/component';
+import { or } from 'ember-truth-helpers';
 
 interface Language {
   code: string;
@@ -11,6 +14,13 @@ interface Language {
   flag: string;
   momentLocale: 'hu' | 'en';
 }
+
+type LanguageOption = {
+  code?: string;
+  tKey?: string;
+  flag?: string;
+  momentLocale?: 'hu' | 'en';
+};
 
 const LOCALE_KEY = 'locale';
 
@@ -30,12 +40,15 @@ const LANGUAGES: Language[] = [
 ] as const;
 
 export default class UiLanguageSelector extends Component {
-  @service intl;
+  @service declare intl: {
+    primaryLocale: string;
+    setLocale(locale: string): void;
+  };
 
   locale = 'en-us';
   textFadeDurationMs = 250;
 
-  constructor(owner: unknown, args: any) {
+  constructor(owner: Owner, args: EmptyArgs) {
     super(owner, args);
 
     this.locale = this.intl.primaryLocale;
@@ -47,6 +60,19 @@ export default class UiLanguageSelector extends Component {
 
   get locales() {
     return LANGUAGES;
+  }
+
+  @action onLanguageChange(language: LanguageOption | null): void {
+    if (
+      !language?.code ||
+      !language.tKey ||
+      !language.flag ||
+      !language.momentLocale
+    ) {
+      return;
+    }
+
+    void this.selectLocale(language as Language);
   }
 
   @action async selectLocale(language: Language) {
@@ -85,7 +111,7 @@ export default class UiLanguageSelector extends Component {
       <UiDropdown
         @options={{this.locales}}
         @selected={{this.currentLocale}}
-        @onChange={{this.selectLocale}}
+        @onChange={{this.onLanguageChange}}
         class="ui-language-selector"
       >
         <:selected as |option|>
@@ -97,7 +123,7 @@ export default class UiLanguageSelector extends Component {
           <span class="ui-language-selector__option-label">
             <span class="font-weight-bold">{{option.flag}}</span>
             <hr class="ui-language-selector__option-separator" />
-            <span>{{t option.tKey}}</span>
+            <span>{{t (or option.tKey "")}}</span>
           </span>
         </:option>
       </UiDropdown>

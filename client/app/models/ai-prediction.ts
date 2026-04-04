@@ -1,4 +1,4 @@
-import Model, {attr} from '@warp-drive/legacy/model';
+import Model, { attr } from '@warp-drive/legacy/model';
 
 export default class AIPredictionModel extends Model {
   @attr('string') declare sourceType: string;

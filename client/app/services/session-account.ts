@@ -29,7 +29,6 @@ export default class SessionAccountService extends Service {
       return;
     }
 
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     this.user = await this.store.findRecord('user', userId);
   }
 

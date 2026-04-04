@@ -4,15 +4,11 @@ import { action } from '@ember/object';
 import { service } from '@ember/service';
 import UiButton from 'client/components/ui/button';
 import { on } from '@ember/modifier';
-
-interface UploadedFilePayload {
-  id: number;
-  workspaceId?: number | null;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  path: string;
-}
+import type { UploadedFilePayload } from 'client/types/files';
+import type {
+  ApiServiceLike,
+  AuthenticatedSessionLike,
+} from 'client/types/services';
 
 interface UiFileUploadSignature {
   Args: {
@@ -24,16 +20,9 @@ interface UiFileUploadSignature {
   Element: HTMLDivElement;
 }
 
-type SessionServiceLike = {
-  data: {
-    authenticated: {
-      token?: string;
-    };
-  };
-};
-
 export default class UiFileUpload extends Component<UiFileUploadSignature> {
-  @service declare session: SessionServiceLike;
+  @service declare api: ApiServiceLike;
+  @service declare session: AuthenticatedSessionLike;
 
   @tracked selectedFile: globalThis.File | null = null;
   @tracked errorMessage: string | null = null;
@@ -113,19 +102,13 @@ export default class UiFileUpload extends Component<UiFileUploadSignature> {
         url.searchParams.set('uploadPath', this.args.uploadPath);
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': this.selectedFile.type || 'application/octet-stream',
-        },
-        body: this.selectedFile,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
-      }
-
-      const uploadedFile = (await response.json()) as UploadedFilePayload;
+      const uploadedFile = await this.api.request<UploadedFilePayload>(
+        url.toString(),
+        {
+          method: 'POST',
+          body: this.selectedFile,
+        }
+      );
       this.uploadedFileName = uploadedFile.originalName;
       this.selectedFile = null;
 
@@ -154,7 +137,9 @@ export default class UiFileUpload extends Component<UiFileUploadSignature> {
 
   <template>
     <div class="layout-vertical --gap-sm" ...attributes>
+      <label class="font-weight-bold" for="file-upload-input">Choose file</label>
       <input
+        id="file-upload-input"
         type="file"
         accept={{this.acceptValue}}
         {{on "change" this.handleFileSelection}}

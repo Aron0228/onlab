@@ -8,6 +8,7 @@ import { on } from '@ember/modifier';
 import { tracked } from '@glimmer/tracking';
 import type WorkspaceModel from 'client/models/workspace';
 import type GithubRepositoryModel from 'client/models/github-repository';
+import type Owner from '@ember/owner';
 
 type WorkspacesEditModel = {
   workspace: WorkspaceModel;
@@ -30,7 +31,7 @@ export interface RoutesWorkspacesEditSignature {
 export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEditSignature> {
   @tracked isCollapsed = false;
 
-  constructor(owner: unknown, args: RoutesWorkspacesEditSignature['Args']) {
+  constructor(owner: Owner, args: RoutesWorkspacesEditSignature['Args']) {
     super(owner, args);
 
     if (globalThis.matchMedia?.('(max-width: 768px)').matches) {

@@ -25,7 +25,6 @@ export default class WorkspacesIndexRoute extends Route {
     }
 
     try {
-      // eslint-disable-next-line warp-drive/no-legacy-request-patterns
       await this.store.findRecord('workspace', workspaceId);
       this.router.transitionTo('workspaces.edit', workspaceId);
     } catch {

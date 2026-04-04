@@ -4,7 +4,6 @@ import UiIcon from 'client/components/ui/icon';
 import { task } from 'ember-concurrency';
 import { inject as service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
-import UiAvatar from 'client/components/ui/avatar';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import type InvitationModel from 'client/models/invitation';
 import type WorkspaceModel from 'client/models/workspace';
@@ -15,39 +14,40 @@ import type User from 'client/models/user';
 import RoutesWorkspacesIndexInvitationCard from 'client/components/routes/workspaces/index/invitation-card';
 import RoutesWorkspacesIndexWorkspaceCard from 'client/components/routes/workspaces/index/workspace-card';
 import RoutesWorkspacesHeaderActions from 'client/components/routes/workspaces/header-actions';
+import type { EmptyArgs } from 'client/types/component';
+import type { ApiServiceLike } from 'client/types/services';
 
 type SessionAccountServiceLike = {
   id?: number;
-  user?: User;
+  user?: User | null;
 };
+
+type WorkspaceCountResponse = {
+  count: number;
+};
+
+type WorkspaceRole = 'MEMBER' | 'ADMIN' | 'OWNER';
 
 type StoreLike = {
   query(
-    modelName: string,
+    modelName: 'workspace',
     query: Record<string, unknown>
-  ): Promise<
-    ArrayLike<WorkspaceModel | WorkspaceMemberModel | InvitationModel>
-  >;
-};
-
-type ApiServiceLike = {
-  request(
-    path: string,
-    options: {
-      method: string;
-      params?: Record<string, unknown>;
-    }
-  ): Promise<{ count: number }>;
+  ): Promise<WorkspaceModel[]>;
+  query(
+    modelName: 'workspace-member',
+    query: Record<string, unknown>
+  ): Promise<WorkspaceMemberModel[]>;
+  query(
+    modelName: 'invitation',
+    query: Record<string, unknown>
+  ): Promise<InvitationModel[]>;
 };
 
 export interface RoutesWorkspacesIndexSignature {
-  // The arguments accepted by the component
-  Args: {};
-  // Any blocks yielded by the component
+  Args: EmptyArgs;
   Blocks: {
     default: [];
   };
-  // The element to which `...attributes` is applied in the component template
   Element: null;
 }
 
@@ -57,7 +57,7 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
   @service declare api: ApiServiceLike;
 
   @tracked workspaceMemberCounts: Record<number, number> = {};
-  @tracked workspaceRoles: Record<number, string> = {};
+  @tracked workspaceRoles: Record<number, WorkspaceRole> = {};
   @tracked invitationRefreshKey = 0;
 
   fetchOwnWorkspacesTask = task(async () => {
@@ -72,7 +72,7 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
     });
 
     await Promise.all(
-      Array.from(workspaces).map(async (workspace) => {
+      workspaces.map(async (workspace) => {
         const count = await this.fetchWorkspaceMemberCountTask.perform(
           Number(workspace.id)
         );
@@ -99,12 +99,12 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
       },
     });
 
-    const workspaces = workspaceMembers.map(
-      (workspaceMember) => workspaceMember.workspace
-    );
+    const workspaces = workspaceMembers
+      .map((workspaceMember) => workspaceMember.workspace)
+      .filter((workspace): workspace is WorkspaceModel => Boolean(workspace));
 
     await Promise.all(
-      Array.from(workspaces).map(async (workspace) => {
+      workspaces.map(async (workspace) => {
         const count = await this.fetchWorkspaceMemberCountTask.perform(
           Number(workspace.id)
         );
@@ -116,9 +116,9 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
       })
     );
 
-    Array.from(workspaceMembers).forEach((workspaceMember) => {
+    workspaceMembers.forEach((workspaceMember) => {
       const workspaceId = Number(workspaceMember.workspace?.id);
-      const role = workspaceMember.role;
+      const role = workspaceMember.role as WorkspaceRole | undefined;
 
       if (!workspaceId || !role) {
         return;
@@ -138,29 +138,32 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
     const params = {
       where,
     };
-    const result = await this.api.request('/workspaceMembers/count', {
-      method: 'GET',
-      params,
-    });
+    const result = await this.api.request<WorkspaceCountResponse>(
+      '/workspaceMembers/count',
+      {
+        method: 'GET',
+        params,
+      }
+    );
 
     // + 1 since the workspace owner is not in the WorkspaceMembers model
     return result.count + 1;
   });
 
   fetchInvitationsTask = task(async () => {
-    const userEmail = this.sessionAccount.user.email;
+    const userEmail = this.sessionAccount.user?.email;
 
-    const invitations = (await this.store.query('invitation', {
+    const invitations = await this.store.query('invitation', {
       filter: {
         where: {
           email: userEmail,
         },
         include: ['workspace'],
       },
-    })) as ArrayLike<InvitationModel>;
+    });
 
     await Promise.all(
-      Array.from(invitations).map(async (invitation) => {
+      invitations.map(async (invitation) => {
         const workspaceId = Number(invitation.workspace?.id);
 
         if (!workspaceId) {
@@ -192,24 +195,23 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
     this.invitationRefreshKey,
   ]);
 
-  get ownWorkspaces() {
-    return this.lastOwnWorkspaces.value ?? [];
+  get ownWorkspaces(): WorkspaceModel[] {
+    return (this.lastOwnWorkspaces.value as WorkspaceModel[] | undefined) ?? [];
   }
 
-  get memberWorkspaces() {
-    return this.lastMemberWorkspaces.value ?? [];
+  get memberWorkspaces(): WorkspaceModel[] {
+    return (
+      (this.lastMemberWorkspaces.value as WorkspaceModel[] | undefined) ?? []
+    );
   }
 
-  get invitations() {
-    return this.lastInvitations.value ?? [];
+  get invitations(): InvitationModel[] {
+    return (this.lastInvitations.value as InvitationModel[] | undefined) ?? [];
   }
 
-  refreshInvitationDataTask = task(async () => {
+  refreshInvitationData = (): Promise<void> => {
     this.invitationRefreshKey += 1;
-  });
-
-  refreshInvitationData = async () => {
-    await this.refreshInvitationDataTask.perform();
+    return Promise.resolve();
   };
 
   workspaceMemberCount = (workspaceId: number): string => {
@@ -226,6 +228,20 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
     const role = this.workspaceRoles[workspaceId] ?? 'MEMBER';
 
     return toLowerCase ? role.toLowerCase() : role;
+  };
+
+  workspaceIdValue = (
+    workspaceId: string | number | null | undefined
+  ): number => {
+    return Number(workspaceId ?? 0);
+  };
+
+  workspaceRoleValue = (
+    workspaceId: string | number | null | undefined
+  ): WorkspaceRole => {
+    return this.workspaceRole(
+      this.workspaceIdValue(workspaceId)
+    ) as WorkspaceRole;
   };
 
   <template>
@@ -256,7 +272,7 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
                 <RoutesWorkspacesIndexInvitationCard
                   @model={{invitation}}
                   @memberCount={{this.workspaceMemberCount
-                    invitation.workspaceId
+                    (or invitation.workspaceId 0)
                   }}
                   @onChanged={{this.refreshInvitationData}}
                 />
@@ -269,7 +285,9 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
                 {{#each this.ownWorkspaces as |workspace|}}
                   <RoutesWorkspacesIndexWorkspaceCard
                     @model={{workspace}}
-                    @memberCount={{this.workspaceMemberCount workspace.id}}
+                    @memberCount={{this.workspaceMemberCount
+                      (this.workspaceIdValue workspace.id)
+                    }}
                     @role="OWNER"
                   />
                 {{/each}}
@@ -278,8 +296,10 @@ export default class RoutesWorkspacesIndex extends Component<RoutesWorkspacesInd
                 {{#each this.memberWorkspaces as |workspace|}}
                   <RoutesWorkspacesIndexWorkspaceCard
                     @model={{workspace}}
-                    @memberCount={{this.workspaceMemberCount workspace.id}}
-                    @role={{this.workspaceRole workspace.id}}
+                    @memberCount={{this.workspaceMemberCount
+                      (this.workspaceIdValue workspace.id)
+                    }}
+                    @role={{this.workspaceRoleValue workspace.id}}
                   />
                 {{/each}}
               </div>

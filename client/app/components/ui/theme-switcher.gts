@@ -5,6 +5,7 @@ import { on } from '@ember/modifier';
 import { eq } from 'ember-truth-helpers';
 import type Owner from '@ember/owner';
 import UiIcon from 'client/components/ui/icon';
+import type { EmptyArgs } from 'client/types/component';
 
 const THEME_KEY = 'theme';
 
@@ -12,7 +13,7 @@ const THEME_KEY = 'theme';
 export default class UiThemeSwitcher extends Component {
   @tracked mode: 'light' | 'dark' = 'dark';
 
-  constructor(owner: Owner, args: object) {
+  constructor(owner: Owner, args: EmptyArgs) {
     super(owner, args);
     this.initTheme();
   }

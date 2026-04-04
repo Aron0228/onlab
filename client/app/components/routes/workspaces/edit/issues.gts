@@ -47,7 +47,6 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
   fetchWorkspaceIssuesTask = task(async () => {
     const repositoryIds = this.args.model.repositories.map((repo) => repo.id);
 
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     const issues = await this.store.query('github-issue', {
       filter: {
         include: ['aiPrediction'],

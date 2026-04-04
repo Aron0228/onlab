@@ -12,8 +12,7 @@ export default class ProfileRoute extends Route<ProfileRouteModel> {
     const routeBackUrl = transition.to?.queryParams.routeBackUrl;
 
     return {
-      routeBack:
-        typeof routeBack === 'string' ? routeBack : 'workspaces.index',
+      routeBack: typeof routeBack === 'string' ? routeBack : 'workspaces.index',
       routeBackUrl: typeof routeBackUrl === 'string' ? routeBackUrl : null,
     };
   }

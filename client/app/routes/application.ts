@@ -118,20 +118,21 @@ export default class ApplicationRoute extends Route {
       return false;
     }
 
-    const possibleStatus = (error as Error & {status?: number}).status;
+    const possibleStatus = (error as Error & { status?: number }).status;
 
     if (possibleStatus === 401) {
       return true;
     }
 
-    const errors = (error as Error & {errors?: Array<{status?: string | number}>})
-      .errors;
+    const errors = (
+      error as Error & { errors?: Array<{ status?: string | number }> }
+    ).errors;
 
     if (
       Array.isArray(errors) &&
       errors.some(
-        nestedError =>
-          nestedError.status === 401 || nestedError.status === '401',
+        (nestedError) =>
+          nestedError.status === 401 || nestedError.status === '401'
       )
     ) {
       return true;

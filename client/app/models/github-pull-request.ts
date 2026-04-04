@@ -1,12 +1,12 @@
-import Model, {attr, belongsTo} from '@warp-drive/legacy/model';
+import Model, { attr, belongsTo } from '@warp-drive/legacy/model';
 import type AIPredictionModel from './ai-prediction';
 import type GithubRepositoryModel from './github-repository';
 
 export default class GithubPullRequestModel extends Model {
-  @belongsTo('github-repository', {async: false, inverse: null})
+  @belongsTo('github-repository', { async: false, inverse: null })
   declare repository: GithubRepositoryModel | null;
 
-  @belongsTo('ai-prediction', {async: false, inverse: null})
+  @belongsTo('ai-prediction', { async: false, inverse: null })
   declare aiPrediction: AIPredictionModel | null;
 
   @attr('number') declare repositoryId: number;

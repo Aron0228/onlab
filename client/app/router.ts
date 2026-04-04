@@ -17,7 +17,7 @@ Router.map(function () {
     this.route('callback');
     this.route('new');
     this.route('edit', { path: '/:id' }, function () {
-      this.route('issues', function() {
+      this.route('issues', function () {
         this.route('edit', { path: '/:issue_id' });
         this.route('new');
       });

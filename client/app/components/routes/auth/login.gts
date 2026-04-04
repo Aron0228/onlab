@@ -2,16 +2,13 @@ import Component from '@glimmer/component';
 import UiContainer from 'client/components/ui/container';
 import UiThemeSwitcher from 'client/components/ui/theme-switcher';
 import UiIcon from 'client/components/ui/icon';
-import svgJar from 'ember-svg-jar/helpers/svg-jar';
-import UiButton from 'client/components/ui/button';
 import { action } from '@ember/object';
-import { inject as service } from '@ember/service';
-import { task } from 'ember-concurrency';
 import { on } from '@ember/modifier';
+import type { EmptyArgs } from 'client/types/component';
 
 export interface RoutesLoginSignature {
   // The arguments accepted by the component
-  Args: {};
+  Args: EmptyArgs;
   // Any blocks yielded by the component
   Blocks: {
     default: [];
@@ -20,32 +17,15 @@ export interface RoutesLoginSignature {
   Element: null;
 }
 
-export default class RoutesLogin extends Component {
-  @service router;
-  @service store;
-
-  githubAuthTask = task(async () => {
+export default class RoutesLogin extends Component<RoutesLoginSignature> {
+  githubAuth = () => {
     const apiUrl =
       (import.meta.env.VITE_API_URL as string | undefined) ??
       'http://localhost:30022';
     const endpoint = `${apiUrl}/auth/github`;
 
-    try {
-      const response = await fetch(endpoint, {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (response.redirected && response.url) {
-        window.location.assign(response.url);
-        return;
-      }
-    } catch (error: unknown) {
-      console.error('GitHub auth bootstrap failed', error);
-    }
-
     window.location.assign(endpoint);
-  });
+  };
 
   get footerCards() {
     return [
@@ -65,7 +45,7 @@ export default class RoutesLogin extends Component {
   }
 
   @action onClick() {
-    this.githubAuthTask.perform();
+    this.githubAuth();
   }
 
   <template>

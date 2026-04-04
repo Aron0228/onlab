@@ -5,31 +5,55 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { eq, and } from 'ember-truth-helpers';
 import { fn } from '@ember/helper';
+import type Owner from '@ember/owner';
 import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiInput from 'client/components/ui/input';
 
+type DropdownOption = {
+  name?: string;
+  fullName?: string;
+  flag?: string;
+  tKey?: string;
+  code?: string;
+  momentLocale?: 'hu' | 'en';
+  id?: string | number | null;
+};
+
 export interface UiDropdownSignature {
   Args: {
-    options: any[];
-    selected?: any;
-    onChange?: (selected: any) => void;
+    options: DropdownOption[];
+    selected?: DropdownOption | null;
+    onChange?: (selected: DropdownOption | null) => void;
     disabled?: boolean;
     placeholder?: string;
     onSearch?: (searchTerm: string) => void;
     allowClear?: boolean;
   };
   Blocks: {
-    default: [];
+    default: [DropdownOption];
+    selected: [DropdownOption];
+    option: [DropdownOption];
   };
   Element: HTMLDivElement;
 }
 
 export default class UiDropdown extends Component<UiDropdownSignature> {
   @tracked isOpen = false;
-  @tracked selected = this.args.selected ?? null;
+  @tracked selected: DropdownOption | null = this.args.selected ?? null;
 
-  constructor(owner: unknown, args: any) {
+  handleOutsideClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const isInside = document
+      .querySelector('.ui-dropdown__dropdown__search')
+      ?.contains(target);
+
+    if (!isInside && this.isOpen) {
+      this.isOpen = false;
+    }
+  };
+
+  constructor(owner: Owner, args: UiDropdownSignature['Args']) {
     super(owner, args);
 
     document.addEventListener('click', this.handleOutsideClick);
@@ -39,20 +63,6 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
     });
   }
 
-  /* Actions */
-  @action
-  handleOutsideClick(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    // On an option click this actually closes the dropdown which is superb and what we want :)
-    const isInside = document
-      .querySelector('.ui-dropdown__dropdown__search')
-      ?.contains(target);
-
-    if (!isInside && this.isOpen) {
-      this.isOpen = false;
-    }
-  }
-
   @action toggleDropdown(event: Event) {
     if (this.args.disabled) return;
 
@@ -60,16 +70,17 @@ export default class UiDropdown extends Component<UiDropdownSignature> {
     this.isOpen = !this.isOpen;
   }
 
-  @action selectOption(option: any) {
+  @action selectOption(option: DropdownOption) {
     this.selected = option;
 
     if (this.args.onChange) this.args.onChange(option);
   }
 
-  @action onClear(event: Event) {
-    event.stopPropagation();
+  @action onClear(event?: Event) {
+    event?.stopPropagation();
 
     this.selected = null;
+    this.args.onChange?.(null);
   }
 
   <template>

@@ -7,7 +7,11 @@ interface UiContainerSignature {
     bordered?: boolean;
     variant?: 'default' | 'primary' | 'info' | 'warning' | 'error';
   };
-  Element: HtmlDivElement;
+  Blocks: {
+    default: [];
+    header: [];
+  };
+  Element: HTMLDivElement;
 }
 
 export default class UiContainer extends Component<UiContainerSignature> {
