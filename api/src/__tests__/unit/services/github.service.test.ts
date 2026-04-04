@@ -11,6 +11,24 @@ type GithubInstallationRepository = {
 };
 
 type GithubServiceInternals = {
+  getGithubAppInfo(): Promise<{
+    slug: string;
+    name: string;
+  }>;
+  getInstallation(installationId: number): Promise<{
+    id: number;
+    account: {
+      identifier: string;
+      type: string;
+    } | null;
+    app_id: number;
+    app_slug: string;
+    target_id: number;
+    target_type: string;
+    permissions: Record<string, string>;
+    events: string[];
+    html_url?: string;
+  }>;
   getInstallationClient(installationId: number): Promise<unknown>;
   saveInstallationRepositories(
     workspaceId: number,
@@ -206,11 +224,11 @@ describe('GithubService (unit)', () => {
   });
 
   it('signs workspace state in the installation URL and accepts it on callback', async () => {
-    vi.spyOn(service as never, 'getGithubAppInfo').mockResolvedValue({
+    internals.getGithubAppInfo = vi.fn().mockResolvedValue({
       slug: 'devteams-demo',
       name: 'DevTeams Demo',
     });
-    vi.spyOn(service as never, 'getInstallation').mockResolvedValue({
+    internals.getInstallation = vi.fn().mockResolvedValue({
       id: 77,
       account: null,
       app_id: 1,
@@ -243,11 +261,11 @@ describe('GithubService (unit)', () => {
   });
 
   it('does not trust a tampered callback state token', async () => {
-    vi.spyOn(service as never, 'getGithubAppInfo').mockResolvedValue({
+    internals.getGithubAppInfo = vi.fn().mockResolvedValue({
       slug: 'devteams-demo',
       name: 'DevTeams Demo',
     });
-    vi.spyOn(service as never, 'getInstallation').mockResolvedValue({
+    internals.getInstallation = vi.fn().mockResolvedValue({
       id: 77,
       account: null,
       app_id: 1,
