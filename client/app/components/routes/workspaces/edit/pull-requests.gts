@@ -46,6 +46,7 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
 
     const pullRequests = this.store.query('github-pull-request', {
       filter: {
+        include: ['aiPrediction'],
         where: {
           repositoryId: { inq: repositoryIds },
         },

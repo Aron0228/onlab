@@ -19,7 +19,6 @@ import {
   GITHUB_ISSUES_QUEUE_NAME,
   GithubService,
   type GithubIssuesJobData,
-  type IssuePriorityPrediction,
   IssuePriorityService,
   IssueService,
   LabelService,
@@ -273,12 +272,12 @@ async function processCreateIssueJob(
       repository.id,
       githubIssue,
       issuePriorityService.sanitizeIssueDescription(job.data.description),
-      prediction,
     ),
     {
       repositoryId: repository.id,
       githubId: githubIssue.id,
     },
+    prediction,
   );
 }
 
@@ -364,13 +363,16 @@ async function processPrioritizePullRequestJob(
       title: job.data.title,
       status: nextStatus,
       description,
-      priority: prediction.priority,
-      priorityReason: prediction.reason,
       authorId: author?.id ?? null,
     },
     {
       repositoryId: job.data.repositoryId,
       githubPrNumber: job.data.pullRequestNumber,
+    },
+    {
+      priority: prediction.priority,
+      reason: prediction.reason,
+      findings: prediction.findings,
     },
   );
 }
@@ -413,7 +415,12 @@ async function syncRepositoryIssues(
       page,
       ISSUE_BATCH_SIZE,
     );
-    const records: DataObject<GithubIssue>[] = [];
+    const records: Array<{
+      issue: DataObject<GithubIssue>;
+      prediction: Awaited<
+        ReturnType<IssuePriorityService['predictIssuePriority']>
+      >;
+    }> = [];
     const issueUpdates: Array<{
       issueNumber: number;
       description: string;
@@ -438,9 +445,10 @@ async function syncRepositoryIssues(
         description,
       });
 
-      records.push(
-        mapIssueToModel(repository.id, githubIssue, description, prediction),
-      );
+      records.push({
+        issue: mapIssueToModel(repository.id, githubIssue, description),
+        prediction,
+      });
       issueUpdates.push({
         issueNumber: githubIssue.number,
         description,
@@ -521,7 +529,12 @@ async function syncRepositoryPullRequests(
       page,
       ISSUE_BATCH_SIZE,
     );
-    const records: DataObject<GithubPullRequest>[] = [];
+    const records: Array<{
+      pullRequest: DataObject<GithubPullRequest>;
+      prediction?:
+        | Awaited<ReturnType<PullRequestMergeRiskService['predictMergeRisk']>>
+        | undefined;
+    }> = [];
 
     for (const pullRequest of pullRequests) {
       const description = issuePriorityService.sanitizeIssueDescription(
@@ -571,15 +584,15 @@ async function syncRepositoryPullRequests(
         );
       }
 
-      records.push(
-        await mapPullRequestToModel(
+      records.push({
+        pullRequest: await mapPullRequestToModel(
           repository.id,
           pullRequest,
-          prediction,
           description,
           userRepository,
         ),
-      );
+        prediction,
+      });
     }
 
     await pullRequestService.savePullRequestsBulk(records);
@@ -610,7 +623,6 @@ function mapIssueToModel(
   repositoryId: number,
   issue: Awaited<ReturnType<GithubService['listRepositoryIssuesPage']>>[number],
   description: string,
-  prediction: IssuePriorityPrediction,
 ): DataObject<GithubIssue> {
   return {
     repositoryId,
@@ -619,8 +631,6 @@ function mapIssueToModel(
     title: issue.title,
     status: issue.state,
     description,
-    priority: prediction.priority,
-    priorityReason: prediction.reason,
   };
 }
 
@@ -650,12 +660,6 @@ async function mapPullRequestToModel(
   pullRequest: Awaited<
     ReturnType<GithubService['listRepositoryPullRequestsPage']>
   >[number],
-  prediction:
-    | {
-        priority: string;
-        reason: string;
-      }
-    | undefined,
   description: string,
   userRepository: UserRepository,
 ): Promise<DataObject<GithubPullRequest>> {
@@ -671,8 +675,6 @@ async function mapPullRequestToModel(
     title: pullRequest.title,
     status: pullRequest.merged_at ? 'merged' : pullRequest.state,
     description,
-    priority: prediction?.priority,
-    priorityReason: prediction?.reason,
     authorId: author?.id ?? null,
   };
 }

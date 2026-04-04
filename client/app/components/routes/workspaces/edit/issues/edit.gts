@@ -127,9 +127,13 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
         </div>
 
         <div class="layout-vertical --gap-md">
-          <h3 class="issue-edit-panel__title margin-zero">{{this.issue.title}}</h3>
+          <h3
+            class="issue-edit-panel__title margin-zero"
+          >{{this.issue.title}}</h3>
 
-          <div class="issue-edit-panel__badges layout-horizontal --gap-sm --wrap">
+          <div
+            class="issue-edit-panel__badges layout-horizontal --gap-sm --wrap"
+          >
             <div
               class="issue-ai-priority
                 {{this.prioritySelector}}
@@ -178,12 +182,16 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
           <div class="issue-edit-metadata">
             <div class="issue-edit-metadata__item">
               <span class="issue-edit-metadata__label">Status</span>
-              <span class="issue-edit-metadata__value">{{this.statusLabel}}</span>
+              <span
+                class="issue-edit-metadata__value"
+              >{{this.statusLabel}}</span>
             </div>
 
             <div class="issue-edit-metadata__item">
               <span class="issue-edit-metadata__label">Priority</span>
-              <span class="issue-edit-metadata__value">{{this.priorityLabel}}</span>
+              <span
+                class="issue-edit-metadata__value"
+              >{{this.priorityLabel}}</span>
             </div>
 
             <div class="issue-edit-metadata__item">

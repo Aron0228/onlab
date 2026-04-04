@@ -9,6 +9,7 @@ import UiFileUpload from 'client/components/ui/file-upload';
 import UiAvatar from 'client/components/ui/avatar';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { array } from '@ember/helper';
+import type Owner from '@ember/owner';
 
 type SessionServiceLike = {
   isAuthenticated: boolean;
@@ -35,10 +36,10 @@ export default class RoutesClientDebug extends Component {
   @tracked isLoadingUsers = false;
   @tracked isInvalidating = false;
 
-  constructor(owner: unknown, args: unknown) {
+  constructor(owner: Owner, args: object) {
     super(owner, args);
 
-    this.loadUsers();
+    void this.loadUsers();
   }
 
   get tokenPreview(): string {
@@ -145,8 +146,7 @@ export default class RoutesClientDebug extends Component {
               <li>
                 #{{user.id}}
                 {{or user.fullName user.username}}
-                ({{user.username}})
-                ({{user.email}})
+                ({{user.username}}) ({{user.email}})
               </li>
             {{/each}}
           </ul>

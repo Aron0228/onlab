@@ -1,4 +1,5 @@
 import Component from '@glimmer/component';
+import { on } from '@ember/modifier';
 import { or } from 'ember-truth-helpers';
 import UiIcon from 'client/components/ui/icon';
 
@@ -11,6 +12,7 @@ interface UiButtonSignature {
     iconLeft?: string;
     loading?: boolean;
     disabled?: boolean;
+    onClick?: (event?: Event) => void;
   };
   Element: HTMLButtonElement;
 }
@@ -20,6 +22,10 @@ export default class UiButton extends Component<UiButtonSignature> {
     return `--hierarchy-${this.args.hierarchy ?? 'primary'}`;
   }
 
+  handleClick = (event: PointerEvent) => {
+    this.args.onClick?.(event);
+  };
+
   get shouldRenderIconInTextBlock() {
     return this.args.iconLeft;
   }
@@ -28,7 +34,7 @@ export default class UiButton extends Component<UiButtonSignature> {
     <button
       type={{or @type "button"}}
       class="btn {{this.hierarchyClass}} {{if @loading 'is-loading'}}"
-      onClick={{@onClick}}
+      {{on "click" this.handleClick}}
       disabled={{or @disabled @loading}}
       ...attributes
     >

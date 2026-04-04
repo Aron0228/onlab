@@ -70,13 +70,15 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
   @tracked selectedAvatarFile: File | null = null;
 
   saveRecordTask = task(async () => {
-    // This route still uses the existing legacy store save flow.
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
     const workspace = await this.store.saveRecord(this.args.model);
+
+    if (!workspace.id) {
+      throw new Error('Workspace was created without an identifier.');
+    }
 
     if (this.selectedAvatarFile) {
       const fileRecord = await this.uploadAvatar(
-        workspace.id,
+        Number(workspace.id),
         this.selectedAvatarFile
       );
 
@@ -84,19 +86,18 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
 
       workspace.avatarUrl = previewUrl.toString();
 
-      // eslint-disable-next-line warp-drive/no-legacy-request-patterns
       await this.store.saveRecord(workspace);
     }
 
-    this.redirectToGithubAppInstallation(workspace.id);
+    this.redirectToGithubAppInstallation(Number(workspace.id));
   });
 
   async uploadAvatar(workspaceId: number, file: File) {
     const token = this.session.data.authenticated?.token;
     const params = {
-      workspaceId: workspaceId,
+      workspaceId: String(workspaceId),
       originalName: file.name,
-      token: token,
+      ...(token ? { token } : {}),
     };
 
     const formData = new FormData();
@@ -130,8 +131,8 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
   }
 
   @action
-  onSubmit(event: SubmitEvent) {
-    event.preventDefault();
+  onSubmit(event?: Event) {
+    event?.preventDefault();
 
     this.saveRecordTask.perform().catch((error: unknown) => {
       const message =

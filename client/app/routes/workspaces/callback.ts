@@ -1,15 +1,18 @@
 import Route from '@ember/routing/route';
 import type Transition from '@ember/routing/transition';
-import {service} from '@ember/service';
+import { service } from '@ember/service';
 import RouterService from '@ember/routing/router-service';
 
 type FlashMessagesServiceLike = {
-  success(message: string, options?: {title?: string}): void;
-  warning(message: string, options?: {title?: string}): void;
+  success(message: string, options?: { title?: string }): void;
+  warning(message: string, options?: { title?: string }): void;
 };
 
 type ApiServiceLike = {
-  request(path: string, options: {method: 'GET'}): Promise<{
+  request(
+    path: string,
+    options: { method: 'GET' }
+  ): Promise<{
     githubInstallationId?: string | null;
   }>;
 };

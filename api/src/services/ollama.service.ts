@@ -132,11 +132,7 @@ export class OllamaService {
     let messages = [...options.messages];
     let lastError: unknown;
 
-    for (
-      let attempt = 0;
-      attempt <= this.jsonRepairRetryCount;
-      attempt += 1
-    ) {
+    for (let attempt = 0; attempt <= this.jsonRepairRetryCount; attempt += 1) {
       const content = await this.chat({
         ...options,
         format,
@@ -148,7 +144,10 @@ export class OllamaService {
       } catch (error) {
         lastError = error;
 
-        if (!(error instanceof SyntaxError) || attempt >= this.jsonRepairRetryCount) {
+        if (
+          !(error instanceof SyntaxError) ||
+          attempt >= this.jsonRepairRetryCount
+        ) {
           break;
         }
 
@@ -180,11 +179,7 @@ export class OllamaService {
   }
 }
 
-function readEnvNumber(
-  name: string,
-  fallback: number,
-  min: number,
-): number {
+function readEnvNumber(name: string, fallback: number, min: number): number {
   const value = Number(process.env[name]);
 
   if (!Number.isFinite(value)) {

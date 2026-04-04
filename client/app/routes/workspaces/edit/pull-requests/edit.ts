@@ -4,10 +4,10 @@ import type GithubPullRequestModel from 'client/models/github-pull-request';
 import type { WorkspacesEditPullRequestsRouteModel } from 'client/routes/workspaces/edit/pull-requests';
 
 type StoreLike = {
-  findRecord(
+  query(
     modelName: 'github-pull-request',
-    id: string | number
-  ): Promise<GithubPullRequestModel>;
+    options: Record<string, unknown>
+  ): Promise<GithubPullRequestModel[]>;
 };
 
 export type WorkspacesEditPullRequestsEditRouteModel = {
@@ -25,11 +25,21 @@ export default class WorkspacesEditPullRequestsEditRoute extends Route {
     const pullRequestsModel = this.modelFor(
       'workspaces.edit.pull-requests'
     ) as WorkspacesEditPullRequestsRouteModel;
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns
-    const pullRequest = await this.store.findRecord(
-      'github-pull-request',
-      params.pull_request_id
-    );
+    const [pullRequest] = await this.store.query('github-pull-request', {
+      filter: {
+        include: ['aiPrediction'],
+        where: {
+          id: Number(params.pull_request_id),
+        },
+      },
+    });
+
+    if (!pullRequest) {
+      throw new Error(
+        `GitHub pull request ${params.pull_request_id} was not found`
+      );
+    }
+
     const repository = pullRequestsModel.repositories.find(
       (workspaceRepository) =>
         Number(workspaceRepository.id) === Number(pullRequest.repositoryId)

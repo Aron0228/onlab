@@ -6,11 +6,20 @@ import { action } from '@ember/object';
 import { LinkTo } from '@ember/routing';
 
 interface UiIconButtonSignature {
-  iconName: string;
-  iconVariant?: 'normal' | 'primary' | 'info' | 'error' | 'warning' | 'success';
-  iconSize?: 'sm' | 'md' | 'lg';
-  onClick?: (event?: Event) => void;
-  route?: string;
+  Args: {
+    iconName: string;
+    iconVariant?:
+      | 'normal'
+      | 'primary'
+      | 'info'
+      | 'error'
+      | 'warning'
+      | 'success';
+    iconSize?: 'sm' | 'md' | 'lg';
+    onClick?: (event?: Event) => void;
+    route?: string;
+  };
+  Element: HTMLElement;
 }
 
 export default class UiIconButton extends Component<UiIconButtonSignature> {

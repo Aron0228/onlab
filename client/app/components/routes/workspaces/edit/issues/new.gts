@@ -151,14 +151,17 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
       return;
     }
 
-    const response = (await this.api.request('/githubIssues/createWithPriority', {
-      method: 'POST',
-      body: {
-        repositoryId: Number(this.selectedRepository.id),
-        title: this.title.trim(),
-        description: this.description.trim(),
-      },
-    })) as CreateIssueResponse;
+    const response = (await this.api.request(
+      '/githubIssues/createWithPriority',
+      {
+        method: 'POST',
+        body: {
+          repositoryId: Number(this.selectedRepository.id),
+          title: this.title.trim(),
+          description: this.description.trim(),
+        },
+      }
+    )) as CreateIssueResponse;
 
     if (response.queued) {
       this.flashMessages.success(
@@ -176,6 +179,23 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
   selectRepository(repository: GithubRepositoryModel): void {
     this.selectedRepositoryId = String(repository.id);
     this.analysisResult = null;
+  }
+
+  @action
+  onRepositoryChange(
+    repository: {
+      id?: string | number | null;
+      name?: string;
+      fullName?: string;
+    } | null
+  ): void {
+    if (!repository) {
+      this.selectedRepositoryId = null;
+      this.analysisResult = null;
+      return;
+    }
+
+    this.selectRepository(repository as GithubRepositoryModel);
   }
 
   @action
@@ -247,7 +267,7 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
             <UiDropdown
               @options={{this.repositories}}
               @selected={{this.selectedRepository}}
-              @onChange={{this.selectRepository}}
+              @onChange={{this.onRepositoryChange}}
               @placeholder="Select a repository"
             >
               <:selected as |repository|>
@@ -289,7 +309,9 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
 
         {{#if this.analysisResult}}
           <div class="layout-vertical --gap-md">
-            <div class="issue-new-panel__analysis-header layout-horizontal --gap-sm">
+            <div
+              class="issue-new-panel__analysis-header layout-horizontal --gap-sm"
+            >
               <div
                 class="issue-ai-priority
                   {{this.prioritySelector}}

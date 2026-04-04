@@ -2,17 +2,23 @@ import {Getter, inject} from '@loopback/core';
 import {
   BelongsToAccessor,
   DefaultCrudRepository,
+  InclusionResolver,
   repository,
 } from '@loopback/repository';
 import {PostgresDbDataSource} from '../../datasources';
 import {
+  AIPrediction,
   GithubPullRequest,
   GithubPullRequestRelations,
   GithubRepository,
   User,
 } from '../../models';
-import {registerInclusionResolvers} from '../../utils';
+import {
+  createAIPredictionInclusionResolver,
+  registerInclusionResolvers,
+} from '../../utils';
 import {UserRepository} from '../auth';
+import {AIPredictionRepository} from '../system';
 import {GithubRepositoryRepository} from './repository.repository';
 
 export class GithubPullRequestRepository extends DefaultCrudRepository<
@@ -28,6 +34,9 @@ export class GithubPullRequestRepository extends DefaultCrudRepository<
     User,
     typeof GithubPullRequest.prototype.id
   >;
+  public readonly aiPrediction: {
+    inclusionResolver: InclusionResolver<GithubPullRequest, AIPrediction>;
+  };
 
   constructor(
     @inject('datasources.postgresDB') dataSource: PostgresDbDataSource,
@@ -35,6 +44,8 @@ export class GithubPullRequestRepository extends DefaultCrudRepository<
     githubRepositoryGetter: Getter<GithubRepositoryRepository>,
     @repository.getter('UserRepository')
     userRepositoryGetter: Getter<UserRepository>,
+    @repository.getter('AIPredictionRepository')
+    aiPredictionRepositoryGetter: Getter<AIPredictionRepository>,
   ) {
     super(GithubPullRequest, dataSource);
 
@@ -46,6 +57,13 @@ export class GithubPullRequestRepository extends DefaultCrudRepository<
       'author',
       userRepositoryGetter,
     );
+    this.aiPrediction = {
+      inclusionResolver: createAIPredictionInclusionResolver(
+        'github-pull-request',
+        'pull-request-merge-risk',
+        aiPredictionRepositoryGetter,
+      ),
+    };
 
     registerInclusionResolvers(GithubPullRequest, this);
   }

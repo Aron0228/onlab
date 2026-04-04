@@ -1,8 +1,8 @@
-import Model, {attr, belongsTo} from '@warp-drive/legacy/model';
+import Model, { attr, belongsTo } from '@warp-drive/legacy/model';
 import type Workspace from './workspace';
 
 export default class FileModel extends Model {
-  @belongsTo('workspace', {async: false, inverse: 'files'})
+  @belongsTo('workspace', { async: false, inverse: 'files' })
   declare workspace: Workspace | null;
 
   @attr('number') declare workspaceId: number | null;

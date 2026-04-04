@@ -1,13 +1,14 @@
 import type { TOC } from '@ember/component/template-only';
 
 export interface UiFormGroupSignature {
-  // The arguments accepted by the component
-  Args: {};
-  // Any blocks yielded by the component
+  Args: {
+    label: string;
+    required?: boolean;
+    trailingText?: string;
+  };
   Blocks: {
     default: [];
   };
-  // The element to which `...attributes` is applied in the component template
   Element: null;
 }
 

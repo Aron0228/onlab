@@ -4,7 +4,7 @@ import svgJar from 'ember-svg-jar/helpers/svg-jar';
 interface UiIconSignature {
   Args: {
     name: string;
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'sm' | 'md' | 'lg' | 'xl';
     strokeWidth?: 'sm' | 'md' | 'lg' | 'xl';
     filled?: boolean;
     variant?: 'normal' | 'primary' | 'info' | 'error' | 'warning' | 'success';

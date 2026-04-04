@@ -25,6 +25,7 @@ import {
   IssuePriorityService,
   GithubOauthService,
   IssueService,
+  AIPredictionService,
   JwtTokenService,
   LabelService,
   OllamaService,
@@ -67,6 +68,7 @@ export class RestApi extends BootMixin(
 
     this.service(RedisService);
     this.service(QueueService);
+    this.service(AIPredictionService);
     this.service(JwtTokenService);
     this.service(GithubOauthService);
     this.service(OllamaService);

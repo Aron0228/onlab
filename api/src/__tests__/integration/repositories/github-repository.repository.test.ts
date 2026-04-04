@@ -1,12 +1,14 @@
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {RestApi} from '../../..';
 import {
+  AIPrediction,
   GithubIssue,
   GithubLabel,
   GithubPullRequest,
   GithubRepository,
 } from '../../../models';
 import {
+  AIPredictionRepository,
   GithubIssueRepository,
   GithubLabelRepository,
   GithubPullRequestRepository,
@@ -28,6 +30,7 @@ describe('GithubRepositoryRepository (integration)', () => {
   let githubIssueRepository: GithubIssueRepository;
   let githubLabelRepository: GithubLabelRepository;
   let githubPullRequestRepository: GithubPullRequestRepository;
+  let aiPredictionRepository: AIPredictionRepository;
   let githubRepositoryRepository: GithubRepositoryRepository;
   let dataSource: Awaited<
     ReturnType<typeof setupRepositoryTestApp>
@@ -38,6 +41,10 @@ describe('GithubRepositoryRepository (integration)', () => {
 
   beforeAll(async () => {
     ({app, dataSource} = await setupRepositoryTestApp());
+    aiPredictionRepository = await getTestRepository<AIPredictionRepository>(
+      app,
+      'AIPredictionRepository',
+    );
     githubIssueRepository = await getTestRepository<GithubIssueRepository>(
       app,
       'GithubIssueRepository',
@@ -79,7 +86,7 @@ describe('GithubRepositoryRepository (integration)', () => {
     await teardownRepositoryTestApp(app, dataSource);
   });
 
-  it('deleteCascade deletes repository issues, labels, and pull requests before deleting the repository', async () => {
+  it('deleteCascade deletes repository issues, labels, pull requests, and AI predictions before deleting the repository', async () => {
     const repository = await githubRepositoryRepository.create(
       new GithubRepository({
         workspaceId,
@@ -89,7 +96,7 @@ describe('GithubRepositoryRepository (integration)', () => {
       }),
     );
 
-    await githubIssueRepository.create(
+    const issue = await githubIssueRepository.create(
       new GithubIssue({
         repositoryId: repository.id,
         githubId: 456,
@@ -99,7 +106,7 @@ describe('GithubRepositoryRepository (integration)', () => {
         description: 'Needs attention',
       }),
     );
-    await githubPullRequestRepository.create(
+    const pullRequest = await githubPullRequestRepository.create(
       new GithubPullRequest({
         repositoryId: repository.id,
         githubPrNumber: 21,
@@ -116,9 +123,28 @@ describe('GithubRepositoryRepository (integration)', () => {
         color: 'f97316',
       }),
     );
+    await aiPredictionRepository.create(
+      new AIPrediction({
+        sourceType: 'github-issue',
+        sourceId: issue.id,
+        predictionType: 'issue-priority',
+        priority: 'High',
+        reason: 'Issue blocks a key flow.',
+      }),
+    );
+    await aiPredictionRepository.create(
+      new AIPrediction({
+        sourceType: 'github-pull-request',
+        sourceId: pullRequest.id,
+        predictionType: 'pull-request-merge-risk',
+        priority: 'Medium',
+        reason: 'Touches auth code.',
+      }),
+    );
 
     await githubRepositoryRepository.deleteCascade(repository.id);
 
+    expect(await aiPredictionRepository.count()).toEqual({count: 0});
     expect(await githubIssueRepository.count()).toEqual({count: 0});
     expect(await githubLabelRepository.count()).toEqual({count: 0});
     expect(await githubPullRequestRepository.count()).toEqual({count: 0});

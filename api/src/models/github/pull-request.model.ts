@@ -1,5 +1,6 @@
-import {belongsTo, Entity, model, property} from '@loopback/repository';
+import {belongsTo, hasOne, model, property} from '@loopback/repository';
 import {User} from '../auth';
+import {AIPrediction, AIPredictable} from '../system';
 import {GithubRepository} from './repository.model';
 
 @model({
@@ -8,7 +9,7 @@ import {GithubRepository} from './repository.model';
     postgresql: {schema: 'github', table: 'pull_request'},
   },
 })
-export class GithubPullRequest extends Entity {
+export class GithubPullRequest extends AIPredictable {
   @property({
     type: 'number',
     id: true,
@@ -54,17 +55,8 @@ export class GithubPullRequest extends Entity {
   })
   description: string;
 
-  @property({
-    type: 'string',
-    postgresql: {columnName: 'priority'},
-  })
-  priority?: string;
-
-  @property({
-    type: 'string',
-    postgresql: {columnName: 'priority_reason'},
-  })
-  priorityReason?: string;
+  @hasOne(() => AIPrediction, {keyTo: 'sourceId'})
+  aiPrediction?: AIPrediction | null;
 
   @belongsTo(
     () => User,
@@ -84,6 +76,7 @@ export class GithubPullRequest extends Entity {
 export type GithubPullRequestRelations = {
   repository?: GithubRepository;
   author?: User;
+  aiPrediction?: AIPrediction | null;
 };
 
 export type GithubPullRequestWithRelations = GithubPullRequest &

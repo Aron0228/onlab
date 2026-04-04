@@ -11,11 +11,11 @@ import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { eq } from 'ember-truth-helpers';
 
 interface AvatarModelLike {
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   name?: string;
   fullName?: string;
   username?: string;
-  id?: string | number;
+  id?: string | number | null;
 }
 
 interface SessionServiceLike {
