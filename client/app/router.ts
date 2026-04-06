@@ -16,14 +16,18 @@ Router.map(function () {
   this.route('workspaces', function () {
     this.route('callback');
     this.route('new');
+
     this.route('edit', { path: '/:id' }, function () {
       this.route('issues', function () {
         this.route('edit', { path: '/:issue_id' });
         this.route('new');
       });
+
       this.route('pull-requests', function () {
         this.route('edit', { path: '/:pull_request_id' });
       });
+
+      this.route('settings');
     });
   });
   this.route('debug', function () {

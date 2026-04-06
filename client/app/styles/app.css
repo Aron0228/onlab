@@ -18,6 +18,7 @@
 @import url('routes/workspaces/edit.css');
 @import url('routes/workspaces/issues.css');
 @import url('routes/workspaces/pull-requests.css');
+@import url('routes/workspaces/settings.css');
 @import url('routes/profile.css');
 
 @import url('utils.css');
@@ -108,5 +109,14 @@ h3 {
       var(--separator-color) var(--separator-fade-mid-end),
       transparent var(--separator-fade-end)
     );
+  }
+
+  &.--menu {
+    --separator-color: var(--text-muted);
+  }
+
+  &.--horizontal.--menu:not(.--fade),
+  &.--vertical.--menu:not(.--fade) {
+    background: var(--text-muted);
   }
 }
