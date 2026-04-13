@@ -184,7 +184,7 @@ export class OllamaService {
       'Content-Type': 'application/json',
       ...(this.apiKey
         ? {
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: this.apiKey,
           }
         : {}),
     };

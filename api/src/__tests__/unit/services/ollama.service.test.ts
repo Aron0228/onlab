@@ -92,7 +92,7 @@ describe('OllamaService (unit)', () => {
     expect(requestInit.body).toContain('"model":"qwen3-coder:30b"');
   });
 
-  it('adds bearer authentication when OLLAMA_API_KEY is configured', async () => {
+  it('adds direct authentication when OLLAMA_API_KEY is configured', async () => {
     process.env.OLLAMA_BASE_URL = 'https://ollama.com/api';
     process.env.OLLAMA_API_KEY = 'secret-token';
 
@@ -118,7 +118,7 @@ describe('OllamaService (unit)', () => {
       expect.objectContaining({
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer secret-token',
+          Authorization: 'secret-token',
         },
       }),
     );
