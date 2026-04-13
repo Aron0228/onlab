@@ -1,4 +1,5 @@
 import Model, { attr, belongsTo, hasMany } from '@warp-drive/legacy/model';
+import type ExpertiseModel from './expertise';
 import type UserModel from './user';
 import type FileModel from './file';
 import type InvitationModel from './invitation';
@@ -16,6 +17,9 @@ export default class WorkspaceModel extends Model {
 
   @hasMany('workspace-member', { async: false, inverse: null })
   declare workspaceMembers: WorkspaceMemberModel[];
+
+  @hasMany('expertise', { async: false, inverse: 'workspace' })
+  declare expertises: ExpertiseModel[];
 
   @attr('string') declare name: string;
   @attr('number') declare ownerId: number;

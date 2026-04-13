@@ -1,5 +1,6 @@
-import {Entity, model, property} from '@loopback/repository';
+import {Entity, hasMany, model, property} from '@loopback/repository';
 import {securityId, UserProfile} from '@loopback/security';
+import {UserExpertiseAssoc} from '../system/user-expertise-assoc.model';
 
 @model({
   settings: {
@@ -50,6 +51,9 @@ export class User extends Entity {
   })
   avatarUrl: string;
 
+  @hasMany(() => UserExpertiseAssoc, {keyTo: 'userId'})
+  userExpertiseAssocs?: UserExpertiseAssoc[];
+
   constructor(data?: Partial<User>) {
     super(data);
   }
@@ -62,6 +66,8 @@ export class User extends Entity {
   }
 }
 
-export type UserRelations = object;
+export type UserRelations = {
+  userExpertiseAssocs?: UserExpertiseAssoc[];
+};
 
 export type UserWithRelations = User & UserRelations;
