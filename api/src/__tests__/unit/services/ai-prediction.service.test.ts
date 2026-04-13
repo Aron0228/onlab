@@ -36,6 +36,7 @@ describe('AIPredictionService (unit)', () => {
       priority: ' High ',
       reason: ' Needs attention ',
       findings: [],
+      reviewerSuggestions: [],
     });
 
     expect(aiPredictionRepository.create).toHaveBeenCalledWith({
@@ -45,6 +46,7 @@ describe('AIPredictionService (unit)', () => {
       priority: 'High',
       reason: 'Needs attention',
       findings: [],
+      reviewerSuggestions: [],
     });
   });
 
@@ -64,6 +66,13 @@ describe('AIPredictionService (unit)', () => {
           body: 'Guard was removed.',
         },
       ],
+      reviewerSuggestions: [
+        {
+          userId: 9,
+          username: 'security-owner',
+          reason: 'Owns auth review.',
+        },
+      ],
     });
 
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(5, {
@@ -74,6 +83,13 @@ describe('AIPredictionService (unit)', () => {
           path: 'src/auth.ts',
           line: 18,
           body: 'Guard was removed.',
+        },
+      ],
+      reviewerSuggestions: [
+        {
+          userId: 9,
+          username: 'security-owner',
+          reason: 'Owns auth review.',
         },
       ],
     });
@@ -89,12 +105,14 @@ describe('AIPredictionService (unit)', () => {
       priority: 'Low',
       reason: 'Latest run found no actionable review findings.',
       findings: [],
+      reviewerSuggestions: [],
     });
 
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(6, {
       priority: 'Low',
       reason: 'Latest run found no actionable review findings.',
       findings: [],
+      reviewerSuggestions: [],
     });
   });
 
@@ -108,6 +126,7 @@ describe('AIPredictionService (unit)', () => {
       priority: '   ',
       reason: null,
       findings: [],
+      reviewerSuggestions: [],
     });
 
     expect(aiPredictionRepository.deleteById).toHaveBeenCalledWith(9);
@@ -125,6 +144,7 @@ describe('AIPredictionService (unit)', () => {
       priority: undefined,
       reason: undefined,
       findings: null,
+      reviewerSuggestions: null,
     });
 
     expect(aiPredictionRepository.deleteById).not.toHaveBeenCalled();
@@ -140,6 +160,7 @@ describe('AIPredictionService (unit)', () => {
         predictionType: 'issue-priority',
         priority: 'High',
         reason: 'Important',
+        reviewerSuggestions: [],
       },
       {
         sourceType: 'github-issue',
@@ -159,6 +180,7 @@ describe('AIPredictionService (unit)', () => {
         priority: 'High',
         reason: 'Important',
         findings: undefined,
+        reviewerSuggestions: [],
       },
     ]);
   });
@@ -172,6 +194,7 @@ describe('AIPredictionService (unit)', () => {
         priority: ' ',
         reason: '',
         findings: [],
+        reviewerSuggestions: [],
       },
     ]);
 
@@ -200,5 +223,38 @@ describe('AIPredictionService (unit)', () => {
     );
 
     expect(aiPredictionRepository.deleteAll).not.toHaveBeenCalled();
+  });
+
+  it('keeps reviewer suggestions even when priority, reason, and findings are empty', async () => {
+    aiPredictionRepository.findOne.mockResolvedValue({id: 12});
+
+    await service.syncPrediction({
+      sourceType: 'github-pull-request',
+      sourceId: 22,
+      predictionType: 'pull-request-merge-risk',
+      priority: ' ',
+      reason: '',
+      findings: [],
+      reviewerSuggestions: [
+        {
+          userId: 7,
+          username: 'frontend-dev',
+          reason: 'Matches the changed UI area.',
+        },
+      ],
+    });
+
+    expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(12, {
+      priority: undefined,
+      reason: undefined,
+      findings: [],
+      reviewerSuggestions: [
+        {
+          userId: 7,
+          username: 'frontend-dev',
+          reason: 'Matches the changed UI area.',
+        },
+      ],
+    });
   });
 });

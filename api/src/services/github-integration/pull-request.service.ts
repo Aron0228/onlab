@@ -9,9 +9,14 @@ type PullRequestPredictionWrite = {
   reason: string;
   findings?: Array<{
     path: string;
-    line: number;
+    line?: number;
     body: string;
     lineContent?: string;
+  }>;
+  reviewerSuggestions?: Array<{
+    userId: number;
+    username: string;
+    reason: string;
   }>;
 };
 
@@ -67,6 +72,7 @@ export class PullRequestService {
           priority: prediction.priority,
           reason: prediction.reason,
           findings: prediction.findings,
+          reviewerSuggestions: prediction.reviewerSuggestions,
         });
       }
       return;
@@ -84,6 +90,7 @@ export class PullRequestService {
         priority: prediction.priority,
         reason: prediction.reason,
         findings: prediction.findings,
+        reviewerSuggestions: prediction.reviewerSuggestions,
       });
     }
   }
@@ -142,6 +149,7 @@ export class PullRequestService {
               priority: prediction.priority,
               reason: prediction.reason,
               findings: prediction.findings,
+              reviewerSuggestions: prediction.reviewerSuggestions,
             },
           ];
         }),

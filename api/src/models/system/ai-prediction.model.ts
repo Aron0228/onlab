@@ -15,9 +15,15 @@ export type AIPredictionType = (typeof AI_PREDICTION_TYPES)[number];
 
 export type AIPredictionFinding = {
   path: string;
-  line: number;
+  line?: number;
   body: string;
   lineContent?: string;
+};
+
+export type AIPredictionReviewerSuggestion = {
+  userId: number;
+  username: string;
+  reason: string;
 };
 
 @model({
@@ -79,6 +85,13 @@ export class AIPrediction extends Entity {
     postgresql: {columnName: 'findings', dataType: 'jsonb'},
   })
   findings?: AIPredictionFinding[];
+
+  @property({
+    type: 'array',
+    itemType: 'object',
+    postgresql: {columnName: 'reviewer_suggestions', dataType: 'jsonb'},
+  })
+  reviewerSuggestions?: AIPredictionReviewerSuggestion[];
 
   @property({
     type: 'date',

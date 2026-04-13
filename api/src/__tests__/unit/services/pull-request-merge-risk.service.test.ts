@@ -82,6 +82,8 @@ describe('PullRequestMergeRiskService (unit)', () => {
           lineContent: "throw new Error('oops')",
         },
       ],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
     });
 
     expect(ollamaService.chatJson).toHaveBeenCalledWith(
@@ -96,19 +98,19 @@ describe('PullRequestMergeRiskService (unit)', () => {
           expect.objectContaining({
             role: 'system',
             content: expect.stringContaining(
-              'Anchor each finding to the most specific changed line that introduces the problem',
+              'Anchor each finding by quoting the exact changed code line as "line_content"',
             ),
           }),
           expect.objectContaining({
             role: 'system',
             content: expect.stringContaining(
-              'Include the exact changed code line as "line_content"',
+              'Treat "line" only as an optional rough hint.',
             ),
           }),
           expect.objectContaining({
             role: 'system',
             content: expect.stringContaining(
-              'prefer an exact changed line number over guessing a nearby line',
+              'reviewer expertise matches from the provided live workspace reviewer expertise coverage.',
             ),
           }),
           expect.objectContaining({
@@ -182,6 +184,8 @@ describe('PullRequestMergeRiskService (unit)', () => {
       priority: 'Very-High',
       reason: 'The PR includes risky authentication and migration changes.',
       findings: [],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
     });
 
     expect(githubService.listPullRequestFiles).toHaveBeenCalledWith(
@@ -207,6 +211,95 @@ describe('PullRequestMergeRiskService (unit)', () => {
     );
 
     consoleLogSpy.mockRestore();
+  });
+
+  it('keeps the analysis running when file contents are inaccessible to the integration', async () => {
+    githubService.getPullRequestOverview.mockResolvedValue({
+      changed_files: 1,
+      additions: 8,
+      deletions: 2,
+      commits: 1,
+      draft: false,
+      mergeable_state: 'clean',
+      head_ref: 'feature/upload-hardening',
+      base_ref: 'main',
+    });
+    githubService.listPullRequestFiles.mockResolvedValue([
+      {
+        filename: 'api/src/repositories/system/file.repository.ts',
+        status: 'modified',
+        additions: 8,
+        deletions: 2,
+        changes: 10,
+        patch:
+          '@@ -20,2 +20,3 @@\n-const a = 1;\n+const command = input.command;\n+await exec(command);\n tail',
+      },
+    ]);
+    githubService.getPullRequestFileContents.mockRejectedValue(
+      Object.assign(new Error('Resource not accessible by integration'), {
+        status: 403,
+      }),
+    );
+    ollamaService.chatJson
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_pull_request_file_contents',
+        arguments: {path: 'api/src/repositories/system/file.repository.ts'},
+        reason: 'Need the file contents to inspect risky execution logic.',
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'High',
+        reason:
+          'The diff still shows command execution changes in api/src/repositories/system/file.repository.ts.',
+        findings: [],
+      });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: 99,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 7,
+        title: 'Adjust file repository',
+        description: 'Touches upload and execution flow.',
+      }),
+    ).resolves.toEqual({
+      priority: 'High',
+      reason:
+        'The diff still shows command execution changes in api/src/repositories/system/file.repository.ts.',
+      findings: [],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
+    });
+
+    expect(githubService.getPullRequestFileContents).toHaveBeenCalledWith(
+      99,
+      'team/api',
+      7,
+      'api/src/repositories/system/file.repository.ts',
+    );
+    expect(githubService.listPullRequestFiles).toHaveBeenCalledWith(
+      99,
+      'team/api',
+      7,
+    );
+    expect(ollamaService.chatJson).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining(
+              'GitHub API error 403: Resource not accessible by integration',
+            ),
+          }),
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining('annotated_patch'),
+          }),
+        ]),
+      }),
+    );
   });
 
   it('drops malformed review findings from the AI response', async () => {
@@ -266,6 +359,146 @@ describe('PullRequestMergeRiskService (unit)', () => {
           lineContent: 'new',
         },
       ],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
+    });
+  });
+
+  it('normalizes reviewer expertise suggestions from listed workspace expertise candidates', async () => {
+    githubService.getPullRequestOverview.mockResolvedValue({
+      changed_files: 1,
+      additions: 2,
+      deletions: 0,
+      commits: 1,
+      draft: false,
+      mergeable_state: 'clean',
+      head_ref: 'feature/ui',
+      base_ref: 'main',
+    });
+    githubService.listPullRequestFiles.mockResolvedValue([
+      {
+        filename: 'src/ui/button.ts',
+        status: 'modified',
+        additions: 2,
+        deletions: 0,
+        changes: 2,
+        patch: '@@ -1,1 +1,2 @@\n+const variant = "primary";',
+      },
+    ]);
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'Low',
+      reason: 'Small UI tweak.',
+      findings: [],
+      reviewer_expertise_suggestions: [
+        {
+          expertise: 'Frontend Development',
+          reason: 'Owns frontend component expertise.',
+        },
+        {
+          expertise: 'Frontend Development',
+          reason: 'Duplicate expertise should be ignored.',
+        },
+      ],
+    });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: 12,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 46,
+        title: 'Adjust button variant',
+        description: 'Small UI tweak.',
+        reviewerExpertiseCandidates: [
+          {
+            name: 'Frontend Development',
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      priority: 'Low',
+      reason: 'Small UI tweak.',
+      findings: [],
+      reviewerExpertiseSuggestions: [
+        {
+          expertise: 'Frontend Development',
+          reason: 'Owns frontend component expertise.',
+        },
+      ],
+      reviewerSuggestions: [],
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining(
+              'Live workspace expertise candidates:',
+            ),
+          }),
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining('expertise=Frontend Development'),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('drops reviewer expertise suggestions that are not listed workspace expertise candidates', async () => {
+    githubService.getPullRequestOverview.mockResolvedValue({
+      changed_files: 1,
+      additions: 2,
+      deletions: 0,
+      commits: 1,
+      draft: false,
+      mergeable_state: 'clean',
+      head_ref: 'feature/security',
+      base_ref: 'main',
+    });
+    githubService.listPullRequestFiles.mockResolvedValue([
+      {
+        filename: 'src/auth/guard.ts',
+        status: 'modified',
+        additions: 2,
+        deletions: 0,
+        changes: 2,
+        patch: '@@ -1,1 +1,2 @@\n+if (token === "1") return true;',
+      },
+    ]);
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'Very-High',
+      reason: 'Unsafe auth bypass.',
+      findings: [],
+      reviewer_expertise_suggestions: [
+        {
+          expertise: 'Security',
+          reason: 'Should review security.',
+        },
+      ],
+    });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: 12,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 47,
+        title: 'Bypass token validation',
+        description: 'Unsafe auth change.',
+        reviewerExpertiseCandidates: [
+          {
+            name: 'Frontend Development',
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      priority: 'Very-High',
+      reason: 'Unsafe auth bypass.',
+      findings: [],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
     });
   });
 });

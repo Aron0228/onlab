@@ -99,6 +99,13 @@ describe('PullRequestService (unit)', () => {
             body: 'Guard condition was removed.',
           },
         ],
+        reviewerSuggestions: [
+          {
+            userId: 8,
+            username: 'platform-owner',
+            reason: 'Owns auth and migration reviews.',
+          },
+        ],
       },
     );
 
@@ -113,6 +120,13 @@ describe('PullRequestService (unit)', () => {
           path: 'src/auth.ts',
           line: 42,
           body: 'Guard condition was removed.',
+        },
+      ],
+      reviewerSuggestions: [
+        {
+          userId: 8,
+          username: 'platform-owner',
+          reason: 'Owns auth and migration reviews.',
         },
       ],
     });
@@ -174,6 +188,13 @@ describe('PullRequestService (unit)', () => {
         priority: 'Medium',
         reason: 'Touches shared code paths.',
         findings: [],
+        reviewerSuggestions: [
+          {
+            userId: 10,
+            username: 'shared-owner',
+            reason: 'Knows the shared code path.',
+          },
+        ],
       },
     );
 
@@ -184,6 +205,13 @@ describe('PullRequestService (unit)', () => {
       priority: 'Medium',
       reason: 'Touches shared code paths.',
       findings: [],
+      reviewerSuggestions: [
+        {
+          userId: 10,
+          username: 'shared-owner',
+          reason: 'Knows the shared code path.',
+        },
+      ],
     });
   });
 

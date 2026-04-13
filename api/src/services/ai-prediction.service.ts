@@ -3,6 +3,7 @@ import {DataObject, repository} from '@loopback/repository';
 import {
   AIPrediction,
   AIPredictionFinding,
+  AIPredictionReviewerSuggestion,
   AIPredictionSourceType,
   AIPredictionType,
 } from '../models';
@@ -15,6 +16,7 @@ export type AIPredictionWrite = {
   priority?: string | null;
   reason?: string | null;
   findings?: AIPredictionFinding[] | null;
+  reviewerSuggestions?: AIPredictionReviewerSuggestion[] | null;
 };
 
 type NormalizedAIPredictionWrite = {
@@ -24,6 +26,7 @@ type NormalizedAIPredictionWrite = {
   priority?: string;
   reason?: string;
   findings?: AIPredictionFinding[];
+  reviewerSuggestions?: AIPredictionReviewerSuggestion[];
 };
 
 @injectable({scope: BindingScope.SINGLETON})
@@ -57,6 +60,7 @@ export class AIPredictionService {
       priority: prediction.priority,
       reason: prediction.reason,
       findings: prediction.findings,
+      reviewerSuggestions: prediction.reviewerSuggestions,
     });
   }
 
@@ -118,6 +122,7 @@ export class AIPredictionService {
       priority: input.priority?.trim() || undefined,
       reason: input.reason?.trim() || undefined,
       findings: input.findings ?? undefined,
+      reviewerSuggestions: input.reviewerSuggestions ?? undefined,
     };
   }
 
@@ -125,7 +130,10 @@ export class AIPredictionService {
     prediction: NormalizedAIPredictionWrite,
   ): boolean {
     return Boolean(
-      prediction.priority || prediction.reason || prediction.findings?.length,
+      prediction.priority ||
+      prediction.reason ||
+      prediction.findings?.length ||
+      prediction.reviewerSuggestions?.length,
     );
   }
 }

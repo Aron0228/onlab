@@ -45,7 +45,8 @@ export class OllamaService {
 
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
-    this.defaultModel = process.env.OLLAMA_MODEL ?? 'mistral';
+    this.defaultModel =
+      process.env.LLM_MODEL ?? process.env.OLLAMA_MODEL ?? 'mistral';
     this.requestTimeoutMs = readEnvNumber(
       'OLLAMA_REQUEST_TIMEOUT_MS',
       120_000,

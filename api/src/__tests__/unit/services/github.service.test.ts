@@ -388,6 +388,7 @@ describe('GithubService (unit)', () => {
       base_ref: 'main',
       head_ref: 'feature/auth',
       head_sha: 'abc123',
+      requested_reviewer_logins: [],
     });
     vi.spyOn(service, 'listPullRequestFiles').mockResolvedValue([
       {
@@ -537,6 +538,121 @@ describe('GithubService (unit)', () => {
     );
   });
 
+  it('replaces prior AI reviewer suggestion comments and groups usernames by identical reason', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    octokit.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 10,
+            body: 'Old reviewer suggestion\n\n<!-- onlab-ai-reviewer-suggestions-comment -->',
+          },
+          {
+            id: 11,
+            body: 'Human note',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({data: {}})
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewerSuggestionComment(4, 'team/api', 17, [
+      {
+        username: 'Aron8667',
+        reason: 'Backend ownership is needed for migrations and auth.',
+      },
+      {
+        username: 'Aron28',
+        reason: 'Backend ownership is needed for migrations and auth.',
+      },
+      {
+        username: 'Aron8667',
+        reason: 'Backend ownership is needed for migrations and auth.',
+      },
+      {
+        username: 'someoneelse',
+        reason: 'This change also touches deployment-sensitive workflows.',
+      },
+    ]);
+
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      1,
+      'GET /repos/{owner}/{repo}/issues/{issue_number}/comments',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        issue_number: 17,
+      }),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      2,
+      'DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        comment_id: 10,
+      }),
+    );
+    expect(octokit.request).toHaveBeenNthCalledWith(
+      3,
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/comments',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        issue_number: 17,
+        body: [
+          '### Reviewer suggestions',
+          '',
+          '@Aron8667, @Aron28',
+          '`Reason`: Backend ownership is needed for migrations and auth.',
+          '<hr>',
+          '',
+          '@someoneelse',
+          '`Reason`: This change also touches deployment-sensitive workflows.',
+          '',
+          '<!-- onlab-ai-reviewer-suggestions-comment -->',
+        ].join('\n'),
+      }),
+    );
+  });
+
+  it('removes prior AI reviewer suggestion comments when there are no resolved suggestions left', async () => {
+    const octokit = {
+      request: vi.fn(),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    octokit.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 12,
+            body: 'Old reviewer suggestion\n\n<!-- onlab-ai-reviewer-suggestions-comment -->',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({data: {}});
+
+    await service.syncPullRequestReviewerSuggestionComment(
+      4,
+      'team/api',
+      17,
+      [],
+    );
+
+    expect(octokit.request).toHaveBeenCalledTimes(2);
+    expect(octokit.request).not.toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/comments',
+      expect.anything(),
+    );
+  });
+
   it('removes AI review comments across multiple pages without skipping shifted entries', async () => {
     const octokit = {
       request: vi.fn(),
@@ -612,6 +728,7 @@ describe('GithubService (unit)', () => {
       base_ref: 'main',
       head_ref: 'feature/auth',
       head_sha: 'abc123',
+      requested_reviewer_logins: [],
     });
     vi.spyOn(service, 'listPullRequestFiles').mockResolvedValue([
       {
@@ -651,7 +768,7 @@ describe('GithubService (unit)', () => {
     );
   });
 
-  it('keeps findings without line content when the hinted line is an exact changed line', async () => {
+  it('drops findings without line content even when the hinted line is an exact changed line', async () => {
     const octokit = {
       request: vi.fn(),
     };
@@ -672,6 +789,7 @@ describe('GithubService (unit)', () => {
       base_ref: 'main',
       head_ref: 'feature/auth',
       head_sha: 'abc123',
+      requested_reviewer_logins: [],
     });
     vi.spyOn(service, 'listPullRequestFiles').mockResolvedValue([
       {
@@ -694,20 +812,55 @@ describe('GithubService (unit)', () => {
       {
         path: 'src/auth/guard.ts',
         line: 12,
-        body: 'This exact changed line should still be commentable.',
+        body: 'This exact changed line should still be dropped.',
       },
     ]);
 
-    expect(octokit.request).toHaveBeenNthCalledWith(
-      2,
+    expect(octokit.request).toHaveBeenCalledTimes(1);
+    expect(octokit.request).not.toHaveBeenCalledWith(
       'POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews',
+      expect.anything(),
+    );
+  });
+
+  it('requests only missing reviewers for a pull request', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({data: {}}),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: null,
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+      requested_reviewer_logins: ['existing-reviewer'],
+    });
+
+    await service.requestPullRequestReviewers(4, 'team/api', 17, [
+      'existing-reviewer',
+      'new-reviewer',
+      'new-reviewer',
+      '  ',
+    ]);
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers',
       expect.objectContaining({
-        comments: [
-          expect.objectContaining({
-            path: 'src/auth/guard.ts',
-            line: 12,
-          }),
-        ],
+        owner: 'team',
+        repo: 'api',
+        pull_number: 17,
+        reviewers: ['new-reviewer'],
       }),
     );
   });

@@ -10,13 +10,31 @@ export type PullRequestMergeRiskPrediction = {
   priority: IssuePriority;
   reason: string;
   findings: PullRequestReviewFinding[];
+  reviewerExpertiseSuggestions: PullRequestReviewerExpertiseSuggestion[];
+  reviewerSuggestions: PullRequestReviewerSuggestion[];
 };
 
 export type PullRequestReviewFinding = {
   path: string;
-  line: number;
+  line?: number;
   body: string;
   lineContent?: string;
+};
+
+export type PullRequestReviewerSuggestion = {
+  userId: number;
+  username: string;
+  reason: string;
+};
+
+export type PullRequestReviewerExpertiseSuggestion = {
+  expertise: string;
+  reason: string;
+};
+
+export type PullRequestReviewerExpertiseCandidate = {
+  name: string;
+  description?: string | null;
 };
 
 type PredictPullRequestMergeRiskInput = {
@@ -25,6 +43,7 @@ type PredictPullRequestMergeRiskInput = {
   pullRequestNumber: number;
   title: string;
   description: string | null;
+  reviewerExpertiseCandidates?: PullRequestReviewerExpertiseCandidate[];
 };
 
 type PullRequestMergeRiskAiResponse =
@@ -43,6 +62,15 @@ type PullRequestMergeRiskAiResponse =
         line?: number;
         body?: string;
         line_content?: string;
+      }>;
+      reviewer_suggestions?: Array<{
+        user_id?: number;
+        username?: string;
+        reason?: string;
+      }>;
+      reviewer_expertise_suggestions?: Array<{
+        expertise?: string;
+        reason?: string;
       }>;
     };
 
@@ -93,11 +121,18 @@ Do NOT report style nits, naming preferences, or speculative architecture opinio
 Only produce review findings when there is enough changed-code evidence to support them.
 Each review finding must point to a changed line in the current diff and include a very short explanation of why it is a problem.
 Use the exact new-side line number from the diff annotations you are given.
-Anchor each finding to the most specific changed line that introduces the problem, not just a nearby line in the same hunk.
-If the problem spans multiple changed lines, choose the single changed line that best represents the defecting logic.
-Include the exact changed code line as "line_content" so the review comment can be anchored to the intended statement.
-Include "line_content" whenever possible. If you are unsure, prefer an exact changed line number over guessing a nearby line.
+Anchor each finding by quoting the exact changed code line as "line_content" so the server can place the review comment on the intended diff line.
+Do not rely on guessed line numbers for anchoring. Treat "line" only as an optional rough hint.
+If the problem spans multiple changed lines, choose the single changed line that best represents the defecting logic and copy that exact changed code into "line_content".
+When you cannot quote the exact changed code line, omit the finding instead of guessing.
 Return at most 5 review findings.
+
+You may also suggest up to 2 reviewer expertise matches from the provided live workspace reviewer expertise coverage.
+Choose only from the listed expertise names.
+Prefer expertise whose names or descriptions match the changed code.
+Do not invent new expertise names.
+Do not suggest users directly unless you are using the legacy reviewer_suggestions field and the user is explicitly listed in the workspace reviewer candidates.
+Return reviewer expertise suggestions only when there is a concrete fit.
 
 Risk definitions:
 - Unknown: not enough concrete information to judge safely.
@@ -131,9 +166,15 @@ When you are done, return ONLY JSON like:
   "findings": [
     {
       "path": "<changed file path>",
-      "line": <changed line number on the new side of the diff>,
+      "line": <optional changed line number hint on the new side of the diff>,
       "body": "<very short review comment describing why this is a problem>",
       "line_content": "<the exact changed code line you are commenting on>"
+    }
+  ],
+  "reviewer_expertise_suggestions": [
+    {
+      "expertise": "<one listed live expertise name>",
+      "reason": "<short concrete reason this expertise matches the changed code>"
     }
   ]
 }`;
@@ -151,6 +192,7 @@ export class PullRequestMergeRiskService {
     pullRequestNumber,
     title,
     description,
+    reviewerExpertiseCandidates,
   }: PredictPullRequestMergeRiskInput): Promise<PullRequestMergeRiskPrediction> {
     const messages: PullRequestMergeRiskMessage[] = [
       {
@@ -168,6 +210,33 @@ export class PullRequestMergeRiskService {
       },
     ];
 
+    if (reviewerExpertiseCandidates?.length) {
+      messages.push({
+        role: 'user',
+        content: [
+          'Live workspace expertise candidates:',
+          ...reviewerExpertiseCandidates.map(candidate =>
+            [
+              `- expertise=${candidate.name}`,
+              candidate.description?.trim()
+                ? `description=${candidate.description.trim()}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' | '),
+          ),
+        ].join('\n'),
+      });
+    }
+
+    console.log('Pull request merge risk AI request context', {
+      repositoryFullName,
+      pullRequestNumber,
+      reviewerExpertiseCandidateCount: reviewerExpertiseCandidates?.length ?? 0,
+      reviewerExpertiseCandidateNames:
+        reviewerExpertiseCandidates?.map(candidate => candidate.name) ?? [],
+    });
+
     try {
       messages.push({
         role: 'user',
@@ -184,8 +253,41 @@ export class PullRequestMergeRiskService {
             messages,
           });
 
+        console.log('Pull request merge risk AI response', {
+          repositoryFullName,
+          pullRequestNumber,
+          iteration,
+          response,
+        });
+
         if (response.type === 'final') {
-          const prediction = this.normalizePrediction(response);
+          const prediction = this.normalizePrediction(
+            response,
+            reviewerExpertiseCandidates,
+          );
+
+          console.log(
+            'Pull request merge risk reviewer suggestion normalization',
+            {
+              repositoryFullName,
+              pullRequestNumber,
+              iteration,
+              reviewerExpertiseCandidateCount:
+                reviewerExpertiseCandidates?.length ?? 0,
+              reviewerExpertiseCandidates:
+                reviewerExpertiseCandidates?.map(candidate => ({
+                  name: candidate.name,
+                  description: candidate.description ?? null,
+                })) ?? [],
+              rawReviewerSuggestions:
+                response.reviewer_suggestions ?? '(missing)',
+              rawReviewerExpertiseSuggestions:
+                response.reviewer_expertise_suggestions ?? '(missing)',
+              normalizedReviewerExpertiseSuggestions:
+                prediction.reviewerExpertiseSuggestions,
+              normalizedReviewerSuggestions: prediction.reviewerSuggestions,
+            },
+          );
 
           console.log('Pull request merge risk prediction completed', {
             repositoryFullName,
@@ -392,35 +494,88 @@ export class PullRequestMergeRiskService {
           return {error: 'The "path" argument is required.'};
         }
 
-        const contents = await this.githubService.getPullRequestFileContents(
-          context.installationId,
-          context.repositoryFullName,
-          context.pullRequestNumber,
-          path,
-        );
+        try {
+          const contents = await this.githubService.getPullRequestFileContents(
+            context.installationId,
+            context.repositoryFullName,
+            context.pullRequestNumber,
+            path,
+          );
 
-        return {
-          path,
-          content: truncateText(contents, MAX_FILE_CONTENT_LENGTH),
-        };
+          return {
+            path,
+            content: truncateText(contents, MAX_FILE_CONTENT_LENGTH),
+          };
+        } catch (error) {
+          const files = await this.githubService.listPullRequestFiles(
+            context.installationId,
+            context.repositoryFullName,
+            context.pullRequestNumber,
+          );
+          const matchingFile = files.find(file => file.filename === path);
+
+          return {
+            path,
+            error: summarizeToolExecutionError(error),
+            fallback:
+              matchingFile == null
+                ? 'The file is not present in the pull request file list.'
+                : {
+                    status: matchingFile.status,
+                    previous_filename: matchingFile.previous_filename ?? null,
+                    additions: matchingFile.additions,
+                    deletions: matchingFile.deletions,
+                    changes: matchingFile.changes,
+                    annotated_patch: matchingFile.patch
+                      ? renderAnnotatedPatch(
+                          matchingFile.patch,
+                          MAX_PATCH_SNIPPET_LENGTH,
+                        )
+                      : '(not available)',
+                    patch: truncateText(
+                      matchingFile.patch ?? '',
+                      MAX_PATCH_SNIPPET_LENGTH,
+                    ),
+                  },
+          };
+        }
       }
     }
   }
 
-  private normalizePrediction(response: {
-    priority?: string;
-    reason?: string;
-    findings?: Array<{
-      path?: string;
-      line?: number;
-      body?: string;
-      line_content?: string;
-    }>;
-  }): PullRequestMergeRiskPrediction {
+  private normalizePrediction(
+    response: {
+      priority?: string;
+      reason?: string;
+      findings?: Array<{
+        path?: string;
+        line?: number;
+        body?: string;
+        line_content?: string;
+      }>;
+      reviewer_suggestions?: Array<{
+        user_id?: number;
+        username?: string;
+        reason?: string;
+      }>;
+      reviewer_expertise_suggestions?: Array<{
+        expertise?: string;
+        reason?: string;
+      }>;
+    },
+    reviewerExpertiseCandidates: PullRequestReviewerExpertiseCandidate[] = [],
+  ): PullRequestMergeRiskPrediction {
+    const reviewerExpertiseSuggestions = normalizeReviewerExpertiseSuggestions(
+      response.reviewer_expertise_suggestions,
+      reviewerExpertiseCandidates,
+    );
+
     return {
       priority: normalizePriority(response.priority) ?? 'Unknown',
       reason: response.reason?.trim() || 'Missing merge-risk explanation.',
       findings: normalizeFindings(response.findings),
+      reviewerExpertiseSuggestions,
+      reviewerSuggestions: [],
     };
   }
 
@@ -439,6 +594,8 @@ export class PullRequestMergeRiskService {
       priority: 'Unknown',
       reason: 'AI merge-risk analysis was unavailable.',
       findings: [],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
     };
   }
   private async buildInitialEvidenceMessage(context: {
@@ -542,19 +699,78 @@ function normalizeFindings(
       const line =
         typeof finding.line === 'number' ? Math.trunc(finding.line) : NaN;
 
-      if (!path || !body || !Number.isInteger(line) || line < 1) {
+      if (
+        !path ||
+        !body ||
+        !lineContent ||
+        (Number.isFinite(line) && (!Number.isInteger(line) || line < 1))
+      ) {
         return null;
       }
 
       return {
         path,
-        line,
+        line: Number.isInteger(line) && line > 0 ? line : undefined,
         body: truncateInlineText(body, MAX_REVIEW_COMMENT_BODY_LENGTH),
         lineContent,
       };
     })
     .filter((finding): finding is PullRequestReviewFinding => finding !== null)
     .slice(0, MAX_REVIEW_FINDINGS);
+}
+
+function normalizeReviewerExpertiseSuggestions(
+  suggestions:
+    | Array<{
+        expertise?: string;
+        reason?: string;
+      }>
+    | undefined,
+  reviewerExpertiseCandidates: PullRequestReviewerExpertiseCandidate[],
+): PullRequestReviewerExpertiseSuggestion[] {
+  if (!Array.isArray(suggestions) || !reviewerExpertiseCandidates.length) {
+    return [];
+  }
+
+  const expertiseByKey = new Map(
+    reviewerExpertiseCandidates.map(candidate => [
+      normalizeExpertiseKey(candidate.name),
+      candidate,
+    ]),
+  );
+  const seenExpertiseKeys = new Set<string>();
+  const normalizedSuggestions: PullRequestReviewerExpertiseSuggestion[] = [];
+
+  for (const suggestion of suggestions) {
+    const expertiseKey = normalizeExpertiseKey(suggestion.expertise);
+    const reason = suggestion.reason?.trim();
+
+    if (!expertiseKey || !reason) {
+      continue;
+    }
+
+    const matchedCandidate = expertiseByKey.get(expertiseKey);
+
+    if (!matchedCandidate || seenExpertiseKeys.has(expertiseKey)) {
+      continue;
+    }
+
+    seenExpertiseKeys.add(expertiseKey);
+    normalizedSuggestions.push({
+      expertise: matchedCandidate.name,
+      reason: truncateInlineText(reason, MAX_REVIEW_COMMENT_BODY_LENGTH),
+    });
+
+    if (normalizedSuggestions.length >= 2) {
+      break;
+    }
+  }
+
+  return normalizedSuggestions;
+}
+
+function normalizeExpertiseKey(value: string | undefined): string {
+  return value?.trim().toLowerCase().replace(/\s+/g, ' ') ?? '';
 }
 
 function normalizeToolName(
@@ -632,6 +848,14 @@ function summarizeToolResult(result: unknown): Record<string, unknown> {
   return {
     type: typeof result,
   };
+}
+
+function summarizeToolExecutionError(error: unknown): string {
+  const status = (error as {status?: number})?.status;
+  const message =
+    error instanceof Error ? error.message : 'Unknown tool execution error';
+
+  return status ? `GitHub API error ${status}: ${message}` : message;
 }
 
 function collectAddedLines(
