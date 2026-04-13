@@ -2,6 +2,7 @@ import {Getter, inject} from '@loopback/core';
 import {
   BelongsToAccessor,
   DefaultCrudRepository,
+  HasManyRepositoryFactory,
   InclusionResolver,
   repository,
 } from '@loopback/repository';
@@ -11,12 +12,14 @@ import {
   GithubIssue,
   GithubIssueRelations,
   GithubRepository,
+  IssueAssignment,
 } from '../../models';
 import {
   createAIPredictionInclusionResolver,
   registerInclusionResolvers,
 } from '../../utils';
 import {AIPredictionRepository} from '../system';
+import {IssueAssignmentRepository} from '../planning';
 import {GithubRepositoryRepository} from './repository.repository';
 
 export class GithubIssueRepository extends DefaultCrudRepository<
@@ -31,6 +34,10 @@ export class GithubIssueRepository extends DefaultCrudRepository<
   public readonly aiPrediction: {
     inclusionResolver: InclusionResolver<GithubIssue, AIPrediction>;
   };
+  public readonly issueAssignments: HasManyRepositoryFactory<
+    IssueAssignment,
+    typeof GithubIssue.prototype.id
+  >;
 
   constructor(
     @inject('datasources.postgresDB') dataSource: PostgresDbDataSource,
@@ -38,6 +45,8 @@ export class GithubIssueRepository extends DefaultCrudRepository<
     githubRepositoryGetter: Getter<GithubRepositoryRepository>,
     @repository.getter('AIPredictionRepository')
     aiPredictionRepositoryGetter: Getter<AIPredictionRepository>,
+    @repository.getter('IssueAssignmentRepository')
+    issueAssignmentRepositoryGetter: Getter<IssueAssignmentRepository>,
   ) {
     super(GithubIssue, dataSource);
 
@@ -52,6 +61,10 @@ export class GithubIssueRepository extends DefaultCrudRepository<
         aiPredictionRepositoryGetter,
       ),
     };
+    this.issueAssignments = this.createHasManyRepositoryFactoryFor(
+      'issueAssignments',
+      issueAssignmentRepositoryGetter,
+    );
 
     registerInclusionResolvers(GithubIssue, this);
   }
