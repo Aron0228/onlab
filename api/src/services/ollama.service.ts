@@ -37,6 +37,7 @@ type OllamaFetch = (
 @injectable({scope: BindingScope.SINGLETON})
 export class OllamaService {
   private readonly baseUrl: string;
+  private readonly apiKey: string | undefined;
   private readonly defaultModel: string;
   private readonly requestTimeoutMs: number;
   private readonly retryCount: number;
@@ -45,6 +46,7 @@ export class OllamaService {
 
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
+    this.apiKey = process.env.OLLAMA_API_KEY?.trim() || undefined;
     this.defaultModel =
       process.env.LLM_MODEL ?? process.env.OLLAMA_MODEL ?? 'mistral';
     this.requestTimeoutMs = readEnvNumber(
@@ -80,9 +82,7 @@ export class OllamaService {
       try {
         const response = await fetchFn(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: this.buildHeaders(),
           body: JSON.stringify({
             model: model ?? this.defaultModel,
             messages,
@@ -177,6 +177,17 @@ export class OllamaService {
 
   private normalizeJsonContent(content: string): string {
     return content.trim().replace(/^```json\s*|\s*```$/g, '');
+  }
+
+  private buildHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      ...(this.apiKey
+        ? {
+            Authorization: `Bearer ${this.apiKey}`,
+          }
+        : {}),
+    };
   }
 }
 

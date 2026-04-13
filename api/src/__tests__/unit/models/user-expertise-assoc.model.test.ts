@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'vitest';
 
-import {UserExpertiseAssoc} from '../../../models';
+import {
+  UserExpertiseAssoc,
+  type UserExpertiseAssocWithRelations,
+} from '../../../models';
 
 describe('UserExpertiseAssoc model (unit)', () => {
   it('constructs association entities with provided values', () => {
@@ -16,7 +19,7 @@ describe('UserExpertiseAssoc model (unit)', () => {
   });
 
   it('supports optional relation properties', () => {
-    const model = new UserExpertiseAssoc({
+    const model: UserExpertiseAssocWithRelations = new UserExpertiseAssoc({
       userId: 3,
       expertiseId: 11,
     });
