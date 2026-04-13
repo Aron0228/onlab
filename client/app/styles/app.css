@@ -6,10 +6,12 @@
 @import url('ui/alert.css');
 @import url('ui/icon-button.css');
 @import url('ui/dropdown.css');
+@import url('ui/footer-actions.css');
 @import url('ui/language-selector.css');
 @import url('ui/input.css');
 @import url('ui/checkbox.css');
 @import url('ui/avatar.css');
+@import url('ui/aria-tab.css');
 @import url('ui/loading-spinner.css');
 
 @import url('routes/login.css');
@@ -35,6 +37,18 @@ body {
   line-height: 1.5;
   margin: 0;
   padding: 0;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+  background: transparent;
 }
 
 a {
