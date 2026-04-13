@@ -7,12 +7,10 @@ export class RedisService {
   private readonly client: Redis;
 
   constructor() {
-    this.connectionOptions = {
-      host: process.env.REDIS_HOST ?? '127.0.0.1',
-      port: Number(process.env.REDIS_PORT ?? 6379),
-      maxRetriesPerRequest: null,
-    };
-    this.client = new Redis(this.connectionOptions);
+    this.connectionOptions = buildRedisConnectionOptions();
+    this.client = process.env.REDIS_URL
+      ? new Redis(process.env.REDIS_URL, this.connectionOptions)
+      : new Redis(this.connectionOptions);
   }
 
   public getClient(): Redis {
@@ -32,4 +30,14 @@ export class RedisService {
 
     await this.client.quit();
   }
+}
+
+function buildRedisConnectionOptions(): RedisOptions {
+  return {
+    host: process.env.REDIS_HOST ?? '127.0.0.1',
+    port: Number(process.env.REDIS_PORT ?? 6379),
+    username: process.env.REDIS_USERNAME?.trim() || undefined,
+    password: process.env.REDIS_PASSWORD?.trim() || undefined,
+    maxRetriesPerRequest: null,
+  };
 }
