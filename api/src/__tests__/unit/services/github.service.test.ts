@@ -471,6 +471,60 @@ describe('GithubService (unit)', () => {
     );
   });
 
+  it('skips issue body updates when the priority note is already current', async () => {
+    const currentBody =
+      'Original description\n\n<!-- onlab-ai-priority:start -->\n> [!NOTE]\n> AI priority prediction: High\n> Reason: Confirmed auth bypass exposes private profile data.\n> Written by `DevTeams`\n<!-- onlab-ai-priority:end -->';
+    const octokit = {
+      request: vi.fn().mockImplementation((route: string) => {
+        if (route === 'GET /repos/{owner}/{repo}/issues/{issue_number}') {
+          return Promise.resolve({data: {body: currentBody}});
+        }
+
+        return Promise.resolve({data: {}});
+      }),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    issuePriorityService.upsertPredictionNote.mockReturnValue(currentBody);
+
+    await service.applyPriorityPredictionToIssue(
+      4,
+      'team/api',
+      17,
+      {
+        priority: 'High',
+        reason: 'Confirmed auth bypass exposes private profile data.',
+      },
+      'Original description',
+      99,
+    );
+
+    expect(issuePriorityService.getPriorityLabelName).toHaveBeenCalledWith(
+      'High',
+    );
+    expect(issuePriorityService.upsertPredictionNote).toHaveBeenCalledWith(
+      'Original description',
+      {
+        priority: 'High',
+        reason: 'Confirmed auth bypass exposes private profile data.',
+      },
+    );
+    expect(octokit.request).toHaveBeenCalledWith(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/labels',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        issue_number: 17,
+        labels: ['Priority: High'],
+      }),
+    );
+    expect(octokit.request).not.toHaveBeenCalledWith(
+      'PATCH /repos/{owner}/{repo}/issues/{issue_number}',
+      expect.anything(),
+    );
+  });
+
   it('applies merge-risk labels and note wording to pull requests', async () => {
     const octokit = {
       request: vi.fn().mockResolvedValue({data: {}}),
@@ -478,6 +532,22 @@ describe('GithubService (unit)', () => {
     vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
       octokit as never,
     );
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: 'Old body',
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+      requested_reviewer_logins: [],
+    });
 
     await service.applyMergeRiskPredictionToPullRequest(
       4,
@@ -508,6 +578,51 @@ describe('GithubService (unit)', () => {
         issue_number: 17,
         labels: ['Risk: High'],
       }),
+    );
+  });
+
+  it('skips pull request body updates when the merge-risk note is already current', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({data: {}}),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    const currentBody =
+      'Original description\n\n<!-- onlab-ai-priority:start -->\n> [!NOTE]\n> AI merge risk prediction: High\n> Reason: Touches a shared auth guard.\n> Written by `DevTeams`\n<!-- onlab-ai-priority:end -->';
+    issuePriorityService.upsertPredictionNote.mockReturnValue(currentBody);
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: currentBody,
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+      requested_reviewer_logins: [],
+    });
+
+    await service.applyMergeRiskPredictionToPullRequest(
+      4,
+      'team/api',
+      17,
+      {
+        priority: 'High',
+        reason: 'Touches a shared auth guard.',
+      },
+      'Original description',
+      99,
+    );
+
+    expect(octokit.request).not.toHaveBeenCalledWith(
+      'PATCH /repos/{owner}/{repo}/pulls/{pull_number}',
+      expect.anything(),
     );
   });
 

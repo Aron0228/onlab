@@ -866,6 +866,17 @@ export class GithubService {
 
     const {owner, repo} = repositoryCoordinates;
     const octokit = await this.getInstallationClient(installationId);
+    const currentIssueResponse = await octokit.request(
+      'GET /repos/{owner}/{repo}/issues/{issue_number}',
+      {
+        owner,
+        repo,
+        issue_number: issueNumber,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
     const priorityLabels = this.getPriorityLabels().map(label => label.name);
     const activePriorityLabel = this.issuePriorityService.getPriorityLabelName(
       prediction.priority,
@@ -911,18 +922,25 @@ export class GithubService {
       },
     );
 
-    await octokit.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
-      owner,
-      repo,
-      issue_number: issueNumber,
-      body: this.issuePriorityService.upsertPredictionNote(
-        description,
-        prediction,
-      ),
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
+    const nextBody = this.issuePriorityService.upsertPredictionNote(
+      description,
+      prediction,
+    );
+
+    if ((currentIssueResponse.data.body ?? '') !== nextBody) {
+      await octokit.request(
+        'PATCH /repos/{owner}/{repo}/issues/{issue_number}',
+        {
+          owner,
+          repo,
+          issue_number: issueNumber,
+          body: nextBody,
+          headers: {
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+    }
 
     await this.unmarkIssueAsProcessing(
       installationId,
@@ -951,6 +969,11 @@ export class GithubService {
 
     const {owner, repo} = repositoryCoordinates;
     const octokit = await this.getInstallationClient(installationId);
+    const overview = await this.getPullRequestOverview(
+      installationId,
+      repositoryFullName,
+      pullRequestNumber,
+    );
     const riskLabels = this.getRiskLabels().map(label => label.name);
     const activeRiskLabel = this.issuePriorityService.getRiskLabelName(
       prediction.priority,
@@ -996,19 +1019,23 @@ export class GithubService {
       },
     );
 
-    await octokit.request('PATCH /repos/{owner}/{repo}/pulls/{pull_number}', {
-      owner,
-      repo,
-      pull_number: pullRequestNumber,
-      body: this.issuePriorityService.upsertPredictionNote(
-        description,
-        prediction,
-        {kind: 'risk'},
-      ),
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
+    const nextBody = this.issuePriorityService.upsertPredictionNote(
+      description,
+      prediction,
+      {kind: 'risk'},
+    );
+
+    if ((overview.body ?? '') !== nextBody) {
+      await octokit.request('PATCH /repos/{owner}/{repo}/pulls/{pull_number}', {
+        owner,
+        repo,
+        pull_number: pullRequestNumber,
+        body: nextBody,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
+    }
 
     await this.unmarkPullRequestAsProcessing(
       installationId,
