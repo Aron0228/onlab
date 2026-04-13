@@ -501,4 +501,129 @@ describe('PullRequestMergeRiskService (unit)', () => {
       reviewerSuggestions: [],
     });
   });
+
+  it('limits reviewer expertise suggestions to two normalized matches', async () => {
+    githubService.getPullRequestOverview.mockResolvedValue({
+      changed_files: 1,
+      additions: 2,
+      deletions: 0,
+      commits: 1,
+      draft: false,
+      mergeable_state: 'clean',
+      head_ref: 'feature/full-stack',
+      base_ref: 'main',
+    });
+    githubService.listPullRequestFiles.mockResolvedValue([
+      {
+        filename: 'src/feature.ts',
+        status: 'modified',
+        additions: 2,
+        deletions: 0,
+        changes: 2,
+        patch: '@@ -1,1 +1,2 @@\n+const featureFlag = true;',
+      },
+    ]);
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'Medium',
+      reason: 'Touches multiple system areas.',
+      findings: [],
+      reviewer_expertise_suggestions: [
+        {
+          expertise: ' frontend   development ',
+          reason: 'UI changes are involved.',
+        },
+        {
+          expertise: 'backend development',
+          reason: 'API changes are involved.',
+        },
+        {
+          expertise: 'database',
+          reason: 'Should not be included because only two are allowed.',
+        },
+      ],
+    });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: 12,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 48,
+        title: 'Touch multiple layers',
+        description: 'UI and API changes.',
+        reviewerExpertiseCandidates: [
+          {name: 'Frontend Development'},
+          {name: 'Backend Development'},
+          {name: 'Database'},
+        ],
+      }),
+    ).resolves.toEqual({
+      priority: 'Medium',
+      reason: 'Touches multiple system areas.',
+      findings: [],
+      reviewerExpertiseSuggestions: [
+        {
+          expertise: 'Frontend Development',
+          reason: 'UI changes are involved.',
+        },
+        {
+          expertise: 'Backend Development',
+          reason: 'API changes are involved.',
+        },
+      ],
+      reviewerSuggestions: [],
+    });
+  });
+
+  it('falls back cleanly when GitHub installation context is missing', async () => {
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'Low',
+      reason: 'Limited evidence but looks small.',
+      findings: [],
+      reviewer_expertise_suggestions: [
+        {
+          expertise: 'Frontend Development',
+          reason: 'UI changes are involved.',
+        },
+      ],
+    });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: null,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 49,
+        title: 'Small tweak',
+        description: 'Missing installation context.',
+        reviewerExpertiseCandidates: [{name: 'Frontend Development'}],
+      }),
+    ).resolves.toEqual({
+      priority: 'Low',
+      reason: 'Limited evidence but looks small.',
+      findings: [],
+      reviewerExpertiseSuggestions: [
+        {
+          expertise: 'Frontend Development',
+          reason: 'UI changes are involved.',
+        },
+      ],
+      reviewerSuggestions: [],
+    });
+
+    expect(githubService.getPullRequestOverview).not.toHaveBeenCalled();
+    expect(githubService.listPullRequestFiles).not.toHaveBeenCalled();
+    expect(ollamaService.chatJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: expect.stringContaining(
+              'Changed-file evidence is unavailable because GitHub installation context is missing.',
+            ),
+          }),
+        ]),
+      }),
+    );
+  });
 });

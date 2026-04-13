@@ -15,6 +15,19 @@ type WorkspacesEditModel = {
   repositories: GithubRepositoryModel[];
 };
 
+type MenuLinkItem = {
+  separator: false;
+  iconName: string;
+  name: string;
+  route: string;
+};
+
+type MenuSeparatorItem = {
+  separator: true;
+};
+
+type MenuItem = MenuLinkItem | MenuSeparatorItem;
+
 const SEPARATOR = {
   separator: true,
 } as const;
@@ -47,25 +60,40 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     return `body${this.isCollapsed ? ' --collapsed' : ''}`;
   }
 
-  get menuItems() {
+  get menuItems(): MenuItem[] {
     return [
       {
+        separator: false,
         iconName: 'exclamation-circle',
         name: 'Issues',
         route: 'workspaces.edit.issues',
       },
       {
+        separator: false,
         iconName: 'git-pull-request',
         name: 'Pull Requests',
         route: 'workspaces.edit.pull-requests',
       },
       SEPARATOR,
       {
+        separator: false,
         iconName: 'settings',
         name: 'Settings',
         route: 'workspaces.edit.settings',
       },
     ];
+  }
+
+  routeForMenuItem(menuItem: MenuItem): string {
+    return menuItem.separator ? '' : menuItem.route;
+  }
+
+  iconForMenuItem(menuItem: MenuItem): string {
+    return menuItem.separator ? '' : menuItem.iconName;
+  }
+
+  labelForMenuItem(menuItem: MenuItem): string {
+    return menuItem.separator ? '' : menuItem.name;
   }
 
   onCollapseIconClick = () => {
@@ -122,12 +150,12 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
               <hr class="separator --horizontal --menu" />
             {{else}}
               <LinkTo
-                @route={{menuItem.route}}
+                @route={{this.routeForMenuItem menuItem}}
                 class="nav-item layout-horizontal --gap-sm"
                 {{on "click" this.onNavItemClick}}
               >
-                <UiIcon @name={{menuItem.iconName}} />
-                <span>{{menuItem.name}}</span>
+                <UiIcon @name={{this.iconForMenuItem menuItem}} />
+                <span>{{this.labelForMenuItem menuItem}}</span>
               </LinkTo>
             {{/if}}
           {{/each}}

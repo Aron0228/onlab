@@ -2,10 +2,11 @@ import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
 import { hash } from '@ember/helper';
+import type { WithBoundArgs } from '@glint/template';
 import UiAriaTab from 'client/components/ui/aria-tab';
 
 interface UiAriaTabsRegistry {
-  Tab: unknown;
+  Tab: WithBoundArgs<typeof UiAriaTab, 'currentTab' | 'onSelect'>;
   activeTab: string;
   selectTab: (tabId: string) => void;
 }

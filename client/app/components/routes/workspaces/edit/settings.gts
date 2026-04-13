@@ -11,6 +11,7 @@ import UiAvatar from 'client/components/ui/avatar';
 import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
 import UiDropdown from 'client/components/ui/dropdown';
+import type { DropdownOption } from 'client/components/ui/dropdown';
 import UiFormGroup from 'client/components/ui/form-group';
 import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
@@ -305,13 +306,15 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   });
 
   updateMemberRoleTask = task(
-    async (member: TeamMemberCard, option: RoleOption | null) => {
-      if (!member.workspaceMember || !option) {
+    async (member: TeamMemberCard, option: DropdownOption | null) => {
+      const roleOption = this.asRoleOption(option);
+
+      if (!member.workspaceMember || !roleOption) {
         return;
       }
 
       this.roleUpdateInFlightId = member.id;
-      member.workspaceMember.role = option.id;
+      member.workspaceMember.role = roleOption.id;
 
       try {
         await this.store.saveRecord(member.workspaceMember);
@@ -320,7 +323,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       }
 
       this.flashMessages.success?.(
-        `${member.user.fullName}'s role was updated to ${option.name}.`,
+        `${member.user.fullName}'s role was updated to ${roleOption.name}.`,
         {
           title: 'Role updated',
         }
@@ -441,6 +444,17 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     );
   };
 
+  asRoleOption = (option: DropdownOption | null): RoleOption | null => {
+    if (option?.id === 'ADMIN' || option?.id === 'MEMBER') {
+      return {
+        id: option.id,
+        name: option.name ?? (option.id === 'ADMIN' ? 'Admin' : 'Member'),
+      };
+    }
+
+    return null;
+  };
+
   userIdValue = (userId: string | number | null | undefined): number => {
     return Number(userId ?? 0);
   };
@@ -518,7 +532,10 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   }
 
   @action
-  updateMemberRole(member: TeamMemberCard, option: RoleOption | null): void {
+  updateMemberRole(
+    member: TeamMemberCard,
+    option: DropdownOption | null
+  ): void {
     this.updateMemberRoleTask
       .perform(member, option)
       .catch((error: unknown) => {

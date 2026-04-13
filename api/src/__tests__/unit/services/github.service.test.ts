@@ -864,4 +864,67 @@ describe('GithubService (unit)', () => {
       }),
     );
   });
+
+  it('skips reviewer requests when the normalized reviewer list is empty', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const clientSpy = vi.spyOn(internals, 'getInstallationClient');
+    const overviewSpy = vi.spyOn(service, 'getPullRequestOverview');
+
+    await service.requestPullRequestReviewers(4, 'team/api', 17, ['   ', '\n']);
+
+    expect(clientSpy).not.toHaveBeenCalled();
+    expect(overviewSpy).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Pull request reviewer request skipped: no reviewer logins',
+      {
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 17,
+      },
+    );
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('skips reviewer requests when all reviewers are already requested', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const octokit = {
+      request: vi.fn().mockResolvedValue({data: {}}),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+    vi.spyOn(service, 'getPullRequestOverview').mockResolvedValue({
+      number: 17,
+      title: 'Tighten auth',
+      body: null,
+      state: 'open',
+      draft: false,
+      mergeable_state: 'clean',
+      additions: 3,
+      deletions: 1,
+      changed_files: 1,
+      commits: 1,
+      base_ref: 'main',
+      head_ref: 'feature/auth',
+      head_sha: 'abc123',
+      requested_reviewer_logins: ['existing-reviewer', 'new-reviewer'],
+    });
+
+    await service.requestPullRequestReviewers(4, 'team/api', 17, [
+      'existing-reviewer',
+      'new-reviewer',
+    ]);
+
+    expect(octokit.request).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Pull request reviewer request skipped: all reviewers already requested',
+      expect.objectContaining({
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 17,
+        normalizedReviewerLogins: ['existing-reviewer', 'new-reviewer'],
+      }),
+    );
+
+    consoleLogSpy.mockRestore();
+  });
 });

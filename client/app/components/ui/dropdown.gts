@@ -10,7 +10,7 @@ import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiInput from 'client/components/ui/input';
 
-type DropdownOption = {
+export type DropdownOption = {
   name?: string;
   fullName?: string;
   flag?: string;
