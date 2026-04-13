@@ -11,6 +11,7 @@ import UiInput from 'client/components/ui/input';
 import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
 import UiAvatar from 'client/components/ui/avatar';
+import UiFooterActions from 'client/components/ui/footer-actions';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { LinkTo } from '@ember/routing';
 import { not } from 'ember-truth-helpers';
@@ -20,6 +21,7 @@ export interface RoutesWorkspacesNewSignature {
   // The arguments accepted by the component
   Args: {
     model: WorkspaceModel;
+    embedded?: boolean;
   };
   // Any blocks yielded by the component
   Blocks: {
@@ -59,6 +61,7 @@ type SessionServiceLike = {
 
 type FlashMessagesServiceLike = {
   danger(message: string, options?: { title?: string }): void;
+  success(message: string, options?: { title?: string }): void;
 };
 
 export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSignature> {
@@ -68,9 +71,29 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
   @service declare flashMessages: FlashMessagesServiceLike;
 
   @tracked selectedAvatarFile: File | null = null;
+  @tracked workspaceNameDraft = this.args.model.name ?? '';
+
+  get hasChanges(): boolean {
+    return (
+      this.workspaceNameDraft !== (this.args.model.name ?? '') ||
+      Boolean(this.selectedAvatarFile)
+    );
+  }
 
   saveRecordTask = task(async () => {
-    const workspace = await this.store.saveRecord(this.args.model);
+    const isExistingRecord = this.isExistingRecord;
+    const previousName = this.args.model.name;
+
+    this.args.model.name = this.workspaceNameDraft;
+
+    let workspace: WorkspaceModel;
+
+    try {
+      workspace = await this.store.saveRecord(this.args.model);
+    } catch (error) {
+      this.args.model.name = previousName;
+      throw error;
+    }
 
     if (!workspace.id) {
       throw new Error('Workspace was created without an identifier.');
@@ -87,6 +110,16 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
       workspace.avatarUrl = previewUrl.toString();
 
       await this.store.saveRecord(workspace);
+    }
+
+    this.workspaceNameDraft = workspace.name;
+    this.selectedAvatarFile = null;
+
+    if (isExistingRecord) {
+      this.flashMessages.success('Workspace settings saved successfully.', {
+        title: 'Workspace updated',
+      });
+      return;
     }
 
     this.redirectToGithubAppInstallation(Number(workspace.id));
@@ -125,9 +158,47 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
     globalThis.location.assign(installUrl.toString());
   }
 
+  get isExistingRecord(): boolean {
+    return this.args.model.id != null;
+  }
+
+  get isEmbedded(): boolean {
+    return this.args.embedded ?? false;
+  }
+
+  get heading(): string {
+    return this.isExistingRecord
+      ? 'Workspace Settings'
+      : 'Create New Workspace';
+  }
+
+  get submitText(): string {
+    return this.isExistingRecord
+      ? 'Save Workspace'
+      : 'Create Workspace & Install GitHub App';
+  }
+
+  get shouldShowInlineSubmitButton(): boolean {
+    return !this.isExistingRecord;
+  }
+
+  get shouldShowEmbeddedFooterActions(): boolean {
+    return this.isEmbedded && this.isExistingRecord && this.hasChanges;
+  }
+
+  get errorMessageTitle(): string {
+    return this.isExistingRecord ? 'Update failed' : 'An error occured';
+  }
+
+  get errorMessage(): string {
+    return this.isExistingRecord
+      ? 'Workspace update failed. Please try again.'
+      : 'Workspace creation failed. Please try again.';
+  }
+
   @action
   updateWorkspaceName(value: string): void {
-    this.args.model.name = value;
+    this.workspaceNameDraft = value;
   }
 
   @action
@@ -136,12 +207,10 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
 
     this.saveRecordTask.perform().catch((error: unknown) => {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'Workspace creation failed. Please try again.';
+        error instanceof Error ? error.message : this.errorMessage;
 
       this.flashMessages.danger(message, {
-        title: 'An error occured',
+        title: this.errorMessageTitle,
       });
     });
   }
@@ -150,57 +219,107 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
     {{#if this.saveRecordTask.isRunning}}
       <UiLoadingSpinner @backdrop={{true}} />
     {{/if}}
-    <div class="layout-vertical --max-height route-workspaces-new">
-      <div class="header">
-        <div class="layout-horizontal --gap-xl">
-          <UiIcon @name="app-logo" @size="lg" @custom={{true}} />
-          <div class="layout-vertical --gap-sm --flex-shrink">
-            <LinkTo @route="workspaces">
-              <UiButton
-                @text="Back to Workspaces"
-                @iconLeft="arrow-narrow-left"
-                @hierarchy="tertiary"
-              />
-            </LinkTo>
-            <h1 class="margin-zero">Create New Workspace</h1>
-          </div>
-        </div>
-        <RoutesWorkspacesHeaderActions />
-      </div>
-      <div class="body">
-        <UiContainer @bordered={{true}}>
-          <UiForm id="workspaceForm" @onSubmit={{this.onSubmit}}>
-            <UiAvatar
-              @model={{@model}}
-              @onChange={{this.onAvatarChanged}}
-              @squared={{true}}
+    {{#if this.isEmbedded}}
+      <div class="layout-vertical --gap-md">
+        <UiForm id="workspaceForm" @onSubmit={{this.onSubmit}}>
+          <UiAvatar
+            @model={{@model}}
+            @onChange={{this.onAvatarChanged}}
+            @squared={{true}}
+          />
+
+          <UiFormGroup
+            @label="Workspace Name"
+            @required={{true}}
+            @trailingText="Choose a name that represents your team or organization"
+          >
+            <UiInput
+              @value={{this.workspaceNameDraft}}
+              @onInput={{this.updateWorkspaceName}}
+              type="text"
+              required
             />
+          </UiFormGroup>
+        </UiForm>
 
-            <UiFormGroup
-              @label="Workspace Name"
-              @required={{true}}
-              @trailingText="Choose a name that represents your team or organization"
-            >
-              <UiInput
-                @value={{@model.name}}
-                @onInput={{this.updateWorkspaceName}}
-                type="text"
-                required
+        {{#if this.shouldShowInlineSubmitButton}}
+          <div>
+            <UiButton
+              @text={{this.submitText}}
+              @onClick={{this.onSubmit}}
+              @type="submit"
+              @disabled={{not this.workspaceNameDraft}}
+              form="workspaceForm"
+            />
+          </div>
+        {{/if}}
+
+        {{#if this.shouldShowEmbeddedFooterActions}}
+          <UiFooterActions>
+            <UiButton
+              @text="Save workspace"
+              @onClick={{this.onSubmit}}
+              @loading={{this.saveRecordTask.isRunning}}
+              @disabled={{not this.workspaceNameDraft}}
+              class="margin-left-auto"
+            />
+          </UiFooterActions>
+        {{/if}}
+      </div>
+    {{else}}
+      <div class="layout-vertical --max-height route-workspaces-new">
+        <div class="header">
+          <div class="layout-horizontal --gap-xl">
+            <UiIcon @name="app-logo" @size="lg" @custom={{true}} />
+            <div class="layout-vertical --gap-sm --flex-shrink">
+              <LinkTo @route="workspaces">
+                <UiButton
+                  @text="Back to Workspaces"
+                  @iconLeft="arrow-narrow-left"
+                  @hierarchy="tertiary"
+                />
+              </LinkTo>
+              <h1 class="margin-zero">{{this.heading}}</h1>
+            </div>
+          </div>
+          <RoutesWorkspacesHeaderActions />
+        </div>
+        <div class="body">
+          <UiContainer @bordered={{true}}>
+            <UiForm id="workspaceForm" @onSubmit={{this.onSubmit}}>
+              <UiAvatar
+                @model={{@model}}
+                @onChange={{this.onAvatarChanged}}
+                @squared={{true}}
               />
-            </UiFormGroup>
 
-          </UiForm>
-        </UiContainer>
+              <UiFormGroup
+                @label="Workspace Name"
+                @required={{true}}
+                @trailingText="Choose a name that represents your team or organization"
+              >
+                <UiInput
+                  @value={{this.workspaceNameDraft}}
+                  @onInput={{this.updateWorkspaceName}}
+                  type="text"
+                  required
+                />
+              </UiFormGroup>
+            </UiForm>
+          </UiContainer>
+        </div>
+        {{#if this.shouldShowInlineSubmitButton}}
+          <div class="footer">
+            <UiButton
+              @text={{this.submitText}}
+              @onClick={{this.onSubmit}}
+              @type="submit"
+              @disabled={{not this.workspaceNameDraft}}
+              form="workspaceForm"
+            />
+          </div>
+        {{/if}}
       </div>
-      <div class="footer">
-        <UiButton
-          @text="Create Workspace & Install GitHub App"
-          @onClick={{this.onSubmit}}
-          @type="submit"
-          @disabled={{not @model.name}}
-          form="workspaceForm"
-        />
-      </div>
-    </div>
+    {{/if}}
   </template>
 }

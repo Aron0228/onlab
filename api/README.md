@@ -24,6 +24,10 @@ npm ci
 npm start
 ```
 
+The AI features read the model name from `LLM_MODEL`. For Ollama-compatible
+endpoints, `OLLAMA_MODEL` is still supported as a fallback for backward
+compatibility.
+
 You can also run `node .` to skip the build step.
 
 Open http://127.0.0.1:3000 in your browser.

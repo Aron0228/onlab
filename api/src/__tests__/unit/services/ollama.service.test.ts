@@ -7,6 +7,8 @@ type TestFetch = (...args: unknown[]) => Promise<unknown>;
 describe('OllamaService (unit)', () => {
   const originalFetch = getGlobalFetch();
   const originalEnv = {
+    LLM_MODEL: process.env.LLM_MODEL,
+    OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
     OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
     OLLAMA_MODEL: process.env.OLLAMA_MODEL,
     OLLAMA_REQUEST_TIMEOUT_MS: process.env.OLLAMA_REQUEST_TIMEOUT_MS,
@@ -17,6 +19,8 @@ describe('OllamaService (unit)', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    delete process.env.LLM_MODEL;
+    delete process.env.OLLAMA_API_KEY;
     delete process.env.OLLAMA_BASE_URL;
     delete process.env.OLLAMA_MODEL;
     delete process.env.OLLAMA_REQUEST_TIMEOUT_MS;
@@ -56,6 +60,66 @@ describe('OllamaService (unit)', () => {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('prefers LLM_MODEL when selecting the default model', async () => {
+    process.env.LLM_MODEL = 'qwen3-coder:30b';
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        message: {
+          content: 'hello from ollama',
+        },
+      }),
+    });
+    setGlobalFetch(fetchMock);
+
+    const service = new OllamaService();
+
+    await service.chat({
+      messages: [{role: 'user', content: 'Ping'}],
+    });
+
+    const [, requestInit] = fetchMock.mock.calls[0] as [
+      string,
+      {body?: string},
+    ];
+
+    expect(requestInit.body).toContain('"model":"qwen3-coder:30b"');
+  });
+
+  it('adds bearer authentication when OLLAMA_API_KEY is configured', async () => {
+    process.env.OLLAMA_BASE_URL = 'https://ollama.com/api';
+    process.env.OLLAMA_API_KEY = 'secret-token';
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        message: {
+          content: 'hello from ollama cloud',
+        },
+      }),
+    });
+    setGlobalFetch(fetchMock);
+
+    const service = new OllamaService();
+
+    await service.chat({
+      messages: [{role: 'user', content: 'Ping'}],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://ollama.com/api/chat',
+      expect.objectContaining({
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer secret-token',
+        },
       }),
     );
   });

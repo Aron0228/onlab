@@ -7,6 +7,7 @@ import {
 } from '@loopback/repository';
 import {PostgresDbDataSource} from '../../datasources';
 import {
+  Expertise,
   File,
   Invitation,
   User,
@@ -14,6 +15,7 @@ import {
   WorkspaceRelations,
 } from '../../models';
 import {UserRepository} from '../auth';
+import {ExpertiseRepository} from './expertise.repository';
 import {FileRepository} from './file.repository';
 import {InvitationRepository} from './invitation.repository';
 import {registerInclusionResolvers} from '../../utils';
@@ -32,6 +34,10 @@ export class WorkspaceRepository extends DefaultCrudRepository<
     Invitation,
     typeof Workspace.prototype.id
   >;
+  public readonly expertises: HasManyRepositoryFactory<
+    Expertise,
+    typeof Workspace.prototype.id
+  >;
 
   constructor(
     @inject('datasources.postgresDB') dataSource: PostgresDbDataSource,
@@ -41,6 +47,8 @@ export class WorkspaceRepository extends DefaultCrudRepository<
     fileRepositoryGetter: Getter<FileRepository>,
     @repository.getter('InvitationRepository')
     invitationRepositoryGetter: Getter<InvitationRepository>,
+    @repository.getter('ExpertiseRepository')
+    expertiseRepositoryGetter: Getter<ExpertiseRepository>,
   ) {
     super(Workspace, dataSource);
 
@@ -54,6 +62,11 @@ export class WorkspaceRepository extends DefaultCrudRepository<
     this.invitations = this.createHasManyRepositoryFactoryFor(
       'invitations',
       invitationRepositoryGetter,
+    );
+
+    this.expertises = this.createHasManyRepositoryFactoryFor(
+      'expertises',
+      expertiseRepositoryGetter,
     );
 
     registerInclusionResolvers(Workspace, this);

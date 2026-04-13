@@ -78,6 +78,7 @@ type GithubPullRequestOverview = {
   base_ref: string | null;
   head_ref: string | null;
   head_sha: string | null;
+  requested_reviewer_logins: string[];
 };
 
 type GithubPullRequestFile = {
@@ -92,7 +93,7 @@ type GithubPullRequestFile = {
 
 type GithubPullRequestReviewCommentInput = {
   path: string;
-  line: number;
+  line?: number;
   body: string;
   lineContent?: string;
 };
@@ -104,6 +105,8 @@ type GithubRepositoryLabel = {
 };
 
 const AI_REVIEW_COMMENT_MARKER = '<!-- onlab-ai-review-comment -->';
+const AI_REVIEWER_SUGGESTION_COMMENT_MARKER =
+  '<!-- onlab-ai-reviewer-suggestions-comment -->';
 const INSTALLATION_STATE_TTL_MS = 15 * 60 * 1000;
 
 @injectable({scope: BindingScope.SINGLETON})
@@ -643,6 +646,9 @@ export class GithubService {
       base_ref: response.data.base?.ref ?? null,
       head_ref: response.data.head?.ref ?? null,
       head_sha: response.data.head?.sha ?? null,
+      requested_reviewer_logins:
+        response.data.requested_reviewers?.map(reviewer => reviewer.login) ??
+        [],
     };
   }
 
@@ -1091,6 +1097,140 @@ export class GithubService {
     );
   }
 
+  public async requestPullRequestReviewers(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+    reviewerLogins: string[],
+  ): Promise<void> {
+    const normalizedReviewerLogins = Array.from(
+      new Set(
+        reviewerLogins
+          .map(login => login.trim())
+          .filter(login => Boolean(login)),
+      ),
+    );
+
+    if (!normalizedReviewerLogins.length) {
+      console.log('Pull request reviewer request skipped: no reviewer logins', {
+        repositoryFullName,
+        pullRequestNumber,
+      });
+      return;
+    }
+
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request reviewer request sync',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const overview = await this.getPullRequestOverview(
+      installationId,
+      repositoryFullName,
+      pullRequestNumber,
+    );
+    const existingRequestedReviewers = new Set(
+      overview.requested_reviewer_logins.map(login => login.toLowerCase()),
+    );
+    const reviewersToRequest = normalizedReviewerLogins.filter(
+      login => !existingRequestedReviewers.has(login.toLowerCase()),
+    );
+
+    if (!reviewersToRequest.length) {
+      console.log(
+        'Pull request reviewer request skipped: all reviewers already requested',
+        {
+          repositoryFullName,
+          pullRequestNumber,
+          normalizedReviewerLogins,
+          existingRequestedReviewers: Array.from(existingRequestedReviewers),
+        },
+      );
+      return;
+    }
+
+    console.log('Pull request reviewer request submitting to GitHub', {
+      repositoryFullName,
+      pullRequestNumber,
+      reviewersToRequest,
+    });
+
+    await octokit.request(
+      'POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers',
+      {
+        owner,
+        repo,
+        pull_number: pullRequestNumber,
+        reviewers: reviewersToRequest,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    console.log('Pull request reviewer request completed', {
+      repositoryFullName,
+      pullRequestNumber,
+      reviewersToRequest,
+    });
+  }
+
+  public async syncPullRequestReviewerSuggestionComment(
+    installationId: number,
+    repositoryFullName: string,
+    pullRequestNumber: number,
+    reviewerSuggestions: Array<{
+      username: string;
+      reason: string;
+    }>,
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'pull request reviewer suggestion comment sync',
+    );
+
+    if (!repositoryCoordinates) {
+      return;
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    await this.deleteExistingAiPullRequestIssueComments(
+      octokit,
+      owner,
+      repo,
+      pullRequestNumber,
+      AI_REVIEWER_SUGGESTION_COMMENT_MARKER,
+    );
+
+    const commentBody =
+      buildAiReviewerSuggestionCommentBody(reviewerSuggestions);
+
+    if (!commentBody) {
+      return;
+    }
+
+    await octokit.request(
+      'POST /repos/{owner}/{repo}/issues/{issue_number}/comments',
+      {
+        owner,
+        repo,
+        issue_number: pullRequestNumber,
+        body: commentBody,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+  }
+
   public async markIssueAsProcessing(
     installationId: number,
     repositoryFullName: string,
@@ -1351,6 +1491,62 @@ export class GithubService {
     }
   }
 
+  private async deleteExistingAiPullRequestIssueComments(
+    octokit: Awaited<ReturnType<App['getInstallationOctokit']>>,
+    owner: string,
+    repo: string,
+    pullRequestNumber: number,
+    marker: string,
+  ): Promise<void> {
+    let page = 1;
+    const aiCommentIds: number[] = [];
+
+    while (true) {
+      const response = await octokit.request(
+        'GET /repos/{owner}/{repo}/issues/{issue_number}/comments',
+        {
+          owner,
+          repo,
+          issue_number: pullRequestNumber,
+          page,
+          per_page: 100,
+          headers: {
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+
+      aiCommentIds.push(
+        ...response.data
+          .filter(
+            comment =>
+              typeof comment.body === 'string' && comment.body.includes(marker),
+          )
+          .map(comment => comment.id),
+      );
+
+      if (response.data.length < 100) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    for (const commentId of aiCommentIds) {
+      await octokit.request(
+        'DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}',
+        {
+          owner,
+          repo,
+          comment_id: commentId,
+          headers: {
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+    }
+  }
+
   private async listInstallationRepositories(
     installationId: number,
   ): Promise<GithubInstallationRepository[]> {
@@ -1458,11 +1654,78 @@ function buildAiReviewCommentBody(body: string): string {
   return `${body.trim()}\n\n${AI_REVIEW_COMMENT_MARKER}`;
 }
 
+function buildAiReviewerSuggestionCommentBody(
+  reviewerSuggestions: Array<{
+    username: string;
+    reason: string;
+  }>,
+): string | null {
+  const groupedSuggestions =
+    groupReviewerSuggestionsByReason(reviewerSuggestions);
+
+  if (!groupedSuggestions.length) {
+    return null;
+  }
+
+  return [
+    '### Reviewer suggestions',
+    '',
+    ...groupedSuggestions.flatMap((group, index) => [
+      group.usernames.map(username => `@${username}`).join(', '),
+      `\`Reason\`: ${group.reason}`,
+      ...(index < groupedSuggestions.length - 1 ? ['<hr>', ''] : []),
+    ]),
+    '',
+    AI_REVIEWER_SUGGESTION_COMMENT_MARKER,
+  ].join('\n');
+}
+
+function groupReviewerSuggestionsByReason(
+  reviewerSuggestions: Array<{
+    username: string;
+    reason: string;
+  }>,
+): Array<{reason: string; usernames: string[]}> {
+  const groupedSuggestions = new Map<
+    string,
+    {reason: string; usernames: string[]; seenUsernames: Set<string>}
+  >();
+
+  for (const suggestion of reviewerSuggestions) {
+    const username = suggestion.username.trim();
+    const reason = suggestion.reason.trim();
+
+    if (!username || !reason) {
+      continue;
+    }
+
+    const reasonKey = reason.toLowerCase();
+    const existingGroup = groupedSuggestions.get(reasonKey) ?? {
+      reason,
+      usernames: [],
+      seenUsernames: new Set<string>(),
+    };
+    const usernameKey = username.toLowerCase();
+
+    if (!existingGroup.seenUsernames.has(usernameKey)) {
+      existingGroup.seenUsernames.add(usernameKey);
+      existingGroup.usernames.push(username);
+    }
+
+    groupedSuggestions.set(reasonKey, existingGroup);
+  }
+
+  return Array.from(groupedSuggestions.values()).map(group => ({
+    reason: group.reason,
+    usernames: group.usernames,
+  }));
+}
+
 function resolvePullRequestReviewCommentLocation(
   file: GithubPullRequestFile | undefined,
   finding: GithubPullRequestReviewCommentInput,
 ): GithubPullRequestReviewCommentInput | null {
-  if (!file?.patch || !Number.isInteger(finding.line) || finding.line < 1) {
+  if (!file?.patch) {
     return null;
   }
 
@@ -1470,17 +1733,19 @@ function resolvePullRequestReviewCommentLocation(
   const normalizedRequestedContent = normalizeDiffLineContent(
     finding.lineContent,
   );
+  const requestedLine =
+    Number.isInteger(finding.line) && (finding.line ?? 0) > 0
+      ? finding.line!
+      : Number.MAX_SAFE_INTEGER;
 
   if (!normalizedRequestedContent) {
-    const exactLine = addedLines.find(line => line.lineNumber === finding.line);
-
-    return exactLine ? finding : null;
+    return null;
   }
 
   const bestMatchingLine = selectClosestMatchingAddedLine(
     addedLines,
     normalizedRequestedContent,
-    finding.line,
+    requestedLine,
   );
 
   if (bestMatchingLine) {

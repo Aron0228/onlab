@@ -79,16 +79,24 @@
   }
 
   .nav-item {
+    color: var(--text-muted);
     border-radius: var(--radius-md);
     padding: var(--space-sm);
 
+    .ui-icon-wrapper,
+    .ui-icon-wrapper.--variant-normal {
+      color: inherit;
+    }
+
     &:hover {
+      color: var(--text-primary);
       background: var(--bg-active);
       transform: translateX(1px);
     }
 
     &.active {
       background: var(--color-primary-600);
+      color: var(--text-on-primary);
     }
   }
 

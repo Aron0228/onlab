@@ -15,6 +15,23 @@ type WorkspacesEditModel = {
   repositories: GithubRepositoryModel[];
 };
 
+type MenuLinkItem = {
+  separator: false;
+  iconName: string;
+  name: string;
+  route: string;
+};
+
+type MenuSeparatorItem = {
+  separator: true;
+};
+
+type MenuItem = MenuLinkItem | MenuSeparatorItem;
+
+const SEPARATOR = {
+  separator: true,
+} as const;
+
 export interface RoutesWorkspacesEditSignature {
   // The arguments accepted by the component
   Args: {
@@ -43,19 +60,40 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     return `body${this.isCollapsed ? ' --collapsed' : ''}`;
   }
 
-  get systemMenus() {
+  get menuItems(): MenuItem[] {
     return [
       {
+        separator: false,
         iconName: 'exclamation-circle',
         name: 'Issues',
         route: 'workspaces.edit.issues',
       },
       {
+        separator: false,
         iconName: 'git-pull-request',
         name: 'Pull Requests',
         route: 'workspaces.edit.pull-requests',
       },
+      SEPARATOR,
+      {
+        separator: false,
+        iconName: 'settings',
+        name: 'Settings',
+        route: 'workspaces.edit.settings',
+      },
     ];
+  }
+
+  routeForMenuItem(menuItem: MenuItem): string {
+    return menuItem.separator ? '' : menuItem.route;
+  }
+
+  iconForMenuItem(menuItem: MenuItem): string {
+    return menuItem.separator ? '' : menuItem.iconName;
+  }
+
+  labelForMenuItem(menuItem: MenuItem): string {
+    return menuItem.separator ? '' : menuItem.name;
   }
 
   onCollapseIconClick = () => {
@@ -107,15 +145,19 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
         </div>
 
         <div class="workspace-nav layout-vertical --gap-sm">
-          {{#each this.systemMenus as |systemMenu|}}
-            <LinkTo
-              @route={{systemMenu.route}}
-              class="nav-item layout-horizontal --gap-sm"
-              {{on "click" this.onNavItemClick}}
-            >
-              <UiIcon @name={{systemMenu.iconName}} />
-              <span>{{systemMenu.name}}</span>
-            </LinkTo>
+          {{#each this.menuItems as |menuItem|}}
+            {{#if menuItem.separator}}
+              <hr class="separator --horizontal --menu" />
+            {{else}}
+              <LinkTo
+                @route={{this.routeForMenuItem menuItem}}
+                class="nav-item layout-horizontal --gap-sm"
+                {{on "click" this.onNavItemClick}}
+              >
+                <UiIcon @name={{this.iconForMenuItem menuItem}} />
+                <span>{{this.labelForMenuItem menuItem}}</span>
+              </LinkTo>
+            {{/if}}
           {{/each}}
         </div>
         <div class="workspace-content-panel">

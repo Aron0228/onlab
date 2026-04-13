@@ -9,6 +9,7 @@ import UiIconButton from 'client/components/ui/icon-button';
 import UiContainer from 'client/components/ui/container';
 import UiAvatar from 'client/components/ui/avatar';
 import UiButton from 'client/components/ui/button';
+import UiFooterActions from 'client/components/ui/footer-actions';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { task } from 'ember-concurrency';
 import { or } from 'ember-truth-helpers';
@@ -306,14 +307,14 @@ export default class RoutesProfile extends Component<RoutesProfileSignature> {
       </div>
 
       {{#if this.hasChanges}}
-        <div class="footer">
+        <UiFooterActions class="profile-footer">
           <UiButton
             @text="Save changes"
             @hierarchy="primary"
             @onClick={{this.onSubmit}}
             @loading={{this.saveChangesTask.isRunning}}
           />
-        </div>
+        </UiFooterActions>
       {{/if}}
     </div>
   </template>

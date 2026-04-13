@@ -80,25 +80,7 @@
     }
   }
 
-  .footer {
-    position: sticky;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    width: 100%;
-    box-sizing: border-box;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding: var(--space-md) var(--space-xl);
-    background: linear-gradient(
-      to top,
-      rgb(from var(--bg-app) r g b / 0) 0%,
-      rgb(from var(--bg-app) r g b / 0.12) 18%,
-      rgb(from var(--bg-app) r g b / 0.38) 42%,
-      rgb(from var(--bg-app) r g b / 0.72) 68%,
-      var(--bg-app) 100%
-    );
+  .profile-footer {
+    --footer-actions-padding: var(--space-md) var(--space-xl);
   }
 }

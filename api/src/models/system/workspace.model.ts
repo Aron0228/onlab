@@ -6,6 +6,7 @@ import {
   property,
 } from '@loopback/repository';
 import {User} from '../auth';
+import {Expertise} from './expertise.model';
 import {File} from './file.model';
 import {Invitation} from './invitation.model';
 
@@ -107,6 +108,9 @@ export class Workspace extends Entity {
   @hasMany(() => Invitation, {keyTo: 'workspaceId'})
   invitations?: Invitation[];
 
+  @hasMany(() => Expertise, {keyTo: 'workspaceId'})
+  expertises?: Expertise[];
+
   constructor(data?: Partial<Workspace>) {
     super(data);
   }
@@ -116,6 +120,7 @@ export type WorkspaceRelations = {
   owner?: User;
   files?: File[];
   invitations?: Invitation[];
+  expertises?: Expertise[];
 };
 
 export type WorkspaceWithRelations = Workspace & WorkspaceRelations;
