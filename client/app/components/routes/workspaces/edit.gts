@@ -76,6 +76,12 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       },
       SEPARATOR,
       {
+        iconName: 'calendar-event',
+        name: 'Capacity Planning',
+        route: 'workspaces.edit.capacity-planning',
+      },
+      SEPARATOR,
+      {
         separator: false,
         iconName: 'settings',
         name: 'Settings',

@@ -28,6 +28,10 @@ Router.map(function () {
       });
 
       this.route('settings');
+
+      this.route('capacity-planning', function () {
+        this.route('edit');
+      });
     });
   });
   this.route('debug', function () {
