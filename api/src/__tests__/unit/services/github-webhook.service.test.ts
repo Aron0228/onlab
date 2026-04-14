@@ -356,7 +356,7 @@ describe('GithubWebhookService (unit)', () => {
     ).not.toHaveBeenCalled();
   });
 
-  it('still processes pull request events authored by third-party bots', async () => {
+  it('still stores pull request edits authored by third-party bots without queueing AI review', async () => {
     await service.handleWebhook('pull_request', {
       action: 'edited',
       sender: {
@@ -382,7 +382,70 @@ describe('GithubWebhookService (unit)', () => {
     expect(pullRequestService.upsertPullRequest).toHaveBeenCalled();
     expect(
       queueService.enqueueGithubPullRequestPrioritization,
-    ).toHaveBeenCalled();
+    ).not.toHaveBeenCalled();
+  });
+
+  it('stores edited pull requests without queueing AI review', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'edited',
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 19,
+        number: 204,
+        title: 'Tighten auth guard',
+        body: 'Updated body text',
+        state: 'open',
+        user: {id: 55},
+      },
+    });
+
+    expect(pullRequestService.upsertPullRequest).toHaveBeenCalledWith(
+      {
+        repositoryId: 99,
+        githubPrNumber: 204,
+        title: 'Tighten auth guard',
+        status: 'open',
+        description: 'Updated body text',
+        authorId: 7,
+      },
+      {
+        repositoryId: 99,
+        githubPrNumber: 204,
+      },
+    );
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('stores ready-for-review pull requests without queueing AI review', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'ready_for_review',
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 20,
+        number: 205,
+        title: 'Finish draft',
+        body: 'Ready now',
+        state: 'open',
+        user: {id: 55},
+      },
+    });
+
+    expect(pullRequestService.upsertPullRequest).toHaveBeenCalled();
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).not.toHaveBeenCalled();
   });
 
   it('stores closed pull requests without queueing AI prioritization', async () => {

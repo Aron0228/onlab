@@ -124,7 +124,7 @@ export class GithubWebhookService {
         if (
           payload.installation?.id &&
           payload.pull_request &&
-          payload.action !== 'closed'
+          this.shouldQueuePullRequestPrediction(payload.action)
         ) {
           const repository = await this.resolveRepository(payload);
 
@@ -303,6 +303,10 @@ export class GithubWebhookService {
     }
 
     return this.isAppBotSender(payload);
+  }
+
+  private shouldQueuePullRequestPrediction(action?: string): boolean {
+    return action === 'opened' || action === 'synchronize';
   }
 
   private isAppBotSender(payload: GithubWebhookPayload): boolean {
