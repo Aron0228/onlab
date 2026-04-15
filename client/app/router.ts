@@ -30,6 +30,7 @@ Router.map(function () {
       this.route('settings');
 
       this.route('capacity-planning', function () {
+        this.route('new');
         this.route('edit');
       });
     });

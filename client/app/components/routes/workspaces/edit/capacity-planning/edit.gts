@@ -1,9 +1,10 @@
 import Component from '@glimmer/component';
-import type WorkspaceModel from 'client/models/workspace';
+import RoutesWorkspacesEditCapacityPlanningEditor from 'client/components/routes/workspaces/edit/capacity-planning/editor';
+import type { WorkspacesEditCapacityPlanningEditRouteModel } from 'client/routes/workspaces/edit/capacity-planning/edit';
 
 export interface RoutesWorkspacesEditCapacityPlanningEditSignature {
   Args: {
-    model: WorkspaceModel;
+    model: WorkspacesEditCapacityPlanningEditRouteModel;
   };
   Blocks: {
     default: [];
@@ -17,6 +18,11 @@ export default class RoutesWorkspacesEditCapacityPlanningEdit extends Component<
   }
 
   <template>
-    <div class={{this.rootClass}} ...attributes></div>
+    <RoutesWorkspacesEditCapacityPlanningEditor
+      class={{this.rootClass}}
+      @model={{@model}}
+      @mode="edit"
+      ...attributes
+    />
   </template>
 }

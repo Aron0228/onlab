@@ -1,1 +1,17 @@
+.route-workspaces-edit-capacity-planning-edit {
+  .capacity-plan-editor__member-card {
+    border-color: color-mix(
+      in srgb,
+      var(--color-primary-500) 42%,
+      var(--border-subtle) 58%
+    );
+  }
 
+  .capacity-plan-editor__hero {
+    border-bottom-color: color-mix(
+      in srgb,
+      var(--color-primary-500) 22%,
+      var(--border-subtle) 78%
+    );
+  }
+}

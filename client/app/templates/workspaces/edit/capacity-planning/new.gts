@@ -1,11 +1,11 @@
 import type { TOC } from '@ember/component/template-only';
 import { pageTitle } from 'ember-page-title';
 import RoutesWorkspacesEditCapacityPlanningNew from 'client/components/routes/workspaces/edit/capacity-planning/new';
-import type WorkspaceModel from 'client/models/workspace';
+import type { WorkspacesEditCapacityPlanningNewRouteModel } from 'client/routes/workspaces/edit/capacity-planning/new';
 
 interface NewSignature {
   Args: {
-    model: WorkspaceModel;
+    model: WorkspacesEditCapacityPlanningNewRouteModel;
     controller: unknown;
   };
 }
