@@ -1,4 +1,11 @@
-import {belongsTo, hasOne, model, property} from '@loopback/repository';
+import {
+  belongsTo,
+  hasMany,
+  hasOne,
+  model,
+  property,
+} from '@loopback/repository';
+import {IssueAssignment} from '../planning';
 import {AIPrediction, AIPredictable} from '../system';
 import {GithubRepository} from './repository.model';
 
@@ -64,6 +71,9 @@ export class GithubIssue extends AIPredictable {
   @hasOne(() => AIPrediction, {keyTo: 'sourceId'})
   aiPrediction?: AIPrediction | null;
 
+  @hasMany(() => IssueAssignment, {keyTo: 'issueId'})
+  issueAssignments?: IssueAssignment[];
+
   constructor(data?: Partial<GithubIssue>) {
     super(data);
   }
@@ -72,6 +82,7 @@ export class GithubIssue extends AIPredictable {
 export type GithubIssueRelations = {
   repository?: GithubRepository;
   aiPrediction?: AIPrediction | null;
+  issueAssignments?: IssueAssignment[];
 };
 
 export type GithubIssueWithRelations = GithubIssue & GithubIssueRelations;

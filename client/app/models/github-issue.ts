@@ -1,6 +1,7 @@
-import Model, { attr, belongsTo } from '@warp-drive/legacy/model';
+import Model, { attr, belongsTo, hasMany } from '@warp-drive/legacy/model';
 import type AIPredictionModel from './ai-prediction';
 import type GithubRepositoryModel from './github-repository';
+import type IssueAssignmentModel from './issue-assignment';
 
 export default class GithubIssueModel extends Model {
   @belongsTo('github-repository', { async: false, inverse: 'issues' })
@@ -8,6 +9,12 @@ export default class GithubIssueModel extends Model {
 
   @belongsTo('ai-prediction', { async: false, inverse: null })
   declare aiPrediction: AIPredictionModel | null;
+
+  @hasMany('issue-assignment', {
+    async: false,
+    inverse: 'issue',
+  })
+  declare issueAssignments: IssueAssignmentModel[];
 
   @attr('number') declare repositoryId: number;
   @attr('number') declare githubId: number;

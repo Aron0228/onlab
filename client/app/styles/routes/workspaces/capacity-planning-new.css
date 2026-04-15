@@ -1,0 +1,309 @@
+.route-workspaces-edit-capacity-planning-new,
+.route-workspaces-edit-capacity-planning-edit {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.route-workspaces-edit-capacity-planning-editor {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--bg-app);
+
+  .capacity-plan-editor__hero {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-wrap: wrap;
+  }
+
+  .capacity-plan-editor__hero-main {
+    min-width: min(28rem, 100%);
+  }
+
+  .capacity-plan-editor__back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .capacity-plan-editor__hero-stats {
+    display: flex;
+    gap: var(--space-lg);
+    flex-wrap: wrap;
+  }
+
+  .capacity-plan-editor__stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    align-items: flex-end;
+  }
+
+  .capacity-plan-editor__stat-label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-text-sm);
+  }
+
+  .capacity-plan-editor__stat strong {
+    color: var(--color-success-300);
+    font-size: clamp(1.4rem, 2vw, 2.1rem);
+  }
+
+  .capacity-plan-editor__content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-lg);
+  }
+
+  .capacity-plan-editor__section-title {
+    align-items: center;
+  }
+
+  .capacity-plan-editor__period-card,
+  .capacity-plan-editor__issues-panel,
+  .capacity-plan-editor__member-card {
+    background: color-mix(
+      in srgb,
+      var(--bg-surface) 92%,
+      var(--color-primary-900) 8%
+    );
+  }
+
+  .capacity-plan-editor__period-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-lg);
+  }
+
+  .capacity-plan-editor__main-grid {
+    display: grid;
+    grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
+    gap: var(--space-lg);
+    align-items: start;
+  }
+
+  .capacity-plan-editor__issue-list {
+    max-height: 22rem;
+    overflow-y: auto;
+  }
+
+  .capacity-plan-editor__issue-card {
+    width: 100%;
+    appearance: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    background: color-mix(in srgb, var(--bg-input) 86%, var(--bg-surface) 14%);
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+
+    &.--selected {
+      border-color: var(--color-success-500);
+      background: color-mix(
+        in srgb,
+        var(--color-primary-700) 28%,
+        var(--bg-input) 72%
+      );
+    }
+
+    &.--interactive {
+      cursor: grab;
+    }
+  }
+
+  .capacity-plan-editor__issue-meta {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+  }
+
+  .capacity-plan-editor__priority {
+    font-weight: var(--font-weight-medium);
+
+    &.--critical {
+      color: var(--color-error);
+    }
+
+    &.--high {
+      color: var(--color-warning);
+    }
+
+    &.--medium {
+      color: var(--color-primary-300);
+    }
+
+    &.--low {
+      color: var(--color-success-300);
+    }
+  }
+
+  .capacity-plan-editor__notes {
+    width: 100%;
+    min-height: 8rem;
+    resize: vertical;
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+    box-sizing: border-box;
+  }
+
+  .capacity-plan-editor__empty-state,
+  .capacity-plan-editor__empty-assignment {
+    min-height: 10rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    text-align: center;
+  }
+
+  .capacity-plan-editor__member-head {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+  }
+
+  .capacity-plan-editor__role-badge {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-height: 2rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-primary-500) 18%, transparent);
+    color: var(--text-primary);
+    font-size: var(--font-size-text-sm);
+  }
+
+  .capacity-plan-editor__utilization {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .capacity-plan-editor__progress {
+    width: 100%;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: var(--bg-input);
+    overflow: hidden;
+  }
+
+  .capacity-plan-editor__progress-bar {
+    height: 100%;
+    background: var(--color-success-300);
+  }
+
+  .capacity-plan-editor__assign-button {
+    width: 100%;
+  }
+
+  .capacity-plan-editor__assignment-zone {
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    padding: var(--space-xs);
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+
+    &.--drag-over {
+      border-color: var(--color-success-500);
+      background: var(--bg-hover);
+    }
+  }
+
+  .capacity-plan-editor__subheading {
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .capacity-plan-editor__assignment-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--bg-input) 88%, white 12%);
+  }
+
+  .capacity-plan-editor__remove {
+    appearance: none;
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .capacity-plan-editor__hours-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+  }
+
+  .capacity-plan-editor__hours-input {
+    width: 5rem;
+  }
+
+  .capacity-plan-editor__footer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .capacity-plan-editor__cancel {
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  @media (width <= 1024px) {
+    .capacity-plan-editor__main-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (width <= 768px) {
+    .capacity-plan-editor__hero,
+    .capacity-plan-editor__content {
+      padding: var(--space-md);
+    }
+
+    .capacity-plan-editor__period-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .capacity-plan-editor__hero-stats {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .capacity-plan-editor__stat {
+      align-items: flex-start;
+    }
+  }
+}

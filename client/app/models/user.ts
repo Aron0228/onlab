@@ -1,4 +1,6 @@
 import Model, { attr, hasMany } from '@warp-drive/legacy/model';
+import type CapacityPlanEntryModel from './capacity-plan-entry';
+import type IssueAssignmentModel from './issue-assignment';
 import type UserExpertiseAssocModel from './user-expertise-assoc';
 import type WorkspaceMemberModel from './workspace-member';
 
@@ -11,6 +13,18 @@ export default class UserModel extends Model {
     inverse: 'user',
   })
   declare userExpertiseAssocs: UserExpertiseAssocModel[];
+
+  @hasMany('capacity-plan-entry', {
+    async: false,
+    inverse: 'user',
+  })
+  declare capacityPlanEntries: CapacityPlanEntryModel[];
+
+  @hasMany('issue-assignment', {
+    async: false,
+    inverse: 'user',
+  })
+  declare issueAssignments: IssueAssignmentModel[];
 
   @attr('number') declare githubId: number;
   @attr('string') declare username: string;

@@ -9,6 +9,7 @@
 @import url('ui/footer-actions.css');
 @import url('ui/language-selector.css');
 @import url('ui/input.css');
+@import url('ui/date-picker.css');
 @import url('ui/checkbox.css');
 @import url('ui/avatar.css');
 @import url('ui/aria-tab.css');
@@ -18,6 +19,9 @@
 @import url('routes/workspaces/index.css');
 @import url('routes/workspaces/new.css');
 @import url('routes/workspaces/edit.css');
+@import url('routes/workspaces/capacity-planning.css');
+@import url('routes/workspaces/capacity-planning-new.css');
+@import url('routes/workspaces/capacity-planning-edit.css');
 @import url('routes/workspaces/issues.css');
 @import url('routes/workspaces/pull-requests.css');
 @import url('routes/workspaces/settings.css');
