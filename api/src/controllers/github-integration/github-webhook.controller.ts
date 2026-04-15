@@ -26,8 +26,6 @@ export class GithubWebhookController {
     const event = request.headers['x-github-event'] as string;
     this.assertValidWebhookSignature(request, body);
 
-    console.log(body);
-
     await this.githubWebhookService.handleWebhook(event, body);
 
     return {ok: true};

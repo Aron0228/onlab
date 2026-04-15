@@ -229,14 +229,6 @@ export class PullRequestMergeRiskService {
       });
     }
 
-    console.log('Pull request merge risk AI request context', {
-      repositoryFullName,
-      pullRequestNumber,
-      reviewerExpertiseCandidateCount: reviewerExpertiseCandidates?.length ?? 0,
-      reviewerExpertiseCandidateNames:
-        reviewerExpertiseCandidates?.map(candidate => candidate.name) ?? [],
-    });
-
     try {
       messages.push({
         role: 'user',
@@ -253,48 +245,11 @@ export class PullRequestMergeRiskService {
             messages,
           });
 
-        console.log('Pull request merge risk AI response', {
-          repositoryFullName,
-          pullRequestNumber,
-          iteration,
-          response,
-        });
-
         if (response.type === 'final') {
           const prediction = this.normalizePrediction(
             response,
             reviewerExpertiseCandidates,
           );
-
-          console.log(
-            'Pull request merge risk reviewer suggestion normalization',
-            {
-              repositoryFullName,
-              pullRequestNumber,
-              iteration,
-              reviewerExpertiseCandidateCount:
-                reviewerExpertiseCandidates?.length ?? 0,
-              reviewerExpertiseCandidates:
-                reviewerExpertiseCandidates?.map(candidate => ({
-                  name: candidate.name,
-                  description: candidate.description ?? null,
-                })) ?? [],
-              rawReviewerSuggestions:
-                response.reviewer_suggestions ?? '(missing)',
-              rawReviewerExpertiseSuggestions:
-                response.reviewer_expertise_suggestions ?? '(missing)',
-              normalizedReviewerExpertiseSuggestions:
-                prediction.reviewerExpertiseSuggestions,
-              normalizedReviewerSuggestions: prediction.reviewerSuggestions,
-            },
-          );
-
-          console.log('Pull request merge risk prediction completed', {
-            repositoryFullName,
-            pullRequestNumber,
-            priority: prediction.priority,
-            iteration,
-          });
 
           return prediction;
         }
@@ -341,15 +296,6 @@ export class PullRequestMergeRiskService {
           continue;
         }
 
-        console.log('Pull request merge risk AI requested tool', {
-          repositoryFullName,
-          pullRequestNumber,
-          tool: toolName,
-          toolReason: response.reason,
-          toolArguments: response.arguments ?? {},
-          iteration,
-        });
-
         const toolResult = await this.executeTool(
           toolName,
           response.arguments ?? {},
@@ -359,14 +305,6 @@ export class PullRequestMergeRiskService {
             pullRequestNumber,
           },
         );
-
-        console.log('Pull request merge risk AI tool completed', {
-          repositoryFullName,
-          pullRequestNumber,
-          tool: toolName,
-          resultSummary: summarizeToolResult(toolResult),
-          iteration,
-        });
 
         messages.push({
           role: 'assistant',
@@ -656,13 +594,6 @@ export class PullRequestMergeRiskService {
           .join('\n'),
       );
 
-    console.log('Pull request merge risk preloaded evidence', {
-      repositoryFullName: context.repositoryFullName,
-      pullRequestNumber: context.pullRequestNumber,
-      changedFiles: files.length,
-      includedFiles: summarizedFiles.length,
-    });
-
     return [
       'Changed-file evidence:',
       [
@@ -826,28 +757,6 @@ function clampNumber(
   }
 
   return Math.min(Math.max(Math.trunc(value), min), max);
-}
-
-function summarizeToolResult(result: unknown): Record<string, unknown> {
-  if (Array.isArray(result)) {
-    return {
-      type: 'array',
-      count: result.length,
-    };
-  }
-
-  if (result && typeof result === 'object') {
-    const keys = Object.keys(result);
-
-    return {
-      type: 'object',
-      keys,
-    };
-  }
-
-  return {
-    type: typeof result,
-  };
 }
 
 function summarizeToolExecutionError(error: unknown): string {

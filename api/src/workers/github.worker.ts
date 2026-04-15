@@ -341,27 +341,6 @@ async function processPrioritizePullRequestJob(
   const reviewerExpertiseCandidates =
     buildPullRequestReviewerExpertiseCandidates(reviewerSuggestionCandidates);
 
-  console.log('Pull request reviewer suggestion candidates prepared', {
-    workspaceId: workspace?.id ?? null,
-    workspaceName: workspace?.name ?? null,
-    repositoryFullName: job.data.repositoryFullName,
-    pullRequestNumber: job.data.pullRequestNumber,
-    reviewerSuggestionCandidateCount: reviewerSuggestionCandidates.length,
-    reviewerSuggestionCandidates: reviewerSuggestionCandidates.map(
-      candidate => ({
-        userId: candidate.userId,
-        username: candidate.username,
-        workspaceRole: candidate.workspaceRole,
-        expertises: candidate.expertises.map(expertise => expertise.name),
-      }),
-    ),
-    reviewerExpertiseCandidateCount: reviewerExpertiseCandidates.length,
-    reviewerExpertiseCandidates: reviewerExpertiseCandidates.map(candidate => ({
-      name: candidate.name,
-      description: candidate.description ?? null,
-    })),
-  });
-
   await githubService.syncRepositoryLabels(
     job.data.installationId,
     job.data.repositoryFullName,
@@ -372,11 +351,6 @@ async function processPrioritizePullRequestJob(
     job.data.repositoryFullName,
     job.data.pullRequestNumber,
   );
-  console.log('Pull request processing reaction added', {
-    repositoryFullName: job.data.repositoryFullName,
-    pullRequestNumber: job.data.pullRequestNumber,
-    reactionId: processingReactionId,
-  });
   const description = issuePriorityService.sanitizeIssueDescription(
     job.data.description,
   );
@@ -392,13 +366,6 @@ async function processPrioritizePullRequestJob(
     prediction.reviewerExpertiseSuggestions,
     reviewerSuggestionCandidates,
   );
-  console.log('Pull request reviewer suggestions resolved from expertise', {
-    workspaceId: workspace?.id ?? null,
-    repositoryFullName: job.data.repositoryFullName,
-    pullRequestNumber: job.data.pullRequestNumber,
-    reviewerExpertiseSuggestions: prediction.reviewerExpertiseSuggestions,
-    resolvedReviewerSuggestions,
-  });
 
   try {
     await githubService.syncPullRequestReviewComments(
@@ -416,15 +383,6 @@ async function processPrioritizePullRequestJob(
   }
 
   if (workspace && workspace.reviewerSuggestionSync !== false) {
-    console.log('Pull request reviewer sync gate passed', {
-      workspaceId: workspace.id,
-      repositoryFullName: job.data.repositoryFullName,
-      pullRequestNumber: job.data.pullRequestNumber,
-      reviewerSuggestionSync: workspace.reviewerSuggestionSync,
-      resolvedReviewerUsernames: resolvedReviewerSuggestions.map(
-        suggestion => suggestion.username,
-      ),
-    });
     try {
       await githubService.syncPullRequestReviewerSuggestionComment(
         job.data.installationId,
@@ -448,16 +406,6 @@ async function processPrioritizePullRequestJob(
         error,
       });
     }
-  } else {
-    console.log('Pull request reviewer sync gate skipped', {
-      workspaceId: workspace?.id ?? null,
-      repositoryFullName: job.data.repositoryFullName,
-      pullRequestNumber: job.data.pullRequestNumber,
-      reviewerSuggestionSync: workspace?.reviewerSuggestionSync ?? null,
-      resolvedReviewerUsernames: resolvedReviewerSuggestions.map(
-        suggestion => suggestion.username,
-      ),
-    });
   }
 
   await ensureMinimumProcessingReactionDuration(processingStartedAt);
@@ -716,18 +664,6 @@ async function syncRepositoryPullRequests(
           prediction.reviewerExpertiseSuggestions,
           reviewerSuggestionCandidatesForPullRequest,
         );
-        console.log(
-          'Pull request reviewer suggestions resolved from expertise',
-          {
-            workspaceId: workspace.id,
-            repositoryFullName: repository.fullName,
-            pullRequestNumber: pullRequest.number,
-            reviewerExpertiseSuggestions:
-              prediction.reviewerExpertiseSuggestions,
-            resolvedReviewerSuggestions,
-          },
-        );
-
         try {
           await githubService.syncPullRequestReviewComments(
             installationId,
@@ -744,15 +680,6 @@ async function syncRepositoryPullRequests(
         }
 
         if (workspace.reviewerSuggestionSync !== false) {
-          console.log('Pull request reviewer sync gate passed', {
-            workspaceId: workspace.id,
-            repositoryFullName: repository.fullName,
-            pullRequestNumber: pullRequest.number,
-            reviewerSuggestionSync: workspace.reviewerSuggestionSync,
-            resolvedReviewerUsernames: resolvedReviewerSuggestions.map(
-              suggestion => suggestion.username,
-            ),
-          });
           try {
             await githubService.syncPullRequestReviewerSuggestionComment(
               installationId,
@@ -778,16 +705,6 @@ async function syncRepositoryPullRequests(
               error,
             });
           }
-        } else {
-          console.log('Pull request reviewer sync gate skipped', {
-            workspaceId: workspace.id,
-            repositoryFullName: repository.fullName,
-            pullRequestNumber: pullRequest.number,
-            reviewerSuggestionSync: workspace.reviewerSuggestionSync,
-            resolvedReviewerUsernames: resolvedReviewerSuggestions.map(
-              suggestion => suggestion.username,
-            ),
-          });
         }
 
         await githubService.applyMergeRiskPredictionToPullRequest(
