@@ -1,7 +1,6 @@
-import {Getter, inject} from '@loopback/core';
+import {Getter, inject, service} from '@loopback/core';
 import {
   BelongsToAccessor,
-  DefaultCrudRepository,
   HasManyRepositoryFactory,
   repository,
 } from '@loopback/repository';
@@ -13,12 +12,13 @@ import {
   IssueAssignment,
   Workspace,
 } from '../../models';
+import {QueueService} from '../../services/queue.service';
 import {registerInclusionResolvers} from '../../utils';
-import {WorkspaceRepository} from '../system';
+import {NewsFeedAwareCrudRepository, WorkspaceRepository} from '../system';
 import {CapacityPlanEntryRepository} from './capacity-plan-entry.repository';
 import {IssueAssignmentRepository} from './issue-assignment.repository';
 
-export class CapacityPlanRepository extends DefaultCrudRepository<
+export class CapacityPlanRepository extends NewsFeedAwareCrudRepository<
   CapacityPlan,
   typeof CapacityPlan.prototype.id,
   CapacityPlanRelations
@@ -40,6 +40,7 @@ export class CapacityPlanRepository extends DefaultCrudRepository<
 
   constructor(
     @inject('datasources.postgresDB') dataSource: PostgresDbDataSource,
+    @service(QueueService) queueService: QueueService,
     @repository.getter('WorkspaceRepository')
     workspaceRepositoryGetter: Getter<WorkspaceRepository>,
     @repository.getter('CapacityPlanEntryRepository')
@@ -47,7 +48,7 @@ export class CapacityPlanRepository extends DefaultCrudRepository<
     @repository.getter('IssueAssignmentRepository')
     issueAssignmentRepositoryGetter: Getter<IssueAssignmentRepository>,
   ) {
-    super(CapacityPlan, dataSource);
+    super(CapacityPlan, dataSource, queueService);
 
     this.workspace = this.createBelongsToAccessorFor(
       'workspace',
@@ -66,4 +67,33 @@ export class CapacityPlanRepository extends DefaultCrudRepository<
 
     registerInclusionResolvers(CapacityPlan, this);
   }
+
+  protected async resolveNewsFeedWorkspaceId(
+    entity: CapacityPlan,
+  ): Promise<number | null> {
+    return entity.workspaceId;
+  }
+
+  protected async buildNewsFeedPredictionSnapshot({
+    current,
+  }: {
+    eventAction: 'created' | 'updated';
+    previous?: CapacityPlan;
+    current: CapacityPlan;
+  }) {
+    const workspace = await this.workspace(current.id);
+
+    return {
+      title: `Capacity plan created for ${workspace.name}`,
+      summary: `Capacity plan covering ${formatDate(current.start)} to ${formatDate(current.end)} was created.`,
+    };
+  }
+
+  protected async shouldEnqueueNewsFeedUpdate(): Promise<boolean> {
+    return false;
+  }
+}
+
+function formatDate(value: string): string {
+  return new Date(value).toISOString().slice(0, 10);
 }

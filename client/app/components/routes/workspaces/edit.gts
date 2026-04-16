@@ -77,6 +77,12 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       SEPARATOR,
       {
         separator: false,
+        iconName: 'sparkles',
+        name: 'News Feed',
+        route: 'workspaces.edit.news-feed',
+      },
+      {
+        separator: false,
         iconName: 'calendar-event',
         name: 'Capacity Planning',
         route: 'workspaces.edit.capacity-planning',

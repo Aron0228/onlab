@@ -2,6 +2,7 @@ export * from './ai-prediction.service';
 export * from './auth';
 export * from './github-integration';
 export * from './issue-priority.service';
+export * from './news-feed-prediction.service';
 export * from './ollama.service';
 export * from './pull-request-merge-risk.service';
 export * from './queue.service';

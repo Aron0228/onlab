@@ -1,21 +1,19 @@
-import {
-  belongsTo,
-  Entity,
-  hasMany,
-  model,
-  property,
-} from '@loopback/repository';
-import {Workspace} from '../system';
+import {belongsTo, hasMany, model, property} from '@loopback/repository';
+import {AIPredictable, Workspace} from '../system';
 import {CapacityPlanEntry} from './capacity-plan-entry.model';
 import {IssueAssignment} from './issue-assignment.model';
 
 @model({
   settings: {
     forceId: false,
+    newsFeedPredictable: {
+      enabled: true,
+      sourceType: 'capacity-plan',
+    },
     postgresql: {schema: 'planning', table: 'capacity_plan'},
   },
 })
-export class CapacityPlan extends Entity {
+export class CapacityPlan extends AIPredictable {
   @property({
     type: 'number',
     id: true,
