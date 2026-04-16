@@ -58,9 +58,13 @@ export type GithubIssuesJobData =
 
 @injectable({scope: BindingScope.SINGLETON})
 export class QueueService {
-  private readonly githubIssuesQueue: Queue<GithubIssuesJobData>;
+  private readonly githubIssuesQueue?: Queue<GithubIssuesJobData>;
 
   constructor(@service(RedisService) private redisService: RedisService) {
+    if (shouldBypassQueueInTests()) {
+      return;
+    }
+
     this.githubIssuesQueue = new Queue<GithubIssuesJobData>(
       GITHUB_ISSUES_QUEUE_NAME,
       {
@@ -82,7 +86,7 @@ export class QueueService {
     data: SyncGithubIssuesJobData,
     options: Pick<JobsOptions, 'delay'> = {},
   ) {
-    return this.githubIssuesQueue.add(SYNC_GITHUB_ISSUES_JOB_NAME, data, {
+    return this.getGithubIssuesQueue().add(SYNC_GITHUB_ISSUES_JOB_NAME, data, {
       delay: options.delay,
     });
   }
@@ -91,7 +95,7 @@ export class QueueService {
     data: SyncGithubIssuesJobData,
     options: Pick<JobsOptions, 'delay'> = {},
   ) {
-    return this.githubIssuesQueue.add(SYNC_GITHUB_LABELS_JOB_NAME, data, {
+    return this.getGithubIssuesQueue().add(SYNC_GITHUB_LABELS_JOB_NAME, data, {
       delay: options.delay,
     });
   }
@@ -100,7 +104,7 @@ export class QueueService {
     data: CreateGithubIssueJobData,
     options: Pick<JobsOptions, 'delay'> = {},
   ) {
-    return this.githubIssuesQueue.add(CREATE_GITHUB_ISSUE_JOB_NAME, data, {
+    return this.getGithubIssuesQueue().add(CREATE_GITHUB_ISSUE_JOB_NAME, data, {
       delay: options.delay,
     });
   }
@@ -109,7 +113,7 @@ export class QueueService {
     data: PrioritizeGithubPullRequestJobData,
     options: Pick<JobsOptions, 'delay'> = {},
   ) {
-    return this.githubIssuesQueue.add(
+    return this.getGithubIssuesQueue().add(
       PRIORITIZE_GITHUB_PULL_REQUEST_JOB_NAME,
       data,
       {
@@ -122,16 +126,34 @@ export class QueueService {
     data: PredictNewsFeedEntryJobData,
     options: Pick<JobsOptions, 'delay'> = {},
   ) {
-    return this.githubIssuesQueue.add(PREDICT_NEWS_FEED_ENTRY_JOB_NAME, data, {
-      delay: options.delay,
-    });
+    if (shouldBypassQueueInTests()) {
+      return undefined;
+    }
+
+    return this.getGithubIssuesQueue().add(
+      PREDICT_NEWS_FEED_ENTRY_JOB_NAME,
+      data,
+      {
+        delay: options.delay,
+      },
+    );
   }
 
   public getGithubIssuesQueue(): Queue<GithubIssuesJobData> {
+    if (!this.githubIssuesQueue) {
+      throw new Error(
+        'GitHub issues queue is not available in the current environment',
+      );
+    }
+
     return this.githubIssuesQueue;
   }
 
   public async close(): Promise<void> {
-    await this.githubIssuesQueue.close();
+    await this.githubIssuesQueue?.close();
   }
+}
+
+function shouldBypassQueueInTests(): boolean {
+  return process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
 }

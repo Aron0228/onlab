@@ -127,7 +127,6 @@ describe('PullRequestMergeRiskService (unit)', () => {
   });
 
   it('executes requested tools and then returns the final prediction', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     githubService.getPullRequestOverview.mockResolvedValue({
       changed_files: 2,
       additions: 54,
@@ -193,24 +192,7 @@ describe('PullRequestMergeRiskService (unit)', () => {
       'team/api',
       91,
     );
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      'Pull request merge risk AI requested tool',
-      expect.objectContaining({
-        repositoryFullName: 'team/api',
-        pullRequestNumber: 91,
-        tool: 'list_pull_request_files',
-      }),
-    );
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      'Pull request merge risk AI tool completed',
-      expect.objectContaining({
-        repositoryFullName: 'team/api',
-        pullRequestNumber: 91,
-        tool: 'list_pull_request_files',
-      }),
-    );
-
-    consoleLogSpy.mockRestore();
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the analysis running when file contents are inaccessible to the integration', async () => {

@@ -4,16 +4,19 @@ import Redis, {RedisOptions} from 'ioredis';
 @injectable({scope: BindingScope.SINGLETON})
 export class RedisService {
   private readonly connectionOptions: RedisOptions;
-  private readonly client: Redis;
+  private client?: Redis;
 
   constructor() {
     this.connectionOptions = buildRedisConnectionOptions();
-    this.client = process.env.REDIS_URL
-      ? new Redis(process.env.REDIS_URL, this.connectionOptions)
-      : new Redis(this.connectionOptions);
   }
 
   public getClient(): Redis {
+    if (!this.client) {
+      this.client = process.env.REDIS_URL
+        ? new Redis(process.env.REDIS_URL, this.connectionOptions)
+        : new Redis(this.connectionOptions);
+    }
+
     return this.client;
   }
 
@@ -24,7 +27,7 @@ export class RedisService {
   }
 
   public async close(): Promise<void> {
-    if (this.client.status === 'end') {
+    if (!this.client || this.client.status === 'end') {
       return;
     }
 
