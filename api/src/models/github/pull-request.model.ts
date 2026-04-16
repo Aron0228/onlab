@@ -6,6 +6,10 @@ import {GithubRepository} from './repository.model';
 @model({
   settings: {
     forceId: false,
+    newsFeedPredictable: {
+      enabled: true,
+      sourceType: 'github-pull-request',
+    },
     postgresql: {schema: 'github', table: 'pull_request'},
   },
 })

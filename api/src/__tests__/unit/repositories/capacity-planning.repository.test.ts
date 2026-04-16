@@ -19,6 +19,7 @@ describe('Capacity planning repositories (unit)', () => {
   it('registers capacity plan relations', () => {
     const repository = new CapacityPlanRepository(
       dataSource as never,
+      {} as never,
       async () => ({}) as never,
       async () => ({}) as never,
       async () => ({}) as never,
@@ -96,6 +97,7 @@ describe('Capacity planning repositories (unit)', () => {
   it('registers github issue assignment relations', () => {
     const repository = new GithubIssueRepository(
       dataSource as never,
+      {} as never,
       async () => ({}) as never,
       async () => ({}) as never,
       async () => ({}) as never,

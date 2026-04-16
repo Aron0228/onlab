@@ -1,15 +1,20 @@
-import {belongsTo, Entity, model, property} from '@loopback/repository';
+import {belongsTo, model, property} from '@loopback/repository';
 import {User} from '../auth';
 import {Workspace} from './workspace.model';
 import {WorkspaceMemberRole} from '../../constants';
+import {AIPredictable} from './ai-predictable.model';
 
 @model({
   settings: {
     forceId: false,
+    newsFeedPredictable: {
+      enabled: true,
+      sourceType: 'workspace-member',
+    },
     postgresql: {schema: 'system', table: 'workspace_member'},
   },
 })
-export class WorkspaceMember extends Entity {
+export class WorkspaceMember extends AIPredictable {
   @property({
     type: 'number',
     id: true,

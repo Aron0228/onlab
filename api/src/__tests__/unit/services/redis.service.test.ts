@@ -54,7 +54,8 @@ describe('RedisService (unit)', () => {
 
     const {RedisService} = await import('../../../services/redis.service');
 
-    new RedisService();
+    const service = new RedisService();
+    service.getClient();
 
     expect(redisConstructor).toHaveBeenCalledWith(
       'redis://default:secret@redis.railway.internal:6379',
@@ -75,6 +76,7 @@ describe('RedisService (unit)', () => {
     const {RedisService} = await import('../../../services/redis.service');
 
     const service = new RedisService();
+    service.getClient();
 
     expect(redisConstructor).toHaveBeenCalledWith({
       host: 'redis.railway.internal',

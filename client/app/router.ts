@@ -28,6 +28,15 @@ Router.map(function () {
       });
 
       this.route('settings');
+      this.route('news-feed', function () {
+        this.route('issue', { path: '/issues/:issue_id' });
+        this.route('pull-request', {
+          path: '/pull-requests/:pull_request_id',
+        });
+        this.route('capacity-plan', {
+          path: '/capacity-plans/:plan_id',
+        });
+      });
 
       this.route('capacity-planning', function () {
         this.route('new');

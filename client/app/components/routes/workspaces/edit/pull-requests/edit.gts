@@ -18,6 +18,8 @@ marked.setOptions({
 export interface RoutesWorkspacesEditPullRequestsEditSignature {
   Args: {
     model: WorkspacesEditPullRequestsEditRouteModel;
+    closeRoute?: string;
+    closeModel?: number;
   };
   Blocks: {
     default: [];
@@ -135,6 +137,14 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     return this.args.model.repositoryName ?? 'Unknown repository';
   }
 
+  get closeRoute(): string {
+    return this.args.closeRoute ?? 'workspaces.edit.pull-requests';
+  }
+
+  get closeModel(): number {
+    return this.args.closeModel ?? this.args.model.workspaceId;
+  }
+
   applyRenderedDescription = modifier(
     (element: HTMLElement, [html]: [string]) => {
       element.innerHTML = html;
@@ -153,8 +163,8 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
           </div>
 
           <LinkTo
-            @route="workspaces.edit.pull-requests"
-            @model={{@model.workspaceId}}
+            @route={{this.closeRoute}}
+            @model={{this.closeModel}}
             class="issue-panel__close"
             aria-label="Close pull request details"
           >

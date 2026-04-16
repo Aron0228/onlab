@@ -12,6 +12,10 @@ import {GithubRepository} from './repository.model';
 @model({
   settings: {
     forceId: false,
+    newsFeedPredictable: {
+      enabled: true,
+      sourceType: 'github-issue',
+    },
     postgresql: {schema: 'github', table: 'issue'},
   },
 })

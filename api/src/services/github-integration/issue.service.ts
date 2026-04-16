@@ -103,7 +103,8 @@ export class IssueService {
 
     for (let index = 0; index < issues.length; index += this.batchSize) {
       const batch = issues.slice(index, index + this.batchSize);
-      const createdIssues = await this.githubIssueRepository.createAll(
+      const createdIssues = await createAllWithoutNewsFeedIfSupported(
+        this.githubIssueRepository,
         batch.map(entry => entry.issue),
       );
       await this.aiPredictionService.createPredictionsBulk(
@@ -117,4 +118,21 @@ export class IssueService {
       );
     }
   }
+}
+
+async function createAllWithoutNewsFeedIfSupported<
+  Item,
+  Created extends {id: number},
+  T extends {
+    createAll(items: Item[]): Promise<Created[]>;
+    withoutNewsFeed?: <Result>(
+      callback: () => Promise<Result>,
+    ) => Promise<Result>;
+  },
+>(repository: T, items: Item[]): Promise<Created[]> {
+  if (typeof repository.withoutNewsFeed === 'function') {
+    return repository.withoutNewsFeed(() => repository.createAll(items));
+  }
+
+  return repository.createAll(items);
 }

@@ -18,6 +18,8 @@ marked.setOptions({
 export interface RoutesWorkspacesEditIssuesEditSignature {
   Args: {
     model: WorkspacesEditIssuesEditRouteModel;
+    closeRoute?: string;
+    closeModel?: number;
   };
   Blocks: {
     default: [];
@@ -99,6 +101,14 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
     return this.args.model.repositoryName ?? 'Unknown repository';
   }
 
+  get closeRoute(): string {
+    return this.args.closeRoute ?? 'workspaces.edit.issues';
+  }
+
+  get closeModel(): number {
+    return this.args.closeModel ?? this.args.model.workspaceId;
+  }
+
   applyRenderedDescription = modifier(
     (element: HTMLElement, [html]: [string]) => {
       element.innerHTML = html;
@@ -117,8 +127,8 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
           </div>
 
           <LinkTo
-            @route="workspaces.edit.issues"
-            @model={{@model.workspaceId}}
+            @route={{this.closeRoute}}
+            @model={{this.closeModel}}
             class="issue-panel__close"
             aria-label="Close issue details"
           >

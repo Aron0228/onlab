@@ -1,0 +1,190 @@
+.workspaces-edit-news-feed-layout {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.route-workspaces-edit-news-feed {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-app);
+
+  .news-feed__hero {
+    flex-shrink: 0;
+    padding: var(--space-lg);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .news-feed__banner {
+    background: color-mix(in srgb, var(--color-accent-bg) 65%, transparent);
+  }
+
+  .news-feed__banner-icon {
+    display: flex;
+    flex: 0 0 3rem;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    min-width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: linear-gradient(
+      90deg,
+      var(--color-primary-600),
+      var(--color-accent-500)
+    );
+
+    .ui-icon-wrapper {
+      flex-shrink: 0;
+    }
+  }
+
+  .news-feed__body {
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-lg);
+    overflow-y: auto;
+  }
+
+  .news-feed__group-header {
+    color: var(--text-secondary);
+    font-size: var(--font-size-text-sm);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .news-feed-card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .news-feed-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+
+    &.is-disabled {
+      opacity: 0.82;
+      cursor: default;
+    }
+
+    &.--very-high {
+      border-color: var(--color-very-high);
+    }
+
+    &.--high {
+      border-color: var(--color-high);
+    }
+
+    &.--medium {
+      border-color: var(--color-medium);
+    }
+
+    &.--low {
+      border-color: var(--color-low);
+    }
+  }
+
+  .news-feed-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    min-width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+  }
+
+  .news-feed-card__reason {
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+  }
+
+  .news-feed-card__reason-line {
+    align-items: flex-start;
+    flex-wrap: wrap;
+
+    .ui-icon-wrapper {
+      margin-top: 0.15rem;
+      flex-shrink: 0;
+    }
+  }
+
+  .news-feed-card__reason-label {
+    color: var(--color-info);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .news-feed-card__reason-text {
+    flex: 1 1 18rem;
+    min-width: 0;
+  }
+
+  .news-feed-card__meta {
+    color: var(--text-secondary);
+    font-size: var(--font-size-text-sm);
+  }
+
+  .news-feed__empty {
+    max-width: 40rem;
+  }
+}
+
+.route-workspaces-edit-news-feed-capacity-plan-panel {
+  width: min(32rem, 40vw);
+  min-width: 24rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+
+  .news-feed-capacity-plan-panel__header {
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .news-feed-capacity-plan-panel__label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-text-sm);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+  }
+
+  .news-feed-capacity-plan-panel__assignment {
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+  }
+}
+
+@media (max-width: 1100px) {
+  .workspaces-edit-news-feed-layout {
+    flex-direction: column;
+  }
+
+  .route-workspaces-edit-news-feed-capacity-plan-panel,
+  .route-workspaces-edit-issues-edit,
+  .route-workspaces-edit-pull-requests-edit {
+    width: 100%;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+  }
+}

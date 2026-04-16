@@ -129,10 +129,10 @@ export class PullRequestService {
 
     for (let index = 0; index < pullRequests.length; index += this.batchSize) {
       const batch = pullRequests.slice(index, index + this.batchSize);
-      const createdPullRequests =
-        await this.githubPullRequestRepository.createAll(
-          batch.map(entry => entry.pullRequest),
-        );
+      const createdPullRequests = await createAllWithoutNewsFeedIfSupported(
+        this.githubPullRequestRepository,
+        batch.map(entry => entry.pullRequest),
+      );
       await this.aiPredictionService.createPredictionsBulk(
         createdPullRequests.flatMap((pullRequest, batchIndex) => {
           const prediction = batch[batchIndex].prediction;
@@ -156,4 +156,21 @@ export class PullRequestService {
       );
     }
   }
+}
+
+async function createAllWithoutNewsFeedIfSupported<
+  Item,
+  Created extends {id: number},
+  T extends {
+    createAll(items: Item[]): Promise<Created[]>;
+    withoutNewsFeed?: <Result>(
+      callback: () => Promise<Result>,
+    ) => Promise<Result>;
+  },
+>(repository: T, items: Item[]): Promise<Created[]> {
+  if (typeof repository.withoutNewsFeed === 'function') {
+    return repository.withoutNewsFeed(() => repository.createAll(items));
+  }
+
+  return repository.createAll(items);
 }

@@ -28,6 +28,7 @@ import {
   AIPredictionService,
   JwtTokenService,
   LabelService,
+  NewsFeedPredictionService,
   OllamaService,
   PullRequestMergeRiskService,
   PullRequestService,
@@ -79,6 +80,7 @@ export class RestApi extends BootMixin(
     this.service(IssueService);
     this.service(LabelService);
     this.service(PullRequestService);
+    this.service(NewsFeedPredictionService);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here

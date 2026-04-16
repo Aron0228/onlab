@@ -29,6 +29,9 @@ import {
   IssuePriorityService,
   IssueService,
   LabelService,
+  NewsFeedPredictionService,
+  PREDICT_NEWS_FEED_ENTRY_JOB_NAME,
+  type PredictNewsFeedEntryJobData,
   PRIORITIZE_GITHUB_PULL_REQUEST_JOB_NAME,
   type PrioritizeGithubPullRequestJobData,
   type PullRequestReviewerExpertiseSuggestion,
@@ -55,6 +58,9 @@ async function startWorker() {
     'services.IssuePriorityService',
   );
   const labelService = await app.get<LabelService>('services.LabelService');
+  const newsFeedPredictionService = await app.get<NewsFeedPredictionService>(
+    'services.NewsFeedPredictionService',
+  );
   const pullRequestMergeRiskService =
     await app.get<PullRequestMergeRiskService>(
       'services.PullRequestMergeRiskService',
@@ -121,6 +127,14 @@ async function startWorker() {
         return;
       }
 
+      if (job.name === PREDICT_NEWS_FEED_ENTRY_JOB_NAME) {
+        await processPredictNewsFeedEntryJob(
+          job as Job<PredictNewsFeedEntryJobData>,
+          newsFeedPredictionService,
+        );
+        return;
+      }
+
       await processSyncIssuesJob(
         job as Job<SyncGithubIssuesJobData>,
         githubService,
@@ -173,6 +187,13 @@ async function startWorker() {
   process.on('SIGTERM', shutdown);
 
   console.log('GitHub issues worker started');
+}
+
+async function processPredictNewsFeedEntryJob(
+  job: Job<PredictNewsFeedEntryJobData>,
+  newsFeedPredictionService: NewsFeedPredictionService,
+) {
+  await newsFeedPredictionService.processPredictionJob(job.data);
 }
 
 async function processSyncIssuesJob(
@@ -1082,10 +1103,17 @@ function mapIssueToModel(
 }
 
 function getJobMetadata(jobData: GithubIssuesJobData): Record<string, number> {
-  if ('workspaceId' in jobData) {
+  if ('workspaceId' in jobData && 'installationId' in jobData) {
     return {
       workspaceId: jobData.workspaceId,
       installationId: jobData.installationId,
+    };
+  }
+
+  if ('sourceId' in jobData) {
+    return {
+      workspaceId: jobData.workspaceId,
+      sourceId: jobData.sourceId,
     };
   }
 
