@@ -85,7 +85,7 @@ type PullRequestMergeRiskMessage = {
   content: string;
 };
 
-const MAX_TOOL_CALLS = 4;
+const MAX_TOOL_CALLS = 20;
 const MAX_GREP_MATCHES = 8;
 const MAX_FILE_LIST_RESULTS = 25;
 const MAX_FILE_CONTENT_LENGTH = 6000;
