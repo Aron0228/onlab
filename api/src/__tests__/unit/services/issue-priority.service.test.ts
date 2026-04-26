@@ -356,6 +356,98 @@ describe('IssuePriorityService (unit)', () => {
     expect(ollamaService.chatJson).toHaveBeenCalledTimes(9);
   });
 
+  it('continues when GitHub service is not bound', async () => {
+    const serviceWithoutGithub = new IssuePriorityService(
+      ollamaService as never,
+      (async () => undefined) as never,
+    );
+    ollamaService.chatJson
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_overview',
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'Medium',
+        reason: 'The issue text is enough to classify one broken workflow.',
+      });
+
+    await expect(
+      serviceWithoutGithub.predictIssuePriority({
+        installationId: 11,
+        repositoryFullName: 'team/api',
+        title: 'Broken export',
+        description: 'The billing export workflow fails.',
+      }),
+    ).resolves.toEqual({
+      priority: 'Medium',
+      reason: 'The issue text is enough to classify one broken workflow.',
+      estimatedHours: null,
+      estimationConfidence: null,
+    });
+
+    expect(ollamaService.chatJson.mock.calls[1][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining('GitHub service is unavailable'),
+        }),
+      ]),
+    );
+  });
+
+  it('returns structured tool errors when repository context is missing', async () => {
+    ollamaService.chatJson
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_overview',
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'Low',
+        reason: 'The issue text still indicates a small fix.',
+      });
+
+    await expect(
+      service.predictIssuePriority({
+        title: 'Typo',
+        description: 'A label is misspelled.',
+      }),
+    ).resolves.toEqual({
+      priority: 'Low',
+      reason: 'The issue text still indicates a small fix.',
+      estimatedHours: null,
+      estimationConfidence: null,
+    });
+
+    expect(ollamaService.chatJson.mock.calls[1][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining(
+            'GitHub installation context is unavailable',
+          ),
+        }),
+      ]),
+    );
+  });
+
+  it('falls back after repeated invalid non-tool responses', async () => {
+    ollamaService.chatJson.mockResolvedValue({nonsense: true});
+
+    await expect(
+      service.predictIssuePriority({
+        title: 'Invalid loop',
+        description: 'The model keeps returning invalid JSON shapes.',
+      }),
+    ).resolves.toEqual({
+      priority: 'Unknown',
+      reason: 'AI prioritization unavailable.',
+      estimatedHours: null,
+      estimationConfidence: 'low',
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(9);
+  });
+
   it('can write a merge-risk note for pull requests', () => {
     const updated = service.upsertPredictionNote(
       'Original description',
