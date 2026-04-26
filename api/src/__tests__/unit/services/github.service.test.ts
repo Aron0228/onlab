@@ -345,6 +345,121 @@ describe('GithubService (unit)', () => {
     );
   });
 
+  it('fetches repository overview details for issue estimation context', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({
+        data: {
+          name: 'api',
+          full_name: 'team/api',
+          description: null,
+          default_branch: 'main',
+          language: 'TypeScript',
+          topics: ['loopback', 'api'],
+          open_issues_count: 3,
+        },
+      }),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await expect(service.getRepositoryOverview(4, 'team/api')).resolves.toEqual(
+      {
+        name: 'api',
+        full_name: 'team/api',
+        description: null,
+        default_branch: 'main',
+        language: 'TypeScript',
+        topics: ['loopback', 'api'],
+        open_issues_count: 3,
+      },
+    );
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      'GET /repos/{owner}/{repo}',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+      }),
+    );
+  });
+
+  it('lists repository directory entries for issue estimation context', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({
+        data: [
+          {
+            name: 'package.json',
+            path: 'package.json',
+            type: 'file',
+            size: 200,
+          },
+          {
+            name: 'src',
+            path: 'src',
+            type: 'dir',
+          },
+        ],
+      }),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await expect(
+      service.listRepositoryDirectory(4, 'team/api', 'src'),
+    ).resolves.toEqual([
+      {
+        name: 'package.json',
+        path: 'package.json',
+        type: 'file',
+        size: 200,
+      },
+      {
+        name: 'src',
+        path: 'src',
+        type: 'dir',
+        size: undefined,
+      },
+    ]);
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      'GET /repos/{owner}/{repo}/contents/{path}',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        path: 'src',
+      }),
+    );
+  });
+
+  it('decodes repository file contents for issue estimation context', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({
+        data: {
+          content: Buffer.from('{"name":"api"}', 'utf8').toString('base64'),
+          encoding: 'base64',
+        },
+      }),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await expect(
+      service.getRepositoryFileContents(4, 'team/api', 'package.json'),
+    ).resolves.toBe('{"name":"api"}');
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      'GET /repos/{owner}/{repo}/contents/{path}',
+      expect.objectContaining({
+        owner: 'team',
+        repo: 'api',
+        path: 'package.json',
+      }),
+    );
+  });
+
   it('disconnects an installation and deletes its repositories with cascade', async () => {
     workspaceRepository.find.mockResolvedValue([{id: 9}]);
     githubRepositoryRepository.find.mockResolvedValue([
