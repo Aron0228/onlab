@@ -53,6 +53,8 @@ describe('GithubWebhookService (unit)', () => {
       predictIssuePriority: vi.fn().mockResolvedValue({
         priority: 'High',
         reason: 'The module is unusable.',
+        estimatedHours: 8,
+        estimationConfidence: 'medium',
       }),
     };
     queueService = {
@@ -173,6 +175,8 @@ describe('GithubWebhookService (unit)', () => {
       {
         priority: 'High',
         reason: 'The module is unusable.',
+        estimatedHours: 8,
+        estimationConfidence: 'medium',
       },
     );
     expect(githubService.syncRepositoryLabels).toHaveBeenCalledWith(
@@ -191,6 +195,8 @@ describe('GithubWebhookService (unit)', () => {
       {
         priority: 'High',
         reason: 'The module is unusable.',
+        estimatedHours: 8,
+        estimationConfidence: 'medium',
       },
       'Updated body',
       undefined,

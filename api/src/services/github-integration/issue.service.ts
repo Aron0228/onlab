@@ -7,6 +7,8 @@ import {AIPredictionService} from '../ai-prediction.service';
 type IssuePredictionWrite = {
   priority: string;
   reason: string;
+  estimatedHours?: number | null;
+  estimationConfidence?: 'low' | 'medium' | 'high' | null;
 };
 
 type GithubIssueWrite = {
@@ -53,6 +55,8 @@ export class IssueService {
           predictionType: 'issue-priority',
           priority: prediction.priority,
           reason: prediction.reason,
+          estimatedHours: prediction.estimatedHours,
+          estimationConfidence: prediction.estimationConfidence,
         });
       }
       return;
@@ -67,6 +71,8 @@ export class IssueService {
         predictionType: 'issue-priority',
         priority: prediction.priority,
         reason: prediction.reason,
+        estimatedHours: prediction.estimatedHours,
+        estimationConfidence: prediction.estimationConfidence,
       });
     }
   }
@@ -114,6 +120,9 @@ export class IssueService {
           predictionType: 'issue-priority',
           priority: batch[batchIndex].prediction.priority,
           reason: batch[batchIndex].prediction.reason,
+          estimatedHours: batch[batchIndex].prediction.estimatedHours,
+          estimationConfidence:
+            batch[batchIndex].prediction.estimationConfidence,
         })),
       );
     }

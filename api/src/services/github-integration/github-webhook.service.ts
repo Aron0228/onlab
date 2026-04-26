@@ -227,6 +227,8 @@ export class GithubWebhookService {
     }
 
     const prediction = await this.issuePriorityService.predictIssuePriority({
+      installationId: payload.installation?.id ?? null,
+      repositoryFullName: repository.fullName,
       title: payload.issue.title,
       description: cleanedDescription,
     });
@@ -247,6 +249,8 @@ export class GithubWebhookService {
       {
         priority: prediction.priority,
         reason: prediction.reason,
+        estimatedHours: prediction.estimatedHours,
+        estimationConfidence: prediction.estimationConfidence,
       },
     );
 

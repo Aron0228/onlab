@@ -91,6 +91,8 @@ describe('IssueService (unit)', () => {
       {
         priority: 'High',
         reason: 'Critical workflow is blocked.',
+        estimatedHours: 8,
+        estimationConfidence: 'medium',
       },
     );
 
@@ -100,6 +102,8 @@ describe('IssueService (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'High',
       reason: 'Critical workflow is blocked.',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
     });
   });
 
@@ -146,6 +150,8 @@ describe('IssueService (unit)', () => {
       {
         priority: 'Low',
         reason: 'Already mitigated.',
+        estimatedHours: 1,
+        estimationConfidence: 'high',
       },
     );
 
@@ -155,6 +161,8 @@ describe('IssueService (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'Low',
       reason: 'Already mitigated.',
+      estimatedHours: 1,
+      estimationConfidence: 'high',
     });
   });
 
@@ -232,6 +240,8 @@ describe('IssueService (unit)', () => {
       prediction: {
         priority: 'Medium',
         reason: `Reason ${index + 1}`,
+        estimatedHours: 4,
+        estimationConfidence: 'medium' as const,
       },
     }));
 

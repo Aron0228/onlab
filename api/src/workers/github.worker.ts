@@ -296,6 +296,8 @@ async function processCreateIssueJob(
   );
 
   const prediction = await issuePriorityService.predictIssuePriority({
+    installationId,
+    repositoryFullName: repository.fullName,
     title: job.data.title,
     description: job.data.description,
   });
@@ -539,6 +541,8 @@ async function syncRepositoryIssues(
       );
 
       const prediction = await issuePriorityService.predictIssuePriority({
+        installationId,
+        repositoryFullName: repository.fullName,
         title: githubIssue.title,
         description,
       });

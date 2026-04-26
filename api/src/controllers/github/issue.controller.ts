@@ -65,9 +65,13 @@ export class GithubIssueController extends GithubIssueBaseCrudController {
   ): Promise<IssuePriorityPrediction> {
     const {title, description} = this.validateDraft(body);
 
-    await this.getRepositoryContext(body.repositoryId);
+    const repositoryContext = await this.getRepositoryContext(
+      body.repositoryId,
+    );
 
     return this.issuePriorityService.predictIssuePriority({
+      installationId: repositoryContext.installationId,
+      repositoryFullName: repositoryContext.repository.fullName,
       title,
       description,
     });
