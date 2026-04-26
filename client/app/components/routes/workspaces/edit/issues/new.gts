@@ -18,6 +18,8 @@ import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 type AnalyzeIssueResponse = {
   priority: string;
   reason: string;
+  estimatedHours?: number | null;
+  estimationConfidence?: 'low' | 'medium' | 'high' | null;
 };
 
 type CreateIssueResponse = {
@@ -127,6 +129,18 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
       default:
         return 'UNKNOWN';
     }
+  }
+
+  get estimatedHoursLabel(): string | null {
+    if (!this.analysisResult?.estimatedHours) {
+      return null;
+    }
+
+    const confidenceLabel = this.analysisResult.estimationConfidence
+      ? ` · ${this.analysisResult.estimationConfidence} confidence`
+      : '';
+
+    return `${this.analysisResult.estimatedHours}h${confidenceLabel}`;
   }
 
   analyzeIssueTask = task(async () => {
@@ -337,6 +351,12 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
                 <p class="issue-edit-analysis__content margin-zero">
                   {{this.analysisResult.reason}}
                 </p>
+                {{#if this.estimatedHoursLabel}}
+                  <p class="issue-edit-analysis__content margin-zero">
+                    Estimated effort:
+                    {{this.estimatedHoursLabel}}
+                  </p>
+                {{/if}}
               </:default>
             </UiContainer>
           </div>

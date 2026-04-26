@@ -101,6 +101,18 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
     return this.args.model.repositoryName ?? 'Unknown repository';
   }
 
+  get estimatedHoursLabel(): string {
+    if (!this.issue.estimatedHours) {
+      return 'No estimate';
+    }
+
+    const confidenceLabel = this.issue.estimationConfidence
+      ? ` · ${this.issue.estimationConfidence} confidence`
+      : '';
+
+    return `${this.issue.estimatedHours}h${confidenceLabel}`;
+  }
+
   get closeRoute(): string {
     return this.args.closeRoute ?? 'workspaces.edit.issues';
   }
@@ -208,6 +220,13 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
               <span class="issue-edit-metadata__label">Repository</span>
               <span class="issue-edit-metadata__value">
                 {{this.repositoryName}}
+              </span>
+            </div>
+
+            <div class="issue-edit-metadata__item">
+              <span class="issue-edit-metadata__label">Estimated Effort</span>
+              <span class="issue-edit-metadata__value">
+                {{this.estimatedHoursLabel}}
               </span>
             </div>
 
