@@ -35,6 +35,8 @@ describe('AIPredictionService (unit)', () => {
       predictionType: 'issue-priority',
       priority: ' High ',
       reason: ' Needs attention ',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
       findings: [],
       reviewerSuggestions: [],
     });
@@ -45,6 +47,8 @@ describe('AIPredictionService (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'High',
       reason: 'Needs attention',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
       findings: [],
       reviewerSuggestions: [],
     });
@@ -59,6 +63,8 @@ describe('AIPredictionService (unit)', () => {
       predictionType: 'pull-request-merge-risk',
       priority: 'Medium',
       reason: 'Touches shared auth flow.',
+      estimatedHours: null,
+      estimationConfidence: null,
       findings: [
         {
           path: 'src/auth.ts',
@@ -78,6 +84,8 @@ describe('AIPredictionService (unit)', () => {
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(5, {
       priority: 'Medium',
       reason: 'Touches shared auth flow.',
+      estimatedHours: undefined,
+      estimationConfidence: undefined,
       findings: [
         {
           path: 'src/auth.ts',
@@ -104,6 +112,8 @@ describe('AIPredictionService (unit)', () => {
       predictionType: 'pull-request-merge-risk',
       priority: 'Low',
       reason: 'Latest run found no actionable review findings.',
+      estimatedHours: null,
+      estimationConfidence: null,
       findings: [],
       reviewerSuggestions: [],
     });
@@ -111,6 +121,8 @@ describe('AIPredictionService (unit)', () => {
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(6, {
       priority: 'Low',
       reason: 'Latest run found no actionable review findings.',
+      estimatedHours: undefined,
+      estimationConfidence: undefined,
       findings: [],
       reviewerSuggestions: [],
     });
@@ -160,6 +172,8 @@ describe('AIPredictionService (unit)', () => {
         predictionType: 'issue-priority',
         priority: 'High',
         reason: 'Important',
+        estimatedHours: 16,
+        estimationConfidence: 'high',
         reviewerSuggestions: [],
       },
       {
@@ -179,6 +193,8 @@ describe('AIPredictionService (unit)', () => {
         predictionType: 'issue-priority',
         priority: 'High',
         reason: 'Important',
+        estimatedHours: 16,
+        estimationConfidence: 'high',
         findings: undefined,
         reviewerSuggestions: [],
       },
@@ -234,6 +250,8 @@ describe('AIPredictionService (unit)', () => {
       predictionType: 'pull-request-merge-risk',
       priority: ' ',
       reason: '',
+      estimatedHours: null,
+      estimationConfidence: null,
       findings: [],
       reviewerSuggestions: [
         {
@@ -247,6 +265,8 @@ describe('AIPredictionService (unit)', () => {
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(12, {
       priority: undefined,
       reason: undefined,
+      estimatedHours: undefined,
+      estimationConfidence: undefined,
       findings: [],
       reviewerSuggestions: [
         {
@@ -255,6 +275,31 @@ describe('AIPredictionService (unit)', () => {
           reason: 'Matches the changed UI area.',
         },
       ],
+    });
+  });
+
+  it('keeps estimate-only predictions because they still have useful content', async () => {
+    aiPredictionRepository.findOne.mockResolvedValue({id: 17});
+
+    await service.syncPrediction({
+      sourceType: 'github-issue',
+      sourceId: 44,
+      predictionType: 'issue-priority',
+      estimatedHours: 6,
+      estimationConfidence: 'low',
+      priority: ' ',
+      reason: '',
+      findings: [],
+      reviewerSuggestions: [],
+    });
+
+    expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(17, {
+      priority: undefined,
+      reason: undefined,
+      estimatedHours: 6,
+      estimationConfidence: 'low',
+      findings: [],
+      reviewerSuggestions: [],
     });
   });
 });

@@ -17,4 +17,7 @@ export default class AIPredictionModel extends Model {
     username: string;
     reason: string;
   }> | null;
+  @attr('number') declare estimatedHours: number | null;
+  @attr('string')
+  declare estimationConfidence: 'low' | 'medium' | 'high' | null;
 }

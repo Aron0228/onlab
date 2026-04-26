@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
 import {
+  AI_ESTIMATION_CONFIDENCE_VALUES,
   AIPredictable,
   AIPrediction,
   AI_PREDICTION_SOURCE_TYPES,
@@ -19,6 +20,7 @@ describe('AI prediction models (unit)', () => {
       'issue-priority',
       'pull-request-merge-risk',
     ]);
+    expect(AI_ESTIMATION_CONFIDENCE_VALUES).toEqual(['low', 'medium', 'high']);
   });
 
   it('constructs AI prediction entities with provided values', () => {
@@ -28,6 +30,8 @@ describe('AI prediction models (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'High',
       reason: 'Critical workflow is blocked.',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
     });
 
     expect(model.sourceType).toBe('github-issue');
@@ -35,6 +39,8 @@ describe('AI prediction models (unit)', () => {
     expect(model.predictionType).toBe('issue-priority');
     expect(model.priority).toBe('High');
     expect(model.reason).toBe('Critical workflow is blocked.');
+    expect(model.estimatedHours).toBe(8);
+    expect(model.estimationConfidence).toBe('medium');
   });
 
   it('lets GitHub issue and pull request models inherit from AI predictable', () => {

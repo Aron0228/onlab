@@ -45,10 +45,14 @@ describe('GithubIssueController (unit)', () => {
       predictIssuePriority: vi.fn().mockResolvedValue({
         priority: 'High',
         reason: 'Blocks the release',
+        estimatedHours: 8,
+        estimationConfidence: 'medium',
       }),
     };
     const repositoryRepository = {
-      findById: vi.fn().mockResolvedValue({workspaceId: 9}),
+      findById: vi
+        .fn()
+        .mockResolvedValue({workspaceId: 9, fullName: 'team/api'}),
     };
     const workspaceRepository = {
       findById: vi.fn().mockResolvedValue({githubInstallationId: 11}),
@@ -72,8 +76,12 @@ describe('GithubIssueController (unit)', () => {
     ).resolves.toEqual({
       priority: 'High',
       reason: 'Blocks the release',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
     });
     expect(priorityService.predictIssuePriority).toHaveBeenCalledWith({
+      installationId: 11,
+      repositoryFullName: 'team/api',
       title: 'Broken sign-in',
       description: 'Users cannot log in',
     });

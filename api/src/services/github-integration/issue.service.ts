@@ -1,12 +1,17 @@
 import {BindingScope, injectable, service} from '@loopback/core';
 import {Count, DataObject, repository, Where} from '@loopback/repository';
 import {GithubIssue} from '../../models';
-import {GithubIssueRepository} from '../../repositories';
+import {
+  GithubIssueRepository,
+  IssueAssignmentRepository,
+} from '../../repositories';
 import {AIPredictionService} from '../ai-prediction.service';
 
 type IssuePredictionWrite = {
   priority: string;
   reason: string;
+  estimatedHours?: number | null;
+  estimationConfidence?: 'low' | 'medium' | 'high' | null;
 };
 
 type GithubIssueWrite = {
@@ -21,6 +26,8 @@ export class IssueService {
   constructor(
     @repository(GithubIssueRepository)
     private githubIssueRepository: GithubIssueRepository,
+    @repository(IssueAssignmentRepository)
+    private issueAssignmentRepository: IssueAssignmentRepository,
     @service(AIPredictionService)
     private aiPredictionService: AIPredictionService,
   ) {}
@@ -29,11 +36,8 @@ export class IssueService {
     const issues = await this.githubIssueRepository.find({
       where: {repositoryId},
     });
-    await this.aiPredictionService.deleteForSources(
-      'github-issue',
-      issues.map(issue => issue.id),
-      'issue-priority',
-    );
+    const issueIds = issues.map(issue => issue.id);
+    await this.deleteAssociatedData(issueIds);
     await this.githubIssueRepository.deleteAll({repositoryId});
   }
 
@@ -53,6 +57,8 @@ export class IssueService {
           predictionType: 'issue-priority',
           priority: prediction.priority,
           reason: prediction.reason,
+          estimatedHours: prediction.estimatedHours,
+          estimationConfidence: prediction.estimationConfidence,
         });
       }
       return;
@@ -67,17 +73,16 @@ export class IssueService {
         predictionType: 'issue-priority',
         priority: prediction.priority,
         reason: prediction.reason,
+        estimatedHours: prediction.estimatedHours,
+        estimationConfidence: prediction.estimationConfidence,
       });
     }
   }
 
   public async deleteOne(where: Where<GithubIssue>): Promise<void> {
     const issues = await this.githubIssueRepository.find({where});
-    await this.aiPredictionService.deleteForSources(
-      'github-issue',
-      issues.map(issue => issue.id),
-      'issue-priority',
-    );
+    const issueIds = issues.map(issue => issue.id);
+    await this.deleteAssociatedData(issueIds);
     await this.githubIssueRepository.deleteAll(where);
   }
 
@@ -87,11 +92,8 @@ export class IssueService {
 
   public async deleteAll(where: Where<GithubIssue>): Promise<Count> {
     const issues = await this.githubIssueRepository.find({where});
-    await this.aiPredictionService.deleteForSources(
-      'github-issue',
-      issues.map(issue => issue.id),
-      'issue-priority',
-    );
+    const issueIds = issues.map(issue => issue.id);
+    await this.deleteAssociatedData(issueIds);
 
     return this.githubIssueRepository.deleteAll(where);
   }
@@ -114,9 +116,27 @@ export class IssueService {
           predictionType: 'issue-priority',
           priority: batch[batchIndex].prediction.priority,
           reason: batch[batchIndex].prediction.reason,
+          estimatedHours: batch[batchIndex].prediction.estimatedHours,
+          estimationConfidence:
+            batch[batchIndex].prediction.estimationConfidence,
         })),
       );
     }
+  }
+
+  private async deleteAssociatedData(issueIds: number[]): Promise<void> {
+    if (!issueIds.length) {
+      return;
+    }
+
+    await this.aiPredictionService.deleteForSources(
+      'github-issue',
+      issueIds,
+      'issue-priority',
+    );
+    await this.issueAssignmentRepository.deleteAll({
+      issueId: {inq: issueIds},
+    });
   }
 }
 

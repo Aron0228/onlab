@@ -26,6 +26,14 @@ export type AIPredictionReviewerSuggestion = {
   reason: string;
 };
 
+export const AI_ESTIMATION_CONFIDENCE_VALUES = [
+  'low',
+  'medium',
+  'high',
+] as const;
+export type AIEstimationConfidence =
+  (typeof AI_ESTIMATION_CONFIDENCE_VALUES)[number];
+
 @model({
   settings: {
     forceId: false,
@@ -92,6 +100,22 @@ export class AIPrediction extends Entity {
     postgresql: {columnName: 'reviewer_suggestions', dataType: 'jsonb'},
   })
   reviewerSuggestions?: AIPredictionReviewerSuggestion[];
+
+  @property({
+    type: 'number',
+    jsonSchema: {type: 'integer'},
+    postgresql: {columnName: 'estimated_hours'},
+  })
+  estimatedHours?: number | null;
+
+  @property({
+    type: 'string',
+    jsonSchema: {
+      enum: [...AI_ESTIMATION_CONFIDENCE_VALUES],
+    },
+    postgresql: {columnName: 'estimation_confidence'},
+  })
+  estimationConfidence?: AIEstimationConfidence | null;
 
   @property({
     type: 'date',

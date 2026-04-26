@@ -284,6 +284,154 @@ describe('PullRequestMergeRiskService (unit)', () => {
     );
   });
 
+  it('can grep changed files before producing the final prediction', async () => {
+    githubService.getPullRequestOverview.mockResolvedValue({
+      changed_files: 2,
+      additions: 10,
+      deletions: 2,
+      commits: 1,
+      draft: false,
+      mergeable_state: 'clean',
+      head_ref: 'feature/auth',
+      base_ref: 'main',
+    });
+    githubService.listPullRequestFiles.mockResolvedValue([
+      {
+        filename: 'src/auth/guard.ts',
+        status: 'modified',
+        additions: 8,
+        deletions: 2,
+        changes: 10,
+        patch: '@@ -1,1 +1,2 @@\n+const authBypass = true;',
+      },
+      {
+        filename: 'src/ui/button.ts',
+        status: 'modified',
+        additions: 2,
+        deletions: 0,
+        changes: 2,
+        patch: '@@ -1,1 +1,2 @@\n+const variant = "primary";',
+      },
+    ]);
+    ollamaService.chatJson
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'grep_pull_request_changes',
+        arguments: {query: 'auth', limit: 3},
+        reason: 'Need to inspect auth-related changes.',
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'High',
+        reason: 'The PR touches authentication guard behavior.',
+        findings: [],
+      });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: 12,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 45,
+        title: 'Adjust auth guard',
+        description: 'Touches login guard behavior.',
+      }),
+    ).resolves.toEqual({
+      priority: 'High',
+      reason: 'The PR touches authentication guard behavior.',
+      findings: [],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.stringContaining('"query":"auth"'),
+          }),
+          expect.objectContaining({
+            content: expect.stringContaining('src/auth/guard.ts'),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('can read pull request file contents before producing the final prediction', async () => {
+    githubService.getPullRequestOverview.mockResolvedValue({
+      changed_files: 1,
+      additions: 8,
+      deletions: 2,
+      commits: 1,
+      draft: false,
+      mergeable_state: 'clean',
+      head_ref: 'feature/auth',
+      base_ref: 'main',
+    });
+    githubService.listPullRequestFiles.mockResolvedValue([
+      {
+        filename: 'src/auth/guard.ts',
+        status: 'modified',
+        additions: 8,
+        deletions: 2,
+        changes: 10,
+        patch: '@@ -1,1 +1,2 @@\n+const authBypass = true;',
+      },
+    ]);
+    githubService.getPullRequestFileContents.mockResolvedValue(
+      'export function guard() { return true; }',
+    );
+    ollamaService.chatJson
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_pull_request_file_contents',
+        arguments: {path: 'src/auth/guard.ts'},
+        reason: 'Need full guard context.',
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'High',
+        reason: 'The PR touches authentication guard behavior.',
+        findings: [],
+      });
+
+    await expect(
+      service.predictMergeRisk({
+        installationId: 12,
+        repositoryFullName: 'team/api',
+        pullRequestNumber: 45,
+        title: 'Adjust auth guard',
+        description: 'Touches login guard behavior.',
+      }),
+    ).resolves.toEqual({
+      priority: 'High',
+      reason: 'The PR touches authentication guard behavior.',
+      findings: [],
+      reviewerExpertiseSuggestions: [],
+      reviewerSuggestions: [],
+    });
+
+    expect(githubService.getPullRequestFileContents).toHaveBeenCalledWith(
+      12,
+      'team/api',
+      45,
+      'src/auth/guard.ts',
+    );
+    expect(ollamaService.chatJson).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.stringContaining(
+              'export function guard() { return true; }',
+            ),
+          }),
+        ]),
+      }),
+    );
+  });
+
   it('drops malformed review findings from the AI response', async () => {
     githubService.getPullRequestOverview.mockResolvedValue({
       changed_files: 1,

@@ -64,6 +64,23 @@ type GithubRepositoryPullRequest = {
   } | null;
 };
 
+type GithubRepositoryOverview = {
+  name: string;
+  full_name: string;
+  description: string | null;
+  default_branch: string | null;
+  language: string | null;
+  topics: string[];
+  open_issues_count: number;
+};
+
+type GithubRepositoryDirectoryEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'dir' | 'symlink' | 'submodule' | string;
+  size?: number;
+};
+
 type GithubPullRequestOverview = {
   number: number;
   title: string;
@@ -600,6 +617,133 @@ export class GithubService {
       draft: pullRequest.draft ?? false,
       user: pullRequest.user ? {id: pullRequest.user.id} : null,
     }));
+  }
+
+  public async getRepositoryOverview(
+    installationId: number,
+    repositoryFullName: string,
+  ): Promise<GithubRepositoryOverview> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'repository overview lookup',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for repository overview lookup',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request('GET /repos/{owner}/{repo}', {
+      owner,
+      repo,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    return {
+      name: response.data.name,
+      full_name: response.data.full_name,
+      description: response.data.description ?? null,
+      default_branch: response.data.default_branch ?? null,
+      language: response.data.language ?? null,
+      topics: response.data.topics ?? [],
+      open_issues_count: response.data.open_issues_count ?? 0,
+    };
+  }
+
+  public async listRepositoryDirectory(
+    installationId: number,
+    repositoryFullName: string,
+    path = '',
+  ): Promise<GithubRepositoryDirectoryEntry[]> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'repository directory lookup',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for repository directory lookup',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request(
+      'GET /repos/{owner}/{repo}/contents/{path}',
+      {
+        owner,
+        repo,
+        path,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    if (!Array.isArray(response.data)) {
+      return [];
+    }
+
+    return response.data.map(entry => ({
+      name: entry.name,
+      path: entry.path,
+      type: entry.type,
+      size: typeof entry.size === 'number' ? entry.size : undefined,
+    }));
+  }
+
+  public async getRepositoryFileContents(
+    installationId: number,
+    repositoryFullName: string,
+    path: string,
+  ): Promise<string> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'repository file content lookup',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for repository file content lookup',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+    const response = await octokit.request(
+      'GET /repos/{owner}/{repo}/contents/{path}',
+      {
+        owner,
+        repo,
+        path,
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+
+    if (typeof response.data === 'string') {
+      return response.data;
+    }
+
+    if (
+      response.data &&
+      typeof response.data === 'object' &&
+      'content' in response.data &&
+      typeof response.data.content === 'string'
+    ) {
+      return Buffer.from(
+        response.data.content,
+        response.data.encoding === 'base64' ? 'base64' : 'utf8',
+      ).toString('utf8');
+    }
+
+    return '';
   }
 
   public async getPullRequestOverview(

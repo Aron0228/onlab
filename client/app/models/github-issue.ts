@@ -30,4 +30,12 @@ export default class GithubIssueModel extends Model {
   get priorityReason(): string | null {
     return this.aiPrediction?.reason ?? null;
   }
+
+  get estimatedHours(): number | null {
+    return this.aiPrediction?.estimatedHours ?? null;
+  }
+
+  get estimationConfidence(): 'low' | 'medium' | 'high' | null {
+    return this.aiPrediction?.estimationConfidence ?? null;
+  }
 }

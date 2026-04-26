@@ -36,6 +36,8 @@ type SelectedIssue = {
   title: string;
   area: string;
   priority: PriorityTone;
+  estimatedHours: number | null;
+  estimationConfidence: 'low' | 'medium' | 'high' | null;
 };
 
 type AssignmentCard = {
@@ -286,6 +288,8 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
         title: issue.title,
         area: this.issueRepositoryName(issue),
         priority: this.priorityTone(issue.priority),
+        estimatedHours: issue.estimatedHours,
+        estimationConfidence: issue.estimationConfidence,
       }));
   }
 
@@ -476,6 +480,40 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
     return issue?.title ?? 'Unknown issue';
   };
 
+  issueEstimatedHours = (issue: GithubIssueModel | null): number | null => {
+    return issue?.estimatedHours ?? null;
+  };
+
+  issueEstimationConfidence = (
+    issue: GithubIssueModel | null
+  ): 'low' | 'medium' | 'high' | null => {
+    return issue?.estimationConfidence ?? null;
+  };
+
+  selectedIssueEstimateLabel = (issue: SelectedIssue): string => {
+    if (!issue.estimatedHours) {
+      return 'No AI estimate';
+    }
+
+    const confidenceLabel = issue.estimationConfidence
+      ? ` · ${issue.estimationConfidence} confidence`
+      : '';
+
+    return `AI estimate: ${issue.estimatedHours}h${confidenceLabel}`;
+  };
+
+  assignmentEstimateLabel = (issue: GithubIssueModel | null): string | null => {
+    if (!issue?.estimatedHours) {
+      return null;
+    }
+
+    const confidenceLabel = issue.estimationConfidence
+      ? ` · ${issue.estimationConfidence} confidence`
+      : '';
+
+    return `AI estimate: ${issue.estimatedHours}h${confidenceLabel}`;
+  };
+
   issueCardClass = (issueId: number): string => {
     return `capacity-plan-editor__issue-card ${
       this.selectedIssueId === issueId ? '--selected' : ''
@@ -503,7 +541,8 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
       [issueId]: {
         userId,
         assignedHours:
-          this.draftAssignmentsByIssueId[issueId]?.assignedHours ?? '0',
+          this.draftAssignmentsByIssueId[issueId]?.assignedHours ??
+          String(this.issueById(issueId)?.estimatedHours ?? 0),
       },
     };
 
@@ -841,6 +880,9 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                               {{issue.priority}}
                             </span>
                           </div>
+                          <span class="capacity-plan-editor__estimate">
+                            {{this.selectedIssueEstimateLabel issue}}
+                          </span>
                         </div>
                       </div>
                     </button>
@@ -995,6 +1037,15 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                                 {{this.issuePriorityLabel assignment.issue}}
                               </span>
                             </div>
+                            {{#if
+                              (this.assignmentEstimateLabel assignment.issue)
+                            }}
+                              <span class="capacity-plan-editor__estimate">
+                                {{this.assignmentEstimateLabel
+                                  assignment.issue
+                                }}
+                              </span>
+                            {{/if}}
                           </div>
                         </div>
 

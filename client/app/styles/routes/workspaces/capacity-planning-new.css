@@ -150,6 +150,11 @@
     }
   }
 
+  .capacity-plan-editor__estimate {
+    color: var(--text-secondary);
+    font-size: var(--font-size-text-sm);
+  }
+
   .capacity-plan-editor__notes {
     width: 100%;
     min-height: 8rem;

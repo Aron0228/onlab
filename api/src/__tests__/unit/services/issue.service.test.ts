@@ -17,6 +17,9 @@ describe('IssueService (unit)', () => {
     createPredictionsBulk: ReturnType<typeof vi.fn>;
     deleteForSources: ReturnType<typeof vi.fn>;
   };
+  let issueAssignmentRepository: {
+    deleteAll: ReturnType<typeof vi.fn>;
+  };
   let service: IssueService;
 
   beforeEach(() => {
@@ -39,9 +42,13 @@ describe('IssueService (unit)', () => {
       createPredictionsBulk: vi.fn().mockResolvedValue(undefined),
       deleteForSources: vi.fn().mockResolvedValue(undefined),
     };
+    issueAssignmentRepository = {
+      deleteAll: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new IssueService(
       githubIssueRepository as never,
+      issueAssignmentRepository as never,
       aiPredictionService as never,
     );
   });
@@ -91,6 +98,8 @@ describe('IssueService (unit)', () => {
       {
         priority: 'High',
         reason: 'Critical workflow is blocked.',
+        estimatedHours: 8,
+        estimationConfidence: 'medium',
       },
     );
 
@@ -100,6 +109,8 @@ describe('IssueService (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'High',
       reason: 'Critical workflow is blocked.',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
     });
   });
 
@@ -146,6 +157,8 @@ describe('IssueService (unit)', () => {
       {
         priority: 'Low',
         reason: 'Already mitigated.',
+        estimatedHours: 1,
+        estimationConfidence: 'high',
       },
     );
 
@@ -155,6 +168,8 @@ describe('IssueService (unit)', () => {
       predictionType: 'issue-priority',
       priority: 'Low',
       reason: 'Already mitigated.',
+      estimatedHours: 1,
+      estimationConfidence: 'high',
     });
   });
 
@@ -168,6 +183,9 @@ describe('IssueService (unit)', () => {
       [4, 8],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [4, 8]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 1,
       githubId: 2,
@@ -184,6 +202,9 @@ describe('IssueService (unit)', () => {
       [10, 20],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [10, 20]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 7,
     });
@@ -199,6 +220,9 @@ describe('IssueService (unit)', () => {
       [11],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [11]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({id: 11});
   });
 
@@ -214,8 +238,26 @@ describe('IssueService (unit)', () => {
       [4, 8],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [4, 8]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 1,
+    });
+  });
+
+  it('skips associated data cleanup when no issues match deletion', async () => {
+    githubIssueRepository.find.mockResolvedValue([]);
+    githubIssueRepository.deleteAll.mockResolvedValue({count: 0});
+
+    await expect(service.deleteAll({repositoryId: 99})).resolves.toEqual({
+      count: 0,
+    });
+
+    expect(aiPredictionService.deleteForSources).not.toHaveBeenCalled();
+    expect(issueAssignmentRepository.deleteAll).not.toHaveBeenCalled();
+    expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
+      repositoryId: 99,
     });
   });
 
@@ -232,6 +274,8 @@ describe('IssueService (unit)', () => {
       prediction: {
         priority: 'Medium',
         reason: `Reason ${index + 1}`,
+        estimatedHours: 4,
+        estimationConfidence: 'medium' as const,
       },
     }));
 

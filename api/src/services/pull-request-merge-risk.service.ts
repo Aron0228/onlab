@@ -361,6 +361,12 @@ export class PullRequestMergeRiskService {
           context.pullRequestNumber,
         );
 
+        console.log('Pull request merge risk AI listed changed files', {
+          repositoryFullName: context.repositoryFullName,
+          pullRequestNumber: context.pullRequestNumber,
+          returnedFiles: files.slice(0, limit).map(file => file.filename),
+        });
+
         return files.slice(0, limit).map(file => ({
           filename: file.filename,
           status: file.status,
@@ -420,6 +426,13 @@ export class PullRequestMergeRiskService {
             patch: truncateText(file.patch ?? '', MAX_PATCH_SNIPPET_LENGTH),
           }));
 
+        console.log('Pull request merge risk AI grepped changed files', {
+          repositoryFullName: context.repositoryFullName,
+          pullRequestNumber: context.pullRequestNumber,
+          query,
+          matchedFiles: matches.map(file => file.filename),
+        });
+
         return {
           query,
           matches,
@@ -439,6 +452,12 @@ export class PullRequestMergeRiskService {
             context.pullRequestNumber,
             path,
           );
+
+          console.log('Pull request merge risk AI read pull request file', {
+            repositoryFullName: context.repositoryFullName,
+            pullRequestNumber: context.pullRequestNumber,
+            path,
+          });
 
           return {
             path,
