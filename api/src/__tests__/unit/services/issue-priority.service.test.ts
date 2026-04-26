@@ -146,6 +146,88 @@ describe('IssuePriorityService (unit)', () => {
     expect(ollamaService.chatJson).toHaveBeenCalledTimes(2);
   });
 
+  it('continues with issue text when initial repository evidence fails', async () => {
+    githubService.getRepositoryOverview.mockRejectedValueOnce(
+      new Error('GitHub API unavailable'),
+    );
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'Medium',
+      reason: 'The issue still describes one broken workflow.',
+      estimated_hours: 3,
+      estimation_confidence: 'low',
+    });
+
+    await expect(
+      service.predictIssuePriority({
+        installationId: 11,
+        repositoryFullName: 'team/api',
+        title: 'Broken billing export',
+        description: 'The CSV export fails for billing reports.',
+      }),
+    ).resolves.toEqual({
+      priority: 'Medium',
+      reason: 'The issue still describes one broken workflow.',
+      estimatedHours: 3,
+      estimationConfidence: 'low',
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(1);
+    expect(ollamaService.chatJson.mock.calls[0][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining(
+            'Repository evidence is unavailable',
+          ),
+        }),
+      ]),
+    );
+  });
+
+  it('returns directory tool errors without aborting prediction', async () => {
+    githubService.listRepositoryDirectory
+      .mockResolvedValueOnce([
+        {name: 'package.json', path: 'package.json', type: 'file', size: 200},
+      ])
+      .mockRejectedValueOnce(new Error('Directory not found'));
+    ollamaService.chatJson
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'list_repository_directory',
+        arguments: {path: 'missing'},
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'High',
+        reason: 'The issue still blocks the authentication module.',
+        estimated_hours: 8,
+        estimation_confidence: 'medium',
+      });
+
+    await expect(
+      service.predictIssuePriority({
+        installationId: 11,
+        repositoryFullName: 'team/api',
+        title: 'Broken login',
+        description: 'Users cannot authenticate through the main login flow.',
+      }),
+    ).resolves.toEqual({
+      priority: 'High',
+      reason: 'The issue still blocks the authentication module.',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(2);
+    expect(ollamaService.chatJson.mock.calls[1][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining('Directory not found'),
+        }),
+      ]),
+    );
+  });
+
   it('can write a merge-risk note for pull requests', () => {
     const updated = service.upsertPredictionNote(
       'Original description',

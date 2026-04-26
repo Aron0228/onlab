@@ -195,8 +195,8 @@ Don't return anything else!`;
 export class IssuePriorityService {
   constructor(
     @service(OllamaService) private ollamaService: OllamaService,
-    @inject.getter('services.GithubService')
-    private githubServiceGetter: Getter<GithubService>,
+    @inject.getter('services.GithubService', {optional: true})
+    private githubServiceGetter: Getter<GithubService | undefined>,
   ) {}
 
   public async predictIssuePriority({
@@ -412,17 +412,31 @@ export class IssuePriorityService {
     }
 
     const githubService = await this.githubServiceGetter();
-    const [overview, rootEntries] = await Promise.all([
-      githubService.getRepositoryOverview(
-        context.installationId,
-        context.repositoryFullName,
-      ),
-      githubService.listRepositoryDirectory(
-        context.installationId,
-        context.repositoryFullName,
-        '',
-      ),
-    ]);
+
+    if (!githubService) {
+      return 'Repository evidence is unavailable because GitHub service is not bound; estimate using only the issue text.';
+    }
+
+    let overview: Awaited<ReturnType<GithubService['getRepositoryOverview']>>;
+    let rootEntries: Awaited<
+      ReturnType<GithubService['listRepositoryDirectory']>
+    >;
+
+    try {
+      [overview, rootEntries] = await Promise.all([
+        githubService.getRepositoryOverview(
+          context.installationId,
+          context.repositoryFullName,
+        ),
+        githubService.listRepositoryDirectory(
+          context.installationId,
+          context.repositoryFullName,
+          '',
+        ),
+      ]);
+    } catch (error) {
+      return `Repository evidence is unavailable (${summarizeToolExecutionError(error)}), so estimate using only the issue text.`;
+    }
 
     const summarizedEntries = rootEntries
       .slice(0, MAX_INITIAL_DIRECTORY_RESULTS)
@@ -468,31 +482,50 @@ export class IssuePriorityService {
 
     const githubService = await this.githubServiceGetter();
 
+    if (!githubService) {
+      return {
+        error:
+          'GitHub service is unavailable, so repository tools cannot be executed for this issue.',
+      };
+    }
+
     switch (toolName) {
       case 'get_repository_overview':
-        return githubService.getRepositoryOverview(
-          context.installationId,
-          context.repositoryFullName,
-        );
+        try {
+          return await githubService.getRepositoryOverview(
+            context.installationId,
+            context.repositoryFullName,
+          );
+        } catch (error) {
+          return {error: summarizeToolExecutionError(error)};
+        }
       case 'list_repository_directory': {
         const path = typeof args.path === 'string' ? args.path.trim() : '';
         const limit = clampNumber(args.limit, 1, MAX_DIRECTORY_RESULTS, 20);
-        const entries = await githubService.listRepositoryDirectory(
-          context.installationId,
-          context.repositoryFullName,
-          path,
-        );
 
-        console.log('Issue priority AI listed repository directory', {
-          repositoryFullName: context.repositoryFullName,
-          path: path || '.',
-          returnedEntries: entries.slice(0, limit).map(entry => entry.path),
-        });
+        try {
+          const entries = await githubService.listRepositoryDirectory(
+            context.installationId,
+            context.repositoryFullName,
+            path,
+          );
 
-        return {
-          path: path || '.',
-          entries: entries.slice(0, limit),
-        };
+          console.log('Issue priority AI listed repository directory', {
+            repositoryFullName: context.repositoryFullName,
+            path: path || '.',
+            returnedEntries: entries.slice(0, limit).map(entry => entry.path),
+          });
+
+          return {
+            path: path || '.',
+            entries: entries.slice(0, limit),
+          };
+        } catch (error) {
+          return {
+            path: path || '.',
+            error: summarizeToolExecutionError(error),
+          };
+        }
       }
       case 'get_repository_file_contents': {
         const path = typeof args.path === 'string' ? args.path.trim() : '';
