@@ -17,6 +17,9 @@ describe('IssueService (unit)', () => {
     createPredictionsBulk: ReturnType<typeof vi.fn>;
     deleteForSources: ReturnType<typeof vi.fn>;
   };
+  let issueAssignmentRepository: {
+    deleteAll: ReturnType<typeof vi.fn>;
+  };
   let service: IssueService;
 
   beforeEach(() => {
@@ -39,9 +42,13 @@ describe('IssueService (unit)', () => {
       createPredictionsBulk: vi.fn().mockResolvedValue(undefined),
       deleteForSources: vi.fn().mockResolvedValue(undefined),
     };
+    issueAssignmentRepository = {
+      deleteAll: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new IssueService(
       githubIssueRepository as never,
+      issueAssignmentRepository as never,
       aiPredictionService as never,
     );
   });
@@ -176,6 +183,9 @@ describe('IssueService (unit)', () => {
       [4, 8],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [4, 8]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 1,
       githubId: 2,
@@ -192,6 +202,9 @@ describe('IssueService (unit)', () => {
       [10, 20],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [10, 20]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 7,
     });
@@ -207,6 +220,9 @@ describe('IssueService (unit)', () => {
       [11],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [11]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({id: 11});
   });
 
@@ -222,6 +238,9 @@ describe('IssueService (unit)', () => {
       [4, 8],
       'issue-priority',
     );
+    expect(issueAssignmentRepository.deleteAll).toHaveBeenCalledWith({
+      issueId: {inq: [4, 8]},
+    });
     expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
       repositoryId: 1,
     });

@@ -19,6 +19,7 @@ import {GithubIssueRepository} from './issue.repository';
 import {GithubLabelRepository} from './label.repository';
 import {GithubPullRequestRepository} from './pull-request.repository';
 import {AIPredictionRepository, WorkspaceRepository} from '../system';
+import {IssueAssignmentRepository} from '../planning';
 
 export class GithubRepositoryRepository extends DefaultCrudRepository<
   GithubRepository,
@@ -29,6 +30,7 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
   private readonly githubLabelRepositoryGetter: Getter<GithubLabelRepository>;
   private readonly githubPullRequestRepositoryGetter: Getter<GithubPullRequestRepository>;
   private readonly aiPredictionRepositoryGetter: Getter<AIPredictionRepository>;
+  private readonly issueAssignmentRepositoryGetter: Getter<IssueAssignmentRepository>;
   public readonly workspace: BelongsToAccessor<
     Workspace,
     typeof GithubRepository.prototype.id
@@ -58,12 +60,15 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
     githubPullRequestRepositoryGetter: Getter<GithubPullRequestRepository>,
     @repository.getter('AIPredictionRepository')
     aiPredictionRepositoryGetter: Getter<AIPredictionRepository>,
+    @repository.getter('IssueAssignmentRepository')
+    issueAssignmentRepositoryGetter: Getter<IssueAssignmentRepository>,
   ) {
     super(GithubRepository, dataSource);
     this.githubIssueRepositoryGetter = githubIssueRepositoryGetter;
     this.githubLabelRepositoryGetter = githubLabelRepositoryGetter;
     this.githubPullRequestRepositoryGetter = githubPullRequestRepositoryGetter;
     this.aiPredictionRepositoryGetter = aiPredictionRepositoryGetter;
+    this.issueAssignmentRepositoryGetter = issueAssignmentRepositoryGetter;
 
     this.workspace = this.createBelongsToAccessorFor(
       'workspace',
@@ -94,6 +99,8 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
     const githubPullRequestRepository =
       await this.githubPullRequestRepositoryGetter();
     const aiPredictionRepository = await this.aiPredictionRepositoryGetter();
+    const issueAssignmentRepository =
+      await this.issueAssignmentRepositoryGetter();
     const issues = await githubIssueRepository.find({where: {repositoryId}});
     const pullRequests = await githubPullRequestRepository.find({
       where: {repositoryId},
@@ -108,6 +115,9 @@ export class GithubRepositoryRepository extends DefaultCrudRepository<
       sourceType: 'github-pull-request',
       sourceId: {inq: pullRequests.map(pullRequest => pullRequest.id)},
       predictionType: 'pull-request-merge-risk',
+    });
+    await issueAssignmentRepository.deleteAll({
+      issueId: {inq: issues.map(issue => issue.id)},
     });
     await githubIssueRepository.deleteAll({repositoryId});
     await githubLabelRepository.deleteAll({repositoryId});
