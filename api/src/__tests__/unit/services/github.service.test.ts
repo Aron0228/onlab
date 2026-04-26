@@ -460,6 +460,43 @@ describe('GithubService (unit)', () => {
     );
   });
 
+  it('rejects malformed repository names for repository context lookups', async () => {
+    await expect(service.getRepositoryOverview(4, 'api')).rejects.toThrow(
+      'Unable to resolve repository owner/name for repository overview lookup',
+    );
+    await expect(service.listRepositoryDirectory(4, 'api')).rejects.toThrow(
+      'Unable to resolve repository owner/name for repository directory lookup',
+    );
+    await expect(
+      service.getRepositoryFileContents(4, 'api', 'package.json'),
+    ).rejects.toThrow(
+      'Unable to resolve repository owner/name for repository file content lookup',
+    );
+  });
+
+  it('handles non-directory and raw-string repository content responses', async () => {
+    const octokit = {
+      request: vi
+        .fn()
+        .mockResolvedValueOnce({data: {type: 'file'}})
+        .mockResolvedValueOnce({data: 'raw contents'})
+        .mockResolvedValueOnce({data: {type: 'dir'}}),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await expect(
+      service.listRepositoryDirectory(4, 'team/api', 'package.json'),
+    ).resolves.toEqual([]);
+    await expect(
+      service.getRepositoryFileContents(4, 'team/api', 'README.md'),
+    ).resolves.toBe('raw contents');
+    await expect(
+      service.getRepositoryFileContents(4, 'team/api', 'src'),
+    ).resolves.toBe('');
+  });
+
   it('disconnects an installation and deletes its repositories with cascade', async () => {
     workspaceRepository.find.mockResolvedValue([{id: 9}]);
     githubRepositoryRepository.find.mockResolvedValue([

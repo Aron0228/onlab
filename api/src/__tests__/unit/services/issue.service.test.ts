@@ -246,6 +246,21 @@ describe('IssueService (unit)', () => {
     });
   });
 
+  it('skips associated data cleanup when no issues match deletion', async () => {
+    githubIssueRepository.find.mockResolvedValue([]);
+    githubIssueRepository.deleteAll.mockResolvedValue({count: 0});
+
+    await expect(service.deleteAll({repositoryId: 99})).resolves.toEqual({
+      count: 0,
+    });
+
+    expect(aiPredictionService.deleteForSources).not.toHaveBeenCalled();
+    expect(issueAssignmentRepository.deleteAll).not.toHaveBeenCalled();
+    expect(githubIssueRepository.deleteAll).toHaveBeenCalledWith({
+      repositoryId: 99,
+    });
+  });
+
   it('saves issues in batches of 100', async () => {
     const issues = Array.from({length: 205}, (_, index) => ({
       issue: {

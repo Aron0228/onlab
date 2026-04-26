@@ -228,6 +228,134 @@ describe('IssuePriorityService (unit)', () => {
     );
   });
 
+  it('keeps tool-assisted prediction resilient across invalid tool responses', async () => {
+    const longFile = 'x'.repeat(7000);
+    githubService.getRepositoryOverview
+      .mockResolvedValueOnce({
+        name: 'api',
+        full_name: 'team/api',
+        description: 'LoopBack backend',
+        default_branch: 'main',
+        language: 'TypeScript',
+        topics: ['loopback', 'api'],
+        open_issues_count: 0,
+      })
+      .mockResolvedValueOnce({
+        name: 'api',
+        full_name: 'team/api',
+        description: null,
+        default_branch: null,
+        language: null,
+        topics: [],
+        open_issues_count: 0,
+      })
+      .mockRejectedValueOnce('overview failed');
+    githubService.listRepositoryDirectory
+      .mockResolvedValueOnce([
+        {name: 'package.json', path: 'package.json', type: 'file', size: 200},
+      ])
+      .mockResolvedValueOnce([
+        {name: 'src', path: 'src', type: 'dir'},
+        {name: 'test', path: 'test', type: 'dir'},
+      ]);
+    githubService.getRepositoryFileContents
+      .mockResolvedValueOnce(longFile)
+      .mockRejectedValueOnce('file failed');
+    ollamaService.chatJson
+      .mockResolvedValueOnce({nonsense: true})
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'unknown_tool',
+      })
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_overview',
+      })
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_overview',
+      })
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'list_repository_directory',
+        arguments: {path: 'src', limit: 1.9},
+      })
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_file_contents',
+        arguments: {path: ''},
+      })
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_file_contents',
+        arguments: {path: 'src/index.ts'},
+      })
+      .mockResolvedValueOnce({
+        type: 'tool_call',
+        tool: 'get_repository_file_contents',
+        arguments: {path: 'src/missing.ts'},
+      })
+      .mockResolvedValueOnce({
+        type: 'final',
+        priority: 'Low',
+        reason: 'The available evidence indicates a small contained issue.',
+        estimated_hours: 300,
+        estimation_confidence: 'certain',
+      });
+
+    await expect(
+      service.predictIssuePriority({
+        installationId: 11,
+        repositoryFullName: 'team/api',
+        title: 'Minor config cleanup',
+        description: 'One config file needs cleanup.',
+      }),
+    ).resolves.toEqual({
+      priority: 'Low',
+      reason: 'The available evidence indicates a small contained issue.',
+      estimatedHours: null,
+      estimationConfidence: null,
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(9);
+    expect(ollamaService.chatJson.mock.calls[8][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining('unknown_tool'),
+        }),
+        expect.objectContaining({
+          content: expect.stringContaining('Unknown tool execution error.'),
+        }),
+        expect.objectContaining({
+          content: expect.stringContaining('[truncated]'),
+        }),
+      ]),
+    );
+  });
+
+  it('falls back when the model exceeds the tool-call budget', async () => {
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'tool_call',
+      tool: 'get_repository_overview',
+    });
+
+    await expect(
+      service.predictIssuePriority({
+        installationId: 11,
+        repositoryFullName: 'team/api',
+        title: 'Looping estimate',
+        description: 'The model keeps asking for tools.',
+      }),
+    ).resolves.toEqual({
+      priority: 'Unknown',
+      reason: 'AI prioritization unavailable.',
+      estimatedHours: null,
+      estimationConfidence: 'low',
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(9);
+  });
+
   it('can write a merge-risk note for pull requests', () => {
     const updated = service.upsertPredictionNote(
       'Original description',
