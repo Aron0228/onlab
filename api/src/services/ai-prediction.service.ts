@@ -2,6 +2,7 @@ import {BindingScope, injectable} from '@loopback/core';
 import {DataObject, repository} from '@loopback/repository';
 import {
   AIPrediction,
+  AIEstimationConfidence,
   AIPredictionFinding,
   AIPredictionReviewerSuggestion,
   AIPredictionSourceType,
@@ -17,6 +18,8 @@ export type AIPredictionWrite = {
   reason?: string | null;
   findings?: AIPredictionFinding[] | null;
   reviewerSuggestions?: AIPredictionReviewerSuggestion[] | null;
+  estimatedHours?: number | null;
+  estimationConfidence?: AIEstimationConfidence | null;
 };
 
 type NormalizedAIPredictionWrite = {
@@ -27,6 +30,8 @@ type NormalizedAIPredictionWrite = {
   reason?: string;
   findings?: AIPredictionFinding[];
   reviewerSuggestions?: AIPredictionReviewerSuggestion[];
+  estimatedHours?: number;
+  estimationConfidence?: AIEstimationConfidence;
 };
 
 @injectable({scope: BindingScope.SINGLETON})
@@ -61,6 +66,8 @@ export class AIPredictionService {
       reason: prediction.reason,
       findings: prediction.findings,
       reviewerSuggestions: prediction.reviewerSuggestions,
+      estimatedHours: prediction.estimatedHours,
+      estimationConfidence: prediction.estimationConfidence,
     });
   }
 
@@ -123,6 +130,12 @@ export class AIPredictionService {
       reason: input.reason?.trim() || undefined,
       findings: input.findings ?? undefined,
       reviewerSuggestions: input.reviewerSuggestions ?? undefined,
+      estimatedHours:
+        typeof input.estimatedHours === 'number' &&
+        Number.isInteger(input.estimatedHours)
+          ? input.estimatedHours
+          : undefined,
+      estimationConfidence: input.estimationConfidence ?? undefined,
     };
   }
 
@@ -133,7 +146,9 @@ export class AIPredictionService {
       prediction.priority ||
       prediction.reason ||
       prediction.findings?.length ||
-      prediction.reviewerSuggestions?.length,
+      prediction.reviewerSuggestions?.length ||
+      typeof prediction.estimatedHours === 'number' ||
+      prediction.estimationConfidence,
     );
   }
 }
