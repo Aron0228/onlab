@@ -7,7 +7,14 @@ interface UiIconSignature {
     size?: 'sm' | 'md' | 'lg' | 'xl';
     strokeWidth?: 'sm' | 'md' | 'lg' | 'xl';
     filled?: boolean;
-    variant?: 'normal' | 'primary' | 'info' | 'error' | 'warning' | 'success';
+    variant?:
+      | 'normal'
+      | 'secondary'
+      | 'primary'
+      | 'info'
+      | 'error'
+      | 'warning'
+      | 'success';
     custom?: boolean; // For added (non node_module) svgs this should be true
   };
   Element: SVGElement;

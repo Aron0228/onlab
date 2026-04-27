@@ -43,6 +43,10 @@ export default class RouteProfile extends Component<RouteProfileSignature> {
     return this.router.currentURL ?? null;
   }
 
+  get usernameTag() {
+    return `@${this.user.username}`;
+  }
+
   <template>
     {{#if this.user}}
       <LinkTo
@@ -55,7 +59,7 @@ export default class RouteProfile extends Component<RouteProfileSignature> {
             {{or this.user.fullName this.user.username}}
           </h3>
           <span class="route-profile-component__subtitle">
-            {{this.user.email}}
+            {{this.usernameTag}}
           </span>
         </div>
 

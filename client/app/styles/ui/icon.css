@@ -38,6 +38,10 @@
     color: var(--text-primary);
   }
 
+  &.--variant-secondary {
+    color: var(--text-secondary);
+  }
+
   &.--variant-primary {
     color: var(--color-primary-600);
   }
