@@ -57,11 +57,13 @@ export class FileRepository extends DefaultCrudRepository<
       const processedPath = originalPath;
 
       try {
+        const workspaceId = Number(request.query.workspaceId);
         const data = {
           originalName: file.originalname,
           mimeType: file.mimetype,
           size: fs.statSync(processedPath).size,
           path: processedPath,
+          ...(Number.isFinite(workspaceId) ? {workspaceId} : {}),
         };
 
         const createdFile = await this.create(data);
@@ -82,6 +84,25 @@ export class FileRepository extends DefaultCrudRepository<
   public async preview(id: typeof File.prototype.id, response: Response) {
     const file = await this.findById(id);
     const absolutePath = path.resolve(file.path);
+    const stat = fs.statSync(absolutePath);
+    const range = response.req.headers.range;
+
+    if (range && file.mimeType.startsWith('video/')) {
+      const [startPart, endPart] = range.replace(/bytes=/, '').split('-');
+      const start = Number.parseInt(startPart, 10);
+      const end = endPart ? Number.parseInt(endPart, 10) : stat.size - 1;
+      const chunkSize = end - start + 1;
+
+      response.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': file.mimeType,
+      });
+
+      fs.createReadStream(absolutePath, {start, end}).pipe(response);
+      return response;
+    }
 
     response.setHeader('Content-Type', file.mimeType);
     response.sendFile(absolutePath);

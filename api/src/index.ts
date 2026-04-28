@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 import {ApplicationConfig, RestApi} from './application';
+import {CommunicationSocketService} from './services';
 
 dotenv.config();
 
@@ -9,6 +10,13 @@ export async function main(options: ApplicationConfig = {}) {
   const app = new RestApi(options);
   await app.boot();
   await app.start();
+  const socketService = await app.get<CommunicationSocketService>(
+    'services.CommunicationSocketService',
+  );
+  const httpServer = app.restServer.httpServer?.server;
+  if (httpServer) {
+    socketService.attach(httpServer);
+  }
 
   const url = app.restServer.url;
   console.log(`Server is running at ${url}`);

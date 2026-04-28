@@ -33,6 +33,8 @@ import {
   PullRequestMergeRiskService,
   PullRequestService,
   QueueService,
+  CommunicationService,
+  CommunicationSocketService,
   RedisService,
 } from './services';
 
@@ -81,6 +83,8 @@ export class RestApi extends BootMixin(
     this.service(LabelService);
     this.service(PullRequestService);
     this.service(NewsFeedPredictionService);
+    this.service(CommunicationService);
+    this.service(CommunicationSocketService);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here
