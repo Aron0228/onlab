@@ -28,6 +28,7 @@ Router.map(function () {
       });
 
       this.route('settings');
+      this.route('communication');
       this.route('news-feed', function () {
         this.route('issue', { path: '/issues/:issue_id' });
         this.route('pull-request', {

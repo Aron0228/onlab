@@ -44,7 +44,7 @@ export default class RouteProfile extends Component<RouteProfileSignature> {
   }
 
   get usernameTag() {
-    return `@${this.user.username}`;
+    return this.user ? `@${this.user.username}` : '';
   }
 
   <template>

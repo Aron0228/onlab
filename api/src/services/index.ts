@@ -6,4 +6,6 @@ export * from './news-feed-prediction.service';
 export * from './ollama.service';
 export * from './pull-request-merge-risk.service';
 export * from './queue.service';
+export * from './communication.service';
+export * from './communication-socket.service';
 export * from './redis.service';
