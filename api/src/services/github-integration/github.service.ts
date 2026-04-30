@@ -577,6 +577,37 @@ export class GithubService {
     };
   }
 
+  public async setIssueAssignees(
+    installationId: number,
+    repositoryFullName: string,
+    issueNumber: number,
+    assignees: string[],
+  ): Promise<void> {
+    const repositoryCoordinates = this.getRepositoryCoordinates(
+      repositoryFullName,
+      'capacity planning issue assignment sync',
+    );
+
+    if (!repositoryCoordinates) {
+      throw new HttpErrors.BadRequest(
+        'Unable to resolve repository owner/name for issue assignment sync',
+      );
+    }
+
+    const {owner, repo} = repositoryCoordinates;
+    const octokit = await this.getInstallationClient(installationId);
+
+    await octokit.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+      owner,
+      repo,
+      issue_number: issueNumber,
+      assignees,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  }
+
   public async listRepositoryPullRequestsPage(
     installationId: number,
     repositoryFullName: string,

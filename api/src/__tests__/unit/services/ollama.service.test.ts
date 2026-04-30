@@ -15,6 +15,7 @@ describe('OllamaService (unit)', () => {
     OLLAMA_RETRY_COUNT: process.env.OLLAMA_RETRY_COUNT,
     OLLAMA_RETRY_DELAY_MS: process.env.OLLAMA_RETRY_DELAY_MS,
     OLLAMA_JSON_REPAIR_RETRY_COUNT: process.env.OLLAMA_JSON_REPAIR_RETRY_COUNT,
+    OLLAMA_MAX_CONCURRENT_REQUESTS: process.env.OLLAMA_MAX_CONCURRENT_REQUESTS,
   };
 
   beforeEach(() => {
@@ -27,6 +28,7 @@ describe('OllamaService (unit)', () => {
     delete process.env.OLLAMA_RETRY_COUNT;
     delete process.env.OLLAMA_RETRY_DELAY_MS;
     delete process.env.OLLAMA_JSON_REPAIR_RETRY_COUNT;
+    delete process.env.OLLAMA_MAX_CONCURRENT_REQUESTS;
   });
 
   afterEach(() => {
@@ -154,6 +156,39 @@ describe('OllamaService (unit)', () => {
         messages: [{role: 'user', content: 'Classify this'}],
       }),
     ).resolves.toEqual({priority: 'Low'});
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries rate limited requests before falling back', async () => {
+    process.env.OLLAMA_RETRY_COUNT = '1';
+    process.env.OLLAMA_RETRY_DELAY_MS = '0';
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: {get: vi.fn().mockReturnValue(null)},
+        json: vi.fn(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          message: {
+            content: 'rate limit recovered',
+          },
+        }),
+      });
+    setGlobalFetch(fetchMock);
+
+    const service = new OllamaService();
+
+    await expect(
+      service.chat({
+        messages: [{role: 'user', content: 'Ping'}],
+      }),
+    ).resolves.toBe('rate limit recovered');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
