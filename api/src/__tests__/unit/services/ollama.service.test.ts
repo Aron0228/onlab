@@ -32,6 +32,7 @@ describe('OllamaService (unit)', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     setGlobalFetch(originalFetch);
     restoreEnv();
   });
@@ -189,6 +190,90 @@ describe('OllamaService (unit)', () => {
         messages: [{role: 'user', content: 'Ping'}],
       }),
     ).resolves.toBe('rate limit recovered');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits for retry-after before retrying rate limited requests', async () => {
+    vi.useFakeTimers();
+    process.env.OLLAMA_RETRY_COUNT = '1';
+    process.env.OLLAMA_RETRY_DELAY_MS = '0';
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: {get: vi.fn().mockReturnValue('2')},
+        json: vi.fn(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          message: {
+            content: 'retry-after recovered',
+          },
+        }),
+      });
+    setGlobalFetch(fetchMock);
+
+    const service = new OllamaService();
+    const result = service.chat({
+      messages: [{role: 'user', content: 'Ping'}],
+    });
+
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(result).resolves.toBe('retry-after recovered');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('queues concurrent requests when Ollama concurrency is limited', async () => {
+    process.env.OLLAMA_MAX_CONCURRENT_REQUESTS = '1';
+    let resolveFirst!: (value: unknown) => void;
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          message: {
+            content: 'second',
+          },
+        }),
+      });
+    setGlobalFetch(fetchMock);
+
+    const service = new OllamaService();
+    const first = service.chat({
+      messages: [{role: 'user', content: 'First'}],
+    });
+    const second = service.chat({
+      messages: [{role: 'user', content: 'Second'}],
+    });
+
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resolveFirst({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        message: {
+          content: 'first',
+        },
+      }),
+    });
+
+    await expect(first).resolves.toBe('first');
+    await expect(second).resolves.toBe('second');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

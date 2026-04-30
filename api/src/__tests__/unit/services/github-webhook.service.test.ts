@@ -282,6 +282,34 @@ describe('GithubWebhookService (unit)', () => {
     });
   });
 
+  it('ignores issue metadata events without reprioritizing the issue', async () => {
+    await service.handleWebhook('issues', {
+      action: 'labeled',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+    });
+
+    expect(issueService.upsertIssue).not.toHaveBeenCalled();
+    expect(issuePriorityService.predictIssuePriority).not.toHaveBeenCalled();
+    expect(githubService.applyPriorityPredictionToIssue).not.toHaveBeenCalled();
+  });
+
   it('upserts pull requests on pull request updates', async () => {
     await service.handleWebhook('pull_request', {
       action: 'synchronize',
