@@ -1,7 +1,8 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {IssuePriorityService} from '../../../services';
 
 describe('IssuePriorityService (unit)', () => {
+  const originalCacheTtl = process.env.ISSUE_PRIORITY_CACHE_TTL_MS;
   let ollamaService: {
     chatJson: ReturnType<typeof vi.fn>;
   };
@@ -13,6 +14,7 @@ describe('IssuePriorityService (unit)', () => {
   let service: IssuePriorityService;
 
   beforeEach(() => {
+    delete process.env.ISSUE_PRIORITY_CACHE_TTL_MS;
     ollamaService = {
       chatJson: vi.fn(),
     };
@@ -37,6 +39,15 @@ describe('IssuePriorityService (unit)', () => {
       ollamaService as never,
       (async () => githubService as never) as never,
     );
+  });
+
+  afterEach(() => {
+    if (originalCacheTtl === undefined) {
+      delete process.env.ISSUE_PRIORITY_CACHE_TTL_MS;
+      return;
+    }
+
+    process.env.ISSUE_PRIORITY_CACHE_TTL_MS = originalCacheTtl;
   });
 
   it('normalizes the model response into a valid prediction', async () => {
@@ -96,6 +107,78 @@ describe('IssuePriorityService (unit)', () => {
       estimatedHours: null,
       estimationConfidence: 'low',
     });
+  });
+
+  it('reuses cached predictions for identical issue text', async () => {
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'Medium',
+      reason: 'One workflow is broken.',
+      estimated_hours: 4,
+      estimation_confidence: 'medium',
+    });
+    const input = {
+      title: 'Broken export',
+      description: 'The CSV export fails.',
+      repositoryFullName: 'team/api',
+    };
+
+    await expect(service.predictIssuePriority(input)).resolves.toEqual({
+      priority: 'Medium',
+      reason: 'One workflow is broken.',
+      estimatedHours: 4,
+      estimationConfidence: 'medium',
+    });
+    await expect(service.predictIssuePriority(input)).resolves.toEqual({
+      priority: 'Medium',
+      reason: 'One workflow is broken.',
+      estimatedHours: 4,
+      estimationConfidence: 'medium',
+    });
+
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares in-flight predictions for duplicate concurrent requests', async () => {
+    let resolvePrediction!: (value: unknown) => void;
+    ollamaService.chatJson.mockReturnValue(
+      new Promise(resolve => {
+        resolvePrediction = resolve;
+      }),
+    );
+    const input = {
+      title: 'Concurrent issue',
+      description: 'The same issue arrived twice.',
+      repositoryFullName: 'team/api',
+    };
+    const firstPrediction = service.predictIssuePriority(input);
+    const secondPrediction = service.predictIssuePriority(input);
+
+    resolvePrediction({
+      type: 'final',
+      priority: 'Low',
+      reason: 'Small contained issue.',
+      estimated_hours: 1,
+      estimation_confidence: 'high',
+    });
+
+    await expect(
+      Promise.all([firstPrediction, secondPrediction]),
+    ).resolves.toEqual([
+      {
+        priority: 'Low',
+        reason: 'Small contained issue.',
+        estimatedHours: 1,
+        estimationConfidence: 'high',
+      },
+      {
+        priority: 'Low',
+        reason: 'Small contained issue.',
+        estimatedHours: 1,
+        estimationConfidence: 'high',
+      },
+    ]);
+    expect(ollamaService.chatJson).toHaveBeenCalledTimes(1);
   });
 
   it('can inspect repository context before producing an estimate', async () => {

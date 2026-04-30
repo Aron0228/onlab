@@ -21,6 +21,9 @@ type OllamaChatResponse = {
 type OllamaFetchResponse = {
   ok: boolean;
   status: number;
+  headers?: {
+    get(name: string): string | null;
+  };
   json(): Promise<unknown>;
 };
 
@@ -43,6 +46,9 @@ export class OllamaService {
   private readonly retryCount: number;
   private readonly retryDelayMs: number;
   private readonly jsonRepairRetryCount: number;
+  private readonly maxConcurrentRequests: number;
+  private activeRequests = 0;
+  private readonly requestQueue: Array<() => void> = [];
 
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
@@ -60,6 +66,11 @@ export class OllamaService {
       'OLLAMA_JSON_REPAIR_RETRY_COUNT',
       1,
       0,
+    );
+    this.maxConcurrentRequests = readEnvNumber(
+      'OLLAMA_MAX_CONCURRENT_REQUESTS',
+      1,
+      1,
     );
   }
 
@@ -80,22 +91,25 @@ export class OllamaService {
 
     for (let attempt = 0; attempt <= this.retryCount; attempt += 1) {
       try {
-        const response = await fetchFn(url, {
-          method: 'POST',
-          headers: this.buildHeaders(),
-          body: JSON.stringify({
-            model: model ?? this.defaultModel,
-            messages,
-            format,
-            options,
-            stream: false,
+        const response = await this.withRequestSlot(() =>
+          fetchFn(url, {
+            method: 'POST',
+            headers: this.buildHeaders(),
+            body: JSON.stringify({
+              model: model ?? this.defaultModel,
+              messages,
+              format,
+              options,
+              stream: false,
+            }),
+            signal: AbortSignal.timeout(this.requestTimeoutMs),
           }),
-          signal: AbortSignal.timeout(this.requestTimeoutMs),
-        });
+        );
 
         if (!response.ok) {
-          throw new Error(
-            `Ollama chat request failed with status ${response.status}`,
+          throw new OllamaHttpError(
+            response.status,
+            response.headers?.get('retry-after') ?? null,
           );
         }
 
@@ -113,7 +127,7 @@ export class OllamaService {
           break;
         }
 
-        await sleep(this.retryDelayMs * (attempt + 1));
+        await sleep(getRetryDelayMs(error, this.retryDelayMs, attempt));
       }
     }
 
@@ -189,6 +203,46 @@ export class OllamaService {
         : {}),
     };
   }
+
+  private async withRequestSlot<T>(operation: () => Promise<T>): Promise<T> {
+    await this.acquireRequestSlot();
+
+    try {
+      return await operation();
+    } finally {
+      this.releaseRequestSlot();
+    }
+  }
+
+  private async acquireRequestSlot(): Promise<void> {
+    if (this.activeRequests < this.maxConcurrentRequests) {
+      this.activeRequests += 1;
+      return;
+    }
+
+    await new Promise<void>(resolve => {
+      this.requestQueue.push(resolve);
+    });
+    this.activeRequests += 1;
+  }
+
+  private releaseRequestSlot(): void {
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+    const next = this.requestQueue.shift();
+
+    if (next) {
+      next();
+    }
+  }
+}
+
+class OllamaHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly retryAfter: string | null,
+  ) {
+    super(`Ollama chat request failed with status ${status}`);
+  }
 }
 
 function readEnvNumber(name: string, fallback: number, min: number): number {
@@ -202,6 +256,10 @@ function readEnvNumber(name: string, fallback: number, min: number): number {
 }
 
 function isRetryableOllamaError(error: unknown): boolean {
+  if (error instanceof OllamaHttpError) {
+    return error.status === 429 || error.status >= 500;
+  }
+
   return isTimeoutLikeOllamaError(error);
 }
 
@@ -231,4 +289,20 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => {
     setTimeout(resolve, ms);
   });
+}
+
+function getRetryDelayMs(
+  error: unknown,
+  retryDelayMs: number,
+  attempt: number,
+): number {
+  if (error instanceof OllamaHttpError && error.retryAfter) {
+    const retryAfterSeconds = Number(error.retryAfter);
+
+    if (Number.isFinite(retryAfterSeconds)) {
+      return Math.max(0, retryAfterSeconds * 1000);
+    }
+  }
+
+  return retryDelayMs * (attempt + 1);
 }
