@@ -61,6 +61,10 @@
   &.--variant-success {
     color: var(--color-success);
   }
+
+  &.--variant-accent {
+    color: var(--color-accent-500);
+  }
 }
 
 .ui-icon-wrapper svg {
