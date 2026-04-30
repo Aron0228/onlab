@@ -63,7 +63,112 @@
     flex: 1 1 16rem;
   }
 
+  .settings-general-grid {
+    display: grid;
+    gap: var(--space-lg);
+  }
+
+  .settings-identity-card {
+    display: flex;
+    gap: var(--space-lg);
+    align-items: center;
+    padding: var(--space-lg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--bg-app) 64%, var(--bg-surface) 36%);
+  }
+
+  .settings-sync-grid {
+    display: grid;
+    gap: var(--space-md);
+    grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  }
+
+  .settings-sync-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-sm);
+    align-items: flex-start;
+    min-width: 0;
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+  }
+
+  .settings-sync-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-width: 0;
+
+    span {
+      color: var(--text-secondary);
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .settings-ai-panel {
+    min-width: 0;
+  }
+
+  .settings-ai-grid {
+    display: grid;
+    gap: var(--space-lg);
+  }
+
+  .settings-ai-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-md);
+    align-items: flex-start;
+    min-width: 0;
+    padding: var(--space-lg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+  }
+
+  .settings-ai-card__control {
+    padding-top: 0.1rem;
+  }
+
+  .settings-ai-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-width: 0;
+
+    strong {
+      color: var(--text-primary);
+      font-size: var(--text-lg);
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    span {
+      color: var(--text-secondary);
+      font-size: var(--text-base);
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .settings-actions-row {
+    display: flex;
+    justify-content: flex-end;
+  }
+
   .settings-members-summary {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .settings-members-header {
     display: flex;
     gap: var(--space-md);
     align-items: center;
@@ -204,10 +309,33 @@
     }
   }
 
+  .settings-member-card__danger {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    padding: var(--space-md);
+    border: 1px solid color-mix(in srgb, var(--color-error) 42%, transparent);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-error-bg) 16%, transparent);
+  }
+
   .settings-member-card__chips {
     display: flex;
     gap: var(--space-sm);
     flex-wrap: wrap;
+  }
+
+  .settings-expertise-assign {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-sm);
+    align-items: center;
+  }
+
+  .settings-expertise-assign__select {
+    min-width: 0;
   }
 
   .settings-expertise-chip {
@@ -273,6 +401,27 @@
     line-height: 1.55;
   }
 
+  .settings-catalog-list {
+    display: grid;
+    gap: var(--space-sm);
+  }
+
+  .settings-catalog-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-width: 0;
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--bg-app) 74%, var(--bg-surface) 26%);
+
+    span {
+      color: var(--text-secondary);
+      overflow-wrap: anywhere;
+    }
+  }
+
   .settings-expertise-panel__footer {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -307,6 +456,19 @@
 
     .settings-expertise-panel__footer {
       grid-template-columns: 1fr;
+    }
+
+    .settings-identity-card {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .settings-expertise-assign {
+      grid-template-columns: 1fr;
+    }
+
+    .settings-ai-card {
+      padding: var(--space-md);
     }
   }
 }

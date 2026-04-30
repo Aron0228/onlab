@@ -14,7 +14,8 @@ interface UiIconSignature {
       | 'info'
       | 'error'
       | 'warning'
-      | 'success';
+      | 'success'
+      | 'accent';
     custom?: boolean; // For added (non node_module) svgs this should be true
   };
   Element: SVGElement;

@@ -1,6 +1,5 @@
 import Component from '@glimmer/component';
 import { fn } from '@ember/helper';
-import { on } from '@ember/modifier';
 import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
 import { inject as service } from '@ember/service';
@@ -9,6 +8,7 @@ import UiAlert from 'client/components/ui/alert';
 import UiAriaTabs from 'client/components/ui/aria-tabs';
 import UiAvatar from 'client/components/ui/avatar';
 import UiButton from 'client/components/ui/button';
+import UiCheckbox from 'client/components/ui/checkbox';
 import UiContainer from 'client/components/ui/container';
 import UiDropdown from 'client/components/ui/dropdown';
 import type { DropdownOption } from 'client/components/ui/dropdown';
@@ -17,7 +17,6 @@ import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiInput from 'client/components/ui/input';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
-import RoutesWorkspacesNew from 'client/components/routes/workspaces/new';
 import type ExpertiseModel from 'client/models/expertise';
 import type InvitationModel from 'client/models/invitation';
 import type UserExpertiseAssocModel from 'client/models/user-expertise-assoc';
@@ -91,6 +90,26 @@ type StoreLike = {
   findRecord(modelName: 'user', id: number): Promise<UserModel>;
 };
 
+type ApiWithFilesServiceLike = ApiServiceLike & {
+  buildUrl(path: string, params?: Record<string, string>): URL;
+  request<T = unknown>(
+    path: string,
+    options: {
+      method: string;
+      body?: FormData;
+      params?: Record<string, string>;
+    }
+  ): Promise<T>;
+};
+
+type SessionServiceLike = {
+  data: {
+    authenticated?: {
+      token?: string;
+    };
+  };
+};
+
 export interface RoutesWorkspacesEditSettingsSignature {
   Args: {
     model: WorkspaceModel;
@@ -103,24 +122,100 @@ export interface RoutesWorkspacesEditSettingsSignature {
 
 export default class RoutesWorkspacesEditSettings extends Component<RoutesWorkspacesEditSettingsSignature> {
   @service declare store: StoreLike;
-  @service declare api: ApiServiceLike;
+  @service declare api: ApiWithFilesServiceLike;
+  @service declare session: SessionServiceLike;
   @service declare flashMessages: FlashMessagesServiceLike;
 
   @tracked invitationEmail = '';
+  @tracked workspaceNameDraft = this.args.model.name ?? '';
+  @tracked selectedAvatarFile: File | null = null;
+  @tracked issueSyncDraft = Boolean(this.args.model.issueSync);
+  @tracked capacityPlanningSyncDraft = Boolean(
+    this.args.model.capacityPlanningSync
+  );
+  @tracked prRiskPredictionSyncDraft = Boolean(
+    this.args.model.prRiskPredictionSync
+  );
+  @tracked reviewerSuggestionSyncDraft = Boolean(
+    this.args.model.reviewerSuggestionSync
+  );
   @tracked currentPage = 1;
   @tracked totalMembers = 0;
   @tracked expertiseByUserId: ExpertiseByUserId = {};
+  @tracked workspaceExpertises: ExpertiseModel[] = [];
+  @tracked selectedExpertiseIdByUserId: Record<number, number | null> = {};
   @tracked expertisePanelUser: TeamMemberCard | null = null;
+  @tracked isExpertiseCatalogOpen = false;
   @tracked expertiseName = '';
   @tracked expertiseDescription = '';
   @tracked expertisePanelError: string | null = null;
   @tracked roleUpdateInFlightId: string | null = null;
+  @tracked memberRemovalInFlightId: string | null = null;
+  @tracked removedWorkspaceMemberIds: number[] = [];
 
   readonly pageSize = 4;
   readonly memberRoleOptions: RoleOption[] = [
     { id: 'ADMIN', name: 'Admin' },
     { id: 'MEMBER', name: 'Member' },
   ];
+
+  saveWorkspaceTask = task(async () => {
+    const workspace = this.args.model;
+    const previousState = {
+      name: workspace.name,
+      issueSync: workspace.issueSync,
+      capacityPlanningSync: workspace.capacityPlanningSync,
+      prRiskPredictionSync: workspace.prRiskPredictionSync,
+      reviewerSuggestionSync: workspace.reviewerSuggestionSync,
+      avatarUrl: workspace.avatarUrl,
+    };
+
+    workspace.name = this.workspaceNameDraft.trim();
+    workspace.issueSync = this.issueSyncDraft;
+    workspace.capacityPlanningSync = this.capacityPlanningSyncDraft;
+    workspace.prRiskPredictionSync = this.prRiskPredictionSyncDraft;
+    workspace.reviewerSuggestionSync = this.reviewerSuggestionSyncDraft;
+
+    try {
+      const savedWorkspace = await this.store.saveRecord(workspace);
+
+      if (this.selectedAvatarFile) {
+        const fileRecord = await this.uploadAvatar(
+          Number(savedWorkspace.id),
+          this.selectedAvatarFile
+        );
+        const previewUrl = this.api.buildUrl(`/files/${fileRecord.id}/preview`);
+
+        savedWorkspace.avatarUrl = previewUrl.toString();
+        await this.store.saveRecord(savedWorkspace);
+      }
+
+      this.workspaceNameDraft = savedWorkspace.name;
+      this.issueSyncDraft = Boolean(savedWorkspace.issueSync);
+      this.capacityPlanningSyncDraft = Boolean(
+        savedWorkspace.capacityPlanningSync
+      );
+      this.prRiskPredictionSyncDraft = Boolean(
+        savedWorkspace.prRiskPredictionSync
+      );
+      this.reviewerSuggestionSyncDraft = Boolean(
+        savedWorkspace.reviewerSuggestionSync
+      );
+      this.selectedAvatarFile = null;
+
+      this.flashMessages.success?.('Workspace settings saved successfully.', {
+        title: 'Workspace updated',
+      });
+    } catch (error) {
+      workspace.name = previousState.name;
+      workspace.issueSync = previousState.issueSync;
+      workspace.capacityPlanningSync = previousState.capacityPlanningSync;
+      workspace.prRiskPredictionSync = previousState.prRiskPredictionSync;
+      workspace.reviewerSuggestionSync = previousState.reviewerSuggestionSync;
+      workspace.avatarUrl = previousState.avatarUrl;
+      throw error;
+    }
+  });
 
   createInvitationTask = task(async () => {
     const email = this.invitationEmail.trim();
@@ -142,6 +237,26 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     this.flashMessages.success?.(`Invitation sent to ${email}.`, {
       title: 'Invitation sent',
     });
+  });
+
+  loadWorkspaceExpertisesTask = task(async (): Promise<void> => {
+    const workspaceId = Number(this.args.model.id);
+
+    if (!workspaceId) {
+      this.workspaceExpertises = [];
+      return;
+    }
+
+    const expertises = Array.from(
+      await this.store.query('expertise', {
+        filter: {
+          where: { workspaceId },
+          order: ['name ASC'],
+        },
+      })
+    );
+
+    this.workspaceExpertises = expertises;
   });
 
   fetchTeamMembersTask = task(async (): Promise<TeamMembersPage> => {
@@ -246,11 +361,10 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
   createExpertiseTask = task(async () => {
     const workspaceId = Number(this.args.model.id);
-    const user = this.expertisePanelUser?.user;
     const name = this.expertiseName.trim();
     const description = this.expertiseDescription.trim();
 
-    if (!workspaceId || !user || !name) {
+    if (!workspaceId || !name) {
       throw new Error('Please enter an expertise name.');
     }
 
@@ -278,17 +392,39 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
         })
       ));
 
-    const userId = Number(user.id);
+    this.mergeWorkspaceExpertise(expertise);
+
+    this.expertiseName = '';
+    this.expertiseDescription = '';
+
+    this.flashMessages.success?.(`${expertise.name} is available to assign.`, {
+      title: existingExpertises[0]
+        ? 'Expertise already exists'
+        : 'Expertise created',
+    });
+  });
+
+  assignExpertiseTask = task(async (member: TeamMemberCard) => {
+    const userId = Number(member.user.id);
+    const expertiseId = this.selectedExpertiseIdByUserId[userId];
+    const expertise = this.workspaceExpertises.find(
+      (item) => Number(item.id) === expertiseId
+    );
+
+    if (!userId || !expertiseId || !expertise) {
+      throw new Error('Choose an expertise to assign.');
+    }
+
     const currentExpertises = this.expertiseForUser(userId);
 
-    if (currentExpertises.some((item) => item.id === expertise.id)) {
-      throw new Error(`${user.fullName} already has this expertise.`);
+    if (currentExpertises.some((item) => Number(item.id) === expertiseId)) {
+      throw new Error(`${member.user.fullName} already has this expertise.`);
     }
 
     await this.store.saveRecord(
       this.store.createRecord('user-expertise-assoc', {
         userId,
-        expertiseId: Number(expertise.id),
+        expertiseId,
       })
     );
 
@@ -296,13 +432,52 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       ...this.expertiseByUserId,
       [userId]: [...currentExpertises, expertise],
     };
+    this.selectedExpertiseIdByUserId = {
+      ...this.selectedExpertiseIdByUserId,
+      [userId]: null,
+    };
 
-    this.expertiseName = '';
-    this.expertiseDescription = '';
+    this.flashMessages.success?.(
+      `${expertise.name} assigned to ${member.user.fullName}.`,
+      {
+        title: 'Expertise assigned',
+      }
+    );
+  });
 
-    this.flashMessages.success?.(`${name} added for ${user.fullName}.`, {
-      title: 'Expertise added',
-    });
+  removeWorkspaceMemberTask = task(async (member: TeamMemberCard) => {
+    const workspaceMemberId = Number(member.workspaceMember?.id);
+
+    if (!workspaceMemberId || member.role === 'OWNER') {
+      throw new Error('This member cannot be removed from the workspace.');
+    }
+
+    this.memberRemovalInFlightId = member.id;
+
+    try {
+      await this.api.request(`/workspaceMembers/${workspaceMemberId}`, {
+        method: 'DELETE',
+      });
+    } finally {
+      this.memberRemovalInFlightId = null;
+    }
+
+    this.removedWorkspaceMemberIds = [
+      ...this.removedWorkspaceMemberIds,
+      workspaceMemberId,
+    ];
+    this.totalMembers = Math.max(0, this.totalMembers - 1);
+
+    const remainingExpertises = { ...this.expertiseByUserId };
+    delete remainingExpertises[Number(member.user.id)];
+    this.expertiseByUserId = remainingExpertises;
+
+    this.flashMessages.success?.(
+      `${member.user.fullName} was removed from the workspace.`,
+      {
+        title: 'Member removed',
+      }
+    );
   });
 
   updateMemberRoleTask = task(
@@ -347,6 +522,12 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     ]
   );
 
+  lastWorkspaceExpertises = trackedTask(
+    this,
+    this.loadWorkspaceExpertisesTask,
+    () => [this.args.model.id]
+  );
+
   get teamMembersPage(): TeamMembersPage {
     return (
       (this.lastTeamMembers.value as TeamMembersPage | undefined) ?? {
@@ -372,6 +553,10 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
         return;
       }
 
+      if (this.removedWorkspaceMemberIds.includes(Number(member.id))) {
+        return;
+      }
+
       cards.push({
         id: `member-${member.id}`,
         user: member.user,
@@ -389,8 +574,22 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     return this.expertiseForUser(userId);
   }
 
+  get hasWorkspaceChanges(): boolean {
+    return (
+      this.workspaceNameDraft.trim() !== (this.args.model.name ?? '') ||
+      this.issueSyncDraft !== Boolean(this.args.model.issueSync) ||
+      this.capacityPlanningSyncDraft !==
+        Boolean(this.args.model.capacityPlanningSync) ||
+      this.prRiskPredictionSyncDraft !==
+        Boolean(this.args.model.prRiskPredictionSync) ||
+      this.reviewerSuggestionSyncDraft !==
+        Boolean(this.args.model.reviewerSuggestionSync) ||
+      Boolean(this.selectedAvatarFile)
+    );
+  }
+
   get isExpertisePanelOpen(): boolean {
-    return Boolean(this.expertisePanelUser);
+    return this.isExpertiseCatalogOpen;
   }
 
   get canSendInvitation(): boolean {
@@ -398,9 +597,14 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   }
 
   get canAddExpertise(): boolean {
-    return (
-      Boolean(this.expertisePanelUser) && this.expertiseName.trim().length > 0
-    );
+    return this.expertiseName.trim().length > 0;
+  }
+
+  get expertiseOptions(): DropdownOption[] {
+    return this.workspaceExpertises.map((expertise) => ({
+      id: Number(expertise.id),
+      name: expertise.name,
+    }));
   }
 
   get totalPages(): number {
@@ -444,6 +648,32 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     );
   };
 
+  selectedExpertiseOption = (member: TeamMemberCard): DropdownOption | null => {
+    const userId = Number(member.user.id);
+    const expertiseId = this.selectedExpertiseIdByUserId[userId];
+
+    if (!expertiseId) {
+      return null;
+    }
+
+    return (
+      this.expertiseOptions.find(
+        (option) => Number(option.id) === expertiseId
+      ) ?? null
+    );
+  };
+
+  canAssignExpertise = (member: TeamMemberCard): boolean => {
+    const userId = Number(member.user.id);
+    const expertiseId = this.selectedExpertiseIdByUserId[userId];
+
+    return Boolean(userId && expertiseId);
+  };
+
+  canRemoveMember = (member: TeamMemberCard): boolean => {
+    return member.role !== 'OWNER' && Boolean(member.workspaceMember);
+  };
+
   asRoleOption = (option: DropdownOption | null): RoleOption | null => {
     if (option?.id === 'ADMIN' || option?.id === 'MEMBER') {
       return {
@@ -461,6 +691,78 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
   isValidEmail(value: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  }
+
+  mergeWorkspaceExpertise(expertise: ExpertiseModel): void {
+    if (this.workspaceExpertises.some((item) => item.id === expertise.id)) {
+      return;
+    }
+
+    this.workspaceExpertises = [...this.workspaceExpertises, expertise].sort(
+      (a, b) => a.name.localeCompare(b.name)
+    );
+  }
+
+  async uploadAvatar(workspaceId: number, file: File): Promise<{ id: number }> {
+    const token = this.session.data.authenticated?.token;
+    const params = {
+      workspaceId: String(workspaceId),
+      originalName: file.name,
+      ...(token ? { token } : {}),
+    };
+
+    const formData = new FormData();
+    formData.append('workspaceId', String(workspaceId));
+    formData.append('originalName', file.name);
+    formData.append('file', file);
+
+    return this.api.request<{ id: number }>('/files/upload', {
+      method: 'POST',
+      body: formData,
+      params,
+    });
+  }
+
+  @action
+  updateWorkspaceName(value: string): void {
+    this.workspaceNameDraft = value;
+  }
+
+  @action
+  onAvatarChanged(file: File): void {
+    this.selectedAvatarFile = file;
+  }
+
+  @action
+  updateIssueSync(checked: boolean): void {
+    this.issueSyncDraft = checked;
+  }
+
+  @action
+  updateCapacityPlanningSync(checked: boolean): void {
+    this.capacityPlanningSyncDraft = checked;
+  }
+
+  @action
+  updatePrRiskPredictionSync(checked: boolean): void {
+    this.prRiskPredictionSyncDraft = checked;
+  }
+
+  @action
+  updateReviewerSuggestionSync(checked: boolean): void {
+    this.reviewerSuggestionSyncDraft = checked;
+  }
+
+  @action
+  saveWorkspace(): void {
+    this.saveWorkspaceTask.perform().catch((error: unknown) => {
+      this.flashMessages.danger(
+        error instanceof Error ? error.message : 'Failed to save workspace.',
+        {
+          title: 'Workspace update failed',
+        }
+      );
+    });
   }
 
   @action
@@ -501,6 +803,40 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   }
 
   @action
+  updateSelectedExpertise(
+    member: TeamMemberCard,
+    option: DropdownOption | null
+  ): void {
+    const userId = Number(member.user.id);
+
+    this.selectedExpertiseIdByUserId = {
+      ...this.selectedExpertiseIdByUserId,
+      [userId]: option?.id ? Number(option.id) : null,
+    };
+    this.expertisePanelError = null;
+  }
+
+  @action
+  assignExpertise(member: TeamMemberCard): void {
+    this.assignExpertiseTask.perform(member).catch((error: unknown) => {
+      this.expertisePanelError =
+        error instanceof Error ? error.message : 'Failed to assign expertise.';
+    });
+  }
+
+  @action
+  removeWorkspaceMember(member: TeamMemberCard): void {
+    this.removeWorkspaceMemberTask.perform(member).catch((error: unknown) => {
+      this.flashMessages.danger(
+        error instanceof Error ? error.message : 'Failed to remove member.',
+        {
+          title: 'Member removal failed',
+        }
+      );
+    });
+  }
+
+  @action
   clearExpertisePanelError(): void {
     this.expertisePanelError = null;
   }
@@ -516,16 +852,23 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   }
 
   @action
-  openExpertisePanel(member: TeamMemberCard): void {
-    this.expertisePanelUser = member;
+  openExpertisePanel(member?: TeamMemberCard): void {
+    this.expertisePanelUser = member ?? null;
+    this.isExpertiseCatalogOpen = true;
     this.expertiseName = '';
     this.expertiseDescription = '';
     this.expertisePanelError = null;
   }
 
   @action
+  openExpertiseCatalog(): void {
+    this.openExpertisePanel();
+  }
+
+  @action
   closeExpertisePanel(): void {
     this.expertisePanelUser = null;
+    this.isExpertiseCatalogOpen = false;
     this.expertiseName = '';
     this.expertiseDescription = '';
     this.expertisePanelError = null;
@@ -578,6 +921,13 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                 @controls="workspace-settings-panel-general"
               />
               <registry.Tab
+                @tabId="ai"
+                @text="AI Settings"
+                @iconName="sparkles"
+                @id="workspace-settings-tab-ai"
+                @controls="workspace-settings-panel-ai"
+              />
+              <registry.Tab
                 @tabId="members"
                 @text="Team Members"
                 @iconName="users"
@@ -592,7 +942,149 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                 id="workspace-settings-panel-general"
                 aria-labelledby="workspace-settings-tab-general"
               >
-                <RoutesWorkspacesNew @model={{@model}} @embedded={{true}} />
+                <:header>
+                  <div class="layout-horizontal --gap-sm">
+                    <UiIcon @name="building-skyscraper" />
+                    <h3 class="margin-zero">
+                      General Workspace
+                    </h3>
+                  </div>
+                </:header>
+
+                <:default>
+                  <div class="settings-general-grid">
+                    <div class="settings-identity-card">
+                      <UiAvatar
+                        @model={{@model}}
+                        @onChange={{this.onAvatarChanged}}
+                        @squared={{true}}
+                      />
+
+                      <div class="layout-vertical --gap-sm --flex-grow">
+                        <UiFormGroup
+                          @label="Workspace Name"
+                          @required={{true}}
+                          @trailingText="This is shown in navigation, communication, and GitHub sync screens."
+                        >
+                          <UiInput
+                            @value={{this.workspaceNameDraft}}
+                            @onInput={{this.updateWorkspaceName}}
+                            @placeholder="Workspace name"
+                            type="text"
+                            required
+                          />
+                        </UiFormGroup>
+                      </div>
+                    </div>
+
+                    <div class="settings-actions-row">
+                      <UiButton
+                        @text="Save workspace"
+                        @iconLeft="device-floppy"
+                        @onClick={{this.saveWorkspace}}
+                        @loading={{this.saveWorkspaceTask.isRunning}}
+                        @disabled={{or
+                          (not this.workspaceNameDraft)
+                          (not this.hasWorkspaceChanges)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </:default>
+              </UiContainer>
+            {{else if (eq registry.activeTab "ai")}}
+              <UiContainer
+                role="tabpanel"
+                id="workspace-settings-panel-ai"
+                aria-labelledby="workspace-settings-tab-ai"
+                class="settings-ai-panel"
+              >
+                <:header>
+                  <div class="layout-horizontal --gap-sm">
+                    <UiIcon @name="sparkles" @variant="accent" />
+                    <h3 class="margin-zero">
+                      AI Settings
+                    </h3>
+                  </div>
+                </:header>
+
+                <:default>
+                  <div class="settings-ai-grid">
+                    <div class="settings-ai-card">
+                      <div class="settings-ai-card__control">
+                        <UiCheckbox
+                          @checked={{this.issueSyncDraft}}
+                          @onChange={{this.updateIssueSync}}
+                        />
+                      </div>
+                      <span class="settings-ai-card__content">
+                        <strong>AI Issue Priorities</strong>
+                        <span>
+                          Let AI suggest priority levels for issues.
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="settings-ai-card">
+                      <div class="settings-ai-card__control">
+                        <UiCheckbox
+                          @checked={{this.capacityPlanningSyncDraft}}
+                          @onChange={{this.updateCapacityPlanningSync}}
+                        />
+                      </div>
+                      <span class="settings-ai-card__content">
+                        <strong>Capacity Planning Sync</strong>
+                        <span>
+                          Automatically assign issues based on capacity
+                          planning.
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="settings-ai-card">
+                      <div class="settings-ai-card__control">
+                        <UiCheckbox
+                          @checked={{this.reviewerSuggestionSyncDraft}}
+                          @onChange={{this.updateReviewerSuggestionSync}}
+                        />
+                      </div>
+                      <span class="settings-ai-card__content">
+                        <strong>Reviewer Suggestion Sync</strong>
+                        <span>
+                          Sync AI-suggested reviewers to pull requests.
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="settings-ai-card">
+                      <div class="settings-ai-card__control">
+                        <UiCheckbox
+                          @checked={{this.prRiskPredictionSyncDraft}}
+                          @onChange={{this.updatePrRiskPredictionSync}}
+                        />
+                      </div>
+                      <span class="settings-ai-card__content">
+                        <strong>PR Prediction Sync</strong>
+                        <span>
+                          Use AI predictions for PR merge time and complexity.
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="settings-actions-row">
+                      <UiButton
+                        @text="Save AI settings"
+                        @iconLeft="device-floppy"
+                        @onClick={{this.saveWorkspace}}
+                        @loading={{this.saveWorkspaceTask.isRunning}}
+                        @disabled={{or
+                          (not this.workspaceNameDraft)
+                          (not this.hasWorkspaceChanges)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </:default>
               </UiContainer>
             {{else}}
               <div class="layout-vertical --gap-md">
@@ -645,11 +1137,19 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                 aria-labelledby="workspace-settings-tab-members"
               >
                 <:header>
-                  <div class="layout-horizontal --gap-sm">
-                    <UiIcon @name="users" />
-                    <h3 class="margin-zero">
-                      Team Members
-                    </h3>
+                  <div class="settings-members-header">
+                    <div class="layout-horizontal --gap-sm">
+                      <UiIcon @name="users" />
+                      <h3 class="margin-zero">
+                        Team Members
+                      </h3>
+                    </div>
+
+                    <UiButton
+                      @text="Manage expertise catalog"
+                      @iconLeft="sparkles"
+                      @onClick={{this.openExpertiseCatalog}}
+                    />
                   </div>
                 </:header>
 
@@ -689,8 +1189,11 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
                     {{#if
                       (or
-                        this.lastTeamMembers.isRunning
-                        this.lastExpertiseLoad.isRunning
+                        (or
+                          this.lastTeamMembers.isRunning
+                          this.lastExpertiseLoad.isRunning
+                        )
+                        this.lastWorkspaceExpertises.isRunning
                       )
                     }}
                       <div class="settings-members-loading">
@@ -752,23 +1255,9 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                               </div>
 
                               <div class="settings-member-card__section">
-                                <div
-                                  class="settings-member-card__expertise-header"
-                                >
-                                  <span class="settings-member-card__label">
-                                    Expertise
-                                  </span>
-                                  <button
-                                    type="button"
-                                    class="settings-member-card__expertise-action"
-                                    {{on
-                                      "click"
-                                      (fn this.openExpertisePanel member)
-                                    }}
-                                  >
-                                    + Add
-                                  </button>
-                                </div>
+                                <span class="settings-member-card__label">
+                                  Expertise
+                                </span>
 
                                 <div class="settings-member-card__chips">
                                   {{#each
@@ -788,7 +1277,63 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                                     </span>
                                   {{/each}}
                                 </div>
+
+                                <div class="settings-expertise-assign">
+                                  <UiDropdown
+                                    @options={{this.expertiseOptions}}
+                                    @selected={{this.selectedExpertiseOption
+                                      member
+                                    }}
+                                    @onChange={{fn
+                                      this.updateSelectedExpertise
+                                      member
+                                    }}
+                                    @placeholder="Select workspace expertise"
+                                    @allowClear={{true}}
+                                    class="settings-expertise-assign__select"
+                                  />
+                                  <UiButton
+                                    @text="Assign"
+                                    @hierarchy="secondary"
+                                    @onClick={{fn this.assignExpertise member}}
+                                    @loading={{this.assignExpertiseTask.isRunning}}
+                                    @disabled={{not
+                                      (this.canAssignExpertise member)
+                                    }}
+                                  />
+                                </div>
                               </div>
+
+                              {{#if (this.canRemoveMember member)}}
+                                <div class="settings-member-card__danger">
+                                  <div class="layout-vertical --gap-xs">
+                                    <span
+                                      class="settings-member-card__label color-error"
+                                    >
+                                      Remove from workspace
+                                    </span>
+                                    <span
+                                      class="font-color-text-secondary font-size-text-sm"
+                                    >
+                                      This removes their access to this
+                                      workspace.
+                                    </span>
+                                  </div>
+                                  <UiButton
+                                    @text="Remove"
+                                    @hierarchy="secondary"
+                                    @iconLeft="trash"
+                                    @onClick={{fn
+                                      this.removeWorkspaceMember
+                                      member
+                                    }}
+                                    @loading={{eq
+                                      this.memberRemovalInFlightId
+                                      member.id
+                                    }}
+                                  />
+                                </div>
+                              {{/if}}
                             </div>
                           </div>
                         {{else}}
@@ -815,12 +1360,16 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
           <div class="settings-expertise-panel__header">
             <div class="layout-vertical --gap-xs">
               <div class="layout-horizontal --gap-sm">
-                <UiIcon @name="plus" @variant="primary" />
-                <h2 class="margin-zero">Add Expertise</h2>
+                <UiIcon @name="sparkles" @variant="primary" />
+                <h2 class="margin-zero">Expertise Catalog</h2>
               </div>
               <span class="font-color-text-secondary">
-                for
-                {{this.expertisePanelUser.user.fullName}}
+                {{#if this.expertisePanelUser}}
+                  Assign reusable expertise to
+                  {{this.expertisePanelUser.user.fullName}}
+                {{else}}
+                  Create reusable expertise for this workspace.
+                {{/if}}
               </span>
             </div>
 
@@ -840,60 +1389,90 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
               />
             {{/if}}
 
-            <UiFormGroup @label="Expertise Name">
-              <UiInput
-                @value={{this.expertiseName}}
-                @onInput={{this.updateExpertiseName}}
-                @placeholder="e.g., Backend Development, UI/UX Design, Database Management"
-              />
-            </UiFormGroup>
-
-            <UiFormGroup @label="Description">
-              <UiInput
-                @value={{this.expertiseDescription}}
-                @onInput={{this.updateExpertiseDescription}}
-                @placeholder="Describe what this expertise covers and when it is useful"
-              />
-            </UiFormGroup>
-
             <UiContainer
               @variant="primary"
               @bordered={{true}}
               class="settings-expertise-panel__info"
             >
-              Add expertise areas to help team members understand each other's
-              specializations.
+              Create expertise once for this workspace, then assign it to any
+              teammate from their card. This keeps reviewer suggestions and news
+              feed targeting consistent.
             </UiContainer>
 
             <div class="layout-vertical --gap-md">
-              <h3 class="margin-zero">Current expertises</h3>
-              <div class="layout-horizontal --gap-sm --wrap">
-                <div class="settings-member-card__chips">
-                  {{#each this.selectedUserExpertises as |expertise|}}
-                    <span class="settings-expertise-chip --panel">
-                      {{expertise.name}}
-                    </span>
-                  {{else}}
-                    <span class="font-color-text-secondary font-size-text-sm">
-                      No expertise added yet.
-                    </span>
-                  {{/each}}
-                </div>
+              <h3 class="margin-zero">Create catalog item</h3>
+              <UiFormGroup @label="Expertise Name">
+                <UiInput
+                  @value={{this.expertiseName}}
+                  @onInput={{this.updateExpertiseName}}
+                  @placeholder="e.g., Backend Development, UI/UX Design"
+                />
+              </UiFormGroup>
+
+              <UiFormGroup @label="Description">
+                <UiInput
+                  @value={{this.expertiseDescription}}
+                  @onInput={{this.updateExpertiseDescription}}
+                  @placeholder="What kind of work should this match?"
+                />
+              </UiFormGroup>
+
+              <UiButton
+                @text="Create expertise"
+                @iconLeft="plus"
+                @onClick={{this.addExpertise}}
+                @loading={{this.createExpertiseTask.isRunning}}
+                @disabled={{not this.canAddExpertise}}
+              />
+            </div>
+
+            <div class="layout-vertical --gap-md">
+              <h3 class="margin-zero">Workspace catalog</h3>
+              <div class="settings-catalog-list">
+                {{#each this.workspaceExpertises as |expertise|}}
+                  <div class="settings-catalog-item">
+                    <strong>{{expertise.name}}</strong>
+                    {{#if expertise.description}}
+                      <span>{{expertise.description}}</span>
+                    {{else}}
+                      <span>No description yet.</span>
+                    {{/if}}
+                  </div>
+                {{else}}
+                  <span class="font-color-text-secondary font-size-text-sm">
+                    No workspace expertise catalog items yet.
+                  </span>
+                {{/each}}
               </div>
             </div>
+
+            {{#if this.expertisePanelUser}}
+              <div class="layout-vertical --gap-md">
+                <h3 class="margin-zero">
+                  {{this.expertisePanelUser.user.fullName}}'s expertise
+                </h3>
+                <div class="layout-horizontal --gap-sm --wrap">
+                  <div class="settings-member-card__chips">
+                    {{#each this.selectedUserExpertises as |expertise|}}
+                      <span class="settings-expertise-chip --panel">
+                        {{expertise.name}}
+                      </span>
+                    {{else}}
+                      <span class="font-color-text-secondary font-size-text-sm">
+                        No expertise added yet.
+                      </span>
+                    {{/each}}
+                  </div>
+                </div>
+              </div>
+            {{/if}}
           </div>
 
           <div class="settings-expertise-panel__footer">
             <UiButton
-              @text="Cancel"
+              @text="Done"
               @hierarchy="secondary"
               @onClick={{this.closeExpertisePanel}}
-            />
-            <UiButton
-              @text="Add Expertise"
-              @onClick={{this.addExpertise}}
-              @loading={{this.createExpertiseTask.isRunning}}
-              @disabled={{not this.canAddExpertise}}
             />
           </div>
         </aside>

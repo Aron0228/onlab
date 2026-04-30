@@ -7,7 +7,7 @@ const WorkspaceBaseCrudController = createBaseCrudController<
   Workspace,
   typeof Workspace.prototype.id,
   WorkspaceRelations
->('/workspaces');
+>('workspaces');
 
 export class WorkspaceController extends WorkspaceBaseCrudController {
   constructor(
