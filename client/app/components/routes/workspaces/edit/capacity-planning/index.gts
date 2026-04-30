@@ -26,7 +26,7 @@ export interface RoutesWorkspacesEditCapacityPlanningIndexSignature {
 }
 
 export default class RoutesWorkspacesEditCapacityPlanningIndex extends Component<RoutesWorkspacesEditCapacityPlanningIndexSignature> {
-  @tracked selectedTab: CapacityPlanTab = 'past';
+  @tracked selectedTab: CapacityPlanTab = 'current';
 
   get rootClass(): string {
     return 'route-workspaces-edit-capacity-planning';
@@ -62,6 +62,25 @@ export default class RoutesWorkspacesEditCapacityPlanningIndex extends Component
 
   get headerSubtitle(): string {
     return `Manage team workload and sprint planning for ${this.args.model.workspace.name}.`;
+  }
+
+  get syncStatusLabel(): string {
+    if (!this.args.model.workspace.githubInstallationId) {
+      return 'GitHub not connected';
+    }
+
+    return this.args.model.workspace.capacityPlanningSync
+      ? 'Capacity assignments sync to GitHub'
+      : 'Capacity assignment sync is off';
+  }
+
+  get syncStatusClass(): string {
+    return `capacity-planning-sync ${
+      this.args.model.workspace.capacityPlanningSync &&
+      this.args.model.workspace.githubInstallationId
+        ? '--enabled'
+        : ''
+    }`;
   }
 
   entriesForPlan = (plan: CapacityPlanModel): CapacityPlanEntryModel[] => {
@@ -178,13 +197,19 @@ export default class RoutesWorkspacesEditCapacityPlanningIndex extends Component
             <p class="margin-zero color-secondary">{{this.headerSubtitle}}</p>
           </div>
 
-          <LinkTo
-            @route="workspaces.edit.capacity-planning.new"
-            class="capacity-planning-header__action"
-          >
-            <UiIcon @name="plus" />
-            <span>New Plan</span>
-          </LinkTo>
+          <div class="layout-horizontal --gap-md --wrap">
+            <span class={{this.syncStatusClass}}>
+              <UiIcon @name="brand-github" />
+              {{this.syncStatusLabel}}
+            </span>
+            <LinkTo
+              @route="workspaces.edit.capacity-planning.new"
+              class="capacity-planning-header__action"
+            >
+              <UiIcon @name="plus" />
+              <span>New Plan</span>
+            </LinkTo>
+          </div>
         </div>
 
         <div class="capacity-planning-tabs">

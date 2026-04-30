@@ -33,6 +33,7 @@ import {
   PullRequestMergeRiskService,
   PullRequestService,
   QueueService,
+  CapacityPlanningSyncService,
   CommunicationService,
   CommunicationSocketService,
   RedisService,
@@ -83,6 +84,7 @@ export class RestApi extends BootMixin(
     this.service(LabelService);
     this.service(PullRequestService);
     this.service(NewsFeedPredictionService);
+    this.service(CapacityPlanningSyncService);
     this.service(CommunicationService);
     this.service(CommunicationSocketService);
 

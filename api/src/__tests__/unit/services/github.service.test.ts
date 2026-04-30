@@ -345,6 +345,38 @@ describe('GithubService (unit)', () => {
     );
   });
 
+  it('sets issue assignees for capacity planning sync', async () => {
+    const octokit = {
+      request: vi.fn().mockResolvedValue({data: {}}),
+    };
+    vi.spyOn(internals, 'getInstallationClient').mockResolvedValue(
+      octokit as never,
+    );
+
+    await service.setIssueAssignees(4, 'team/api', 27, ['octocat']);
+
+    expect(octokit.request).toHaveBeenCalledWith(
+      'PATCH /repos/{owner}/{repo}/issues/{issue_number}',
+      {
+        owner: 'team',
+        repo: 'api',
+        issue_number: 27,
+        assignees: ['octocat'],
+        headers: {
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      },
+    );
+  });
+
+  it('rejects malformed repository names for capacity planning sync', async () => {
+    await expect(
+      service.setIssueAssignees(4, 'api', 27, ['octocat']),
+    ).rejects.toThrow(
+      'Unable to resolve repository owner/name for issue assignment sync',
+    );
+  });
+
   it('fetches repository overview details for issue estimation context', async () => {
     const octokit = {
       request: vi.fn().mockResolvedValue({

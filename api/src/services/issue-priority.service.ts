@@ -73,6 +73,12 @@ const MAX_TOOL_CALLS = 8;
 const MAX_DIRECTORY_RESULTS = 30;
 const MAX_FILE_CONTENT_LENGTH = 6000;
 const MAX_INITIAL_DIRECTORY_RESULTS = 20;
+const DEFAULT_PREDICTION_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type CachedIssuePriorityPrediction = {
+  expiresAt: number;
+  prediction: IssuePriorityPrediction;
+};
 
 const PRIORITY_PROMPT = `You are a senior software reliability engineer.
 
@@ -193,6 +199,20 @@ Don't return anything else!`;
 
 @injectable({scope: BindingScope.SINGLETON})
 export class IssuePriorityService {
+  private readonly predictionCacheTtlMs = readEnvNumber(
+    'ISSUE_PRIORITY_CACHE_TTL_MS',
+    DEFAULT_PREDICTION_CACHE_TTL_MS,
+    0,
+  );
+  private readonly predictionCache = new Map<
+    string,
+    CachedIssuePriorityPrediction
+  >();
+  private readonly inFlightPredictions = new Map<
+    string,
+    Promise<IssuePriorityPrediction>
+  >();
+
   constructor(
     @service(OllamaService) private ollamaService: OllamaService,
     @inject.getter('services.GithubService', {optional: true})
@@ -206,6 +226,52 @@ export class IssuePriorityService {
     repositoryFullName,
   }: PredictIssuePriorityInput): Promise<IssuePriorityPrediction> {
     const cleanDescription = this.sanitizeIssueDescription(description);
+    const cacheKey = this.buildPredictionCacheKey({
+      title,
+      description: cleanDescription,
+      repositoryFullName,
+    });
+    const cachedPrediction = this.getCachedPrediction(cacheKey);
+
+    if (cachedPrediction) {
+      return cachedPrediction;
+    }
+
+    const inFlightPrediction = this.inFlightPredictions.get(cacheKey);
+
+    if (inFlightPrediction) {
+      return inFlightPrediction;
+    }
+
+    const predictionPromise = this.predictIssuePriorityUncached({
+      title,
+      cleanDescription,
+      installationId,
+      repositoryFullName,
+    })
+      .then(prediction => {
+        this.setCachedPrediction(cacheKey, prediction);
+        return prediction;
+      })
+      .finally(() => {
+        this.inFlightPredictions.delete(cacheKey);
+      });
+
+    this.inFlightPredictions.set(cacheKey, predictionPromise);
+    return predictionPromise;
+  }
+
+  private async predictIssuePriorityUncached({
+    title,
+    cleanDescription,
+    installationId,
+    repositoryFullName,
+  }: {
+    title: string;
+    cleanDescription: string;
+    installationId?: number | null;
+    repositoryFullName?: string | null;
+  }): Promise<IssuePriorityPrediction> {
     const messages: IssuePriorityMessage[] = [
       {
         role: 'system',
@@ -302,6 +368,57 @@ export class IssuePriorityService {
       title,
       new Error('AI issue prioritization ended without a final response'),
     );
+  }
+
+  private buildPredictionCacheKey({
+    title,
+    description,
+    repositoryFullName,
+  }: {
+    title: string;
+    description: string;
+    repositoryFullName?: string | null;
+  }): string {
+    return JSON.stringify({
+      repositoryFullName: repositoryFullName ?? null,
+      title: title.trim(),
+      description: description.trim(),
+    });
+  }
+
+  private getCachedPrediction(
+    cacheKey: string,
+  ): IssuePriorityPrediction | null {
+    if (this.predictionCacheTtlMs <= 0) {
+      return null;
+    }
+
+    const cached = this.predictionCache.get(cacheKey);
+
+    if (!cached) {
+      return null;
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+      this.predictionCache.delete(cacheKey);
+      return null;
+    }
+
+    return cached.prediction;
+  }
+
+  private setCachedPrediction(
+    cacheKey: string,
+    prediction: IssuePriorityPrediction,
+  ): void {
+    if (this.predictionCacheTtlMs <= 0) {
+      return;
+    }
+
+    this.predictionCache.set(cacheKey, {
+      expiresAt: Date.now() + this.predictionCacheTtlMs,
+      prediction,
+    });
   }
 
   public sanitizeIssueDescription(
@@ -687,4 +804,14 @@ function summarizeToolExecutionError(error: unknown): string {
   }
 
   return 'Unknown tool execution error.';
+}
+
+function readEnvNumber(name: string, fallback: number, min: number): number {
+  const value = Number(process.env[name]);
+
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.floor(value));
 }

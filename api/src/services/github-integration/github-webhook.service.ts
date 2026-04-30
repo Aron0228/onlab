@@ -98,6 +98,11 @@ export class GithubWebhookService {
       case 'closed':
         await this.upsertIssue(payload);
         break;
+      case 'assigned':
+      case 'unassigned':
+      case 'labeled':
+      case 'unlabeled':
+        break;
       case 'deleted':
         await this.deleteIssue(payload);
         break;

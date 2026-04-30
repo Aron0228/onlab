@@ -197,11 +197,11 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
 
   get pageSubtitle(): string {
     if (this.isNewMode) {
-      return `Use live workspace issues and team members from ${this.args.model.workspace.name}.`;
+      return `Build a focused plan from open issues and team availability in ${this.args.model.workspace.name}.`;
     }
 
     if (this.selectedPlan) {
-      return 'Saved plans are read-only for now.';
+      return 'Saved plan snapshot. GitHub assignments were mirrored when the plan was created if sync was enabled.';
     }
 
     return `No saved capacity plan is available for ${this.args.model.workspace.name} yet.`;
@@ -221,6 +221,57 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
 
   get hasSelectedIssue(): boolean {
     return Boolean(this.isNewMode && this.selectedIssue);
+  }
+
+  get syncStatusLabel(): string {
+    if (!this.args.model.workspace.githubInstallationId) {
+      return 'GitHub not connected';
+    }
+
+    return this.args.model.workspace.capacityPlanningSync
+      ? 'GitHub sync on'
+      : 'GitHub sync off';
+  }
+
+  get syncStatusClass(): string {
+    return `capacity-plan-editor__sync-pill ${
+      this.args.model.workspace.capacityPlanningSync &&
+      this.args.model.workspace.githubInstallationId
+        ? '--active'
+        : ''
+    }`;
+  }
+
+  get estimateCoverageLabel(): string {
+    const estimatedIssues = this.args.model.issues.filter(
+      (issue) => typeof issue.estimatedHours === 'number'
+    ).length;
+
+    return `${estimatedIssues}/${this.args.model.issues.length} issues estimated`;
+  }
+
+  get unassignedEstimateTotal(): number {
+    return this.unassignedIssues.reduce(
+      (sum, issue) => sum + (issue.estimatedHours ?? 0),
+      0
+    );
+  }
+
+  get selectedIssueSuggestion(): string {
+    if (!this.selectedIssue) {
+      return 'Select an issue to see the suggested assignment.';
+    }
+
+    const bestFit = this.bestFitMemberForIssue(this.selectedIssue);
+    const estimateLabel = this.selectedIssue.estimatedHours
+      ? `${this.selectedIssue.estimatedHours}h estimate`
+      : 'no estimate yet';
+
+    if (!bestFit) {
+      return `Issue #${this.selectedIssue.number} has ${estimateLabel}.`;
+    }
+
+    return `Issue #${this.selectedIssue.number} has ${estimateLabel}; best fit by remaining capacity is ${this.memberDisplayName(bestFit)}.`;
   }
 
   get assignButtonText(): string {
@@ -549,6 +600,78 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
     this.updateSelectionAfterAssignment();
   }
 
+  bestFitMemberForIssue(
+    issue: SelectedIssue | GithubIssueModel | null
+  ): CapacityPlanningTeamMember | null {
+    if (!issue) {
+      return null;
+    }
+
+    return (
+      [...this.args.model.teamMembers].sort(
+        (left, right) =>
+          this.memberRemainingHours(right) - this.memberRemainingHours(left)
+      )[0] ?? null
+    );
+  }
+
+  memberRemainingHours(member: CapacityPlanningTeamMember): number {
+    return this.weeklyHoursFor(member) - this.memberAssignedHours(member);
+  }
+
+  autoAssignIssues(): void {
+    if (!this.isNewMode) {
+      return;
+    }
+
+    const assignments = { ...this.draftAssignmentsByIssueId };
+    const plannedHoursByUserId = new Map<number, number>();
+
+    for (const member of this.args.model.teamMembers) {
+      plannedHoursByUserId.set(Number(member.user.id), 0);
+    }
+
+    for (const assignment of Object.values(assignments)) {
+      plannedHoursByUserId.set(
+        assignment.userId,
+        (plannedHoursByUserId.get(assignment.userId) ?? 0) +
+          this.parseHours(assignment.assignedHours)
+      );
+    }
+
+    for (const issue of this.unassignedIssues) {
+      const bestFit = [...this.args.model.teamMembers].sort((left, right) => {
+        const leftRemaining =
+          this.weeklyHoursFor(left) -
+          (plannedHoursByUserId.get(Number(left.user.id)) ?? 0);
+        const rightRemaining =
+          this.weeklyHoursFor(right) -
+          (plannedHoursByUserId.get(Number(right.user.id)) ?? 0);
+
+        return rightRemaining - leftRemaining;
+      })[0];
+
+      if (!bestFit) {
+        continue;
+      }
+
+      const userId = Number(bestFit.user.id);
+      const assignedHours = String(issue.estimatedHours ?? 1);
+
+      assignments[issue.id] = {
+        userId,
+        assignedHours,
+      };
+      plannedHoursByUserId.set(
+        userId,
+        (plannedHoursByUserId.get(userId) ?? 0) + this.parseHours(assignedHours)
+      );
+    }
+
+    this.draftAssignmentsByIssueId = assignments;
+    this.updateSelectionAfterAssignment();
+  }
+
   createPlanTask = task(async () => {
     if (!this.isNewMode || !this.canCreatePlan) {
       throw new Error('Please choose both a start date and an end date.');
@@ -672,6 +795,24 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
     this.assignIssueToMember(this.selectedIssue.id, memberId);
   }
 
+  @action assignSelectedIssueToBestFit() {
+    if (!this.selectedIssue) {
+      return;
+    }
+
+    const bestFit = this.bestFitMemberForIssue(this.selectedIssue);
+
+    if (!bestFit) {
+      return;
+    }
+
+    this.assignIssueToMember(this.selectedIssue.id, Number(bestFit.user.id));
+  }
+
+  @action handleAutoAssignIssues() {
+    this.autoAssignIssues();
+  }
+
   @action removeAssignment(issueId: number) {
     if (!this.isNewMode) {
       return;
@@ -782,6 +923,10 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
         </div>
 
         <div class="capacity-plan-editor__hero-stats">
+          <span class={{this.syncStatusClass}}>
+            <UiIcon @name="brand-github" />
+            {{this.syncStatusLabel}}
+          </span>
           <div class="capacity-plan-editor__stat">
             <span class="capacity-plan-editor__stat-label">Total Capacity</span>
             <strong>{{this.totalCapacity}}h</strong>
@@ -804,10 +949,15 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
         >
           <:header>
             <div
-              class="capacity-plan-editor__section-title layout-horizontal --gap-sm"
+              class="capacity-plan-editor__section-title layout-horizontal --gap-sm --space-between"
             >
-              <UiIcon @name="calendar-event" />
-              <h2 class="margin-zero">Week Period</h2>
+              <div class="layout-horizontal --gap-sm">
+                <UiIcon @name="calendar-event" />
+                <h2 class="margin-zero">Plan setup</h2>
+              </div>
+              <span class="capacity-plan-editor__inline-metric">
+                {{this.estimateCoverageLabel}}
+              </span>
             </div>
           </:header>
 
@@ -832,6 +982,14 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                   @onChange={{this.updateEndDate}}
                 />
               </UiFormGroup>
+
+              <div class="capacity-plan-editor__setup-summary">
+                <span class="capacity-plan-editor__summary-label">Open estimate</span>
+                <strong>{{this.unassignedEstimateTotal}}h</strong>
+                <span class="font-color-text-secondary">
+                  Remaining AI-estimated work after current draft assignments.
+                </span>
+              </div>
             </div>
           </:default>
         </UiContainer>
@@ -843,16 +1001,41 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
           >
             <:header>
               <div
-                class="capacity-plan-editor__section-title layout-horizontal --gap-sm"
+                class="capacity-plan-editor__section-title layout-horizontal --gap-sm --space-between"
               >
-                <UiIcon @name="alert-circle" />
-                <h2 class="margin-zero">
-                  Unassigned Issues ({{this.unassignedIssues.length}})
-                </h2>
+                <div class="layout-horizontal --gap-sm">
+                  <UiIcon @name="alert-circle" />
+                  <h2 class="margin-zero">
+                    Issue queue ({{this.unassignedIssues.length}})
+                  </h2>
+                </div>
+                {{#if this.isNewMode}}
+                  <button
+                    type="button"
+                    class="capacity-plan-editor__ghost-action"
+                    {{on "click" this.handleAutoAssignIssues}}
+                  >
+                    Auto-fill
+                  </button>
+                {{/if}}
               </div>
             </:header>
 
             <:default>
+              <div class="capacity-plan-editor__suggestion">
+                <UiIcon @name="sparkles" />
+                <span>{{this.selectedIssueSuggestion}}</span>
+              </div>
+
+              {{#if this.hasSelectedIssue}}
+                <UiButton
+                  class="capacity-plan-editor__assign-button"
+                  @text="Assign to best fit"
+                  @iconLeft="sparkles"
+                  @onClick={{this.assignSelectedIssueToBestFit}}
+                />
+              {{/if}}
+
               {{#if this.unassignedIssues.length}}
                 <div
                   class="capacity-plan-editor__issue-list layout-vertical --gap-md"
@@ -869,7 +1052,18 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                       <div class="layout-horizontal --gap-sm">
                         <UiIcon @name="alert-circle" />
                         <div class="layout-vertical --gap-xs">
-                          <strong>#{{issue.number}}</strong>
+                          <div
+                            class="layout-horizontal --gap-sm --space-between"
+                          >
+                            <strong>#{{issue.number}}</strong>
+                            <span class="capacity-plan-editor__estimate-pill">
+                              {{if
+                                issue.estimatedHours
+                                issue.estimatedHours
+                                0
+                              }}h
+                            </span>
+                          </div>
                           <span>{{issue.title}}</span>
                           <div class="capacity-plan-editor__issue-meta">
                             <span>{{issue.area}}</span>
@@ -894,14 +1088,6 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                 </div>
               {{/if}}
 
-              <UiFormGroup @label="Notes">
-                <textarea
-                  aria-label="Notes"
-                  class="capacity-plan-editor__notes"
-                  disabled={{this.isEditMode}}
-                  {{on "input" this.handleNotesInput}}
-                >{{this.notes}}</textarea>
-              </UiFormGroup>
             </:default>
           </UiContainer>
 
