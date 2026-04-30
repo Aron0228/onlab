@@ -56,12 +56,10 @@ export default class UiThemeSwitcher extends Component {
       {{on "click" this.toggleTheme}}
       ...attributes
     >
-      <div class="theme-switcher__icon-container">
-        <UiIcon
-          @name={{if (eq this.mode "dark") "moon" "sun"}}
-          @variant="primary"
-        />
-      </div>
+      <UiIcon
+        @name={{if (eq this.mode "dark") "sun" "moon"}}
+        @variant="secondary"
+      />
     </button>
   </template>
 }
