@@ -6,7 +6,10 @@ import {GithubPullRequest} from '../../../models';
 describe('GithubPullRequestController (unit)', () => {
   let pullRequestRepository: {
     find: ReturnType<typeof vi.fn>;
+    count: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    updateById: ReturnType<typeof vi.fn>;
+    replaceById: ReturnType<typeof vi.fn>;
   };
   let repositoryRepository: {
     find: ReturnType<typeof vi.fn>;
@@ -24,7 +27,10 @@ describe('GithubPullRequestController (unit)', () => {
   beforeEach(() => {
     pullRequestRepository = {
       find: vi.fn(),
+      count: vi.fn(),
       findById: vi.fn(),
+      updateById: vi.fn().mockResolvedValue(undefined),
+      replaceById: vi.fn().mockResolvedValue(undefined),
     };
     repositoryRepository = {
       find: vi.fn().mockResolvedValue([{id: 8, workspaceId: 4}]),
@@ -76,5 +82,48 @@ describe('GithubPullRequestController (unit)', () => {
       7,
     );
     expect(pullRequestService.deleteById).toHaveBeenCalledWith(5);
+  });
+
+  it('covers pull request counts, single reads, relations, and updates', async () => {
+    pullRequestRepository.count.mockResolvedValue({count: 1});
+    pullRequestRepository.findById.mockResolvedValue({
+      id: 5,
+      repositoryId: 8,
+      author: {id: 7},
+    });
+
+    await expect(
+      controller.count({id: 7} as never, {status: 'open'}),
+    ).resolves.toEqual({count: 1});
+    await expect(
+      controller.findById({id: 7} as never, 5),
+    ).resolves.toMatchObject({
+      id: 5,
+    });
+    await expect(
+      controller.getRelation({id: 7} as never, 5, 'author'),
+    ).resolves.toEqual({id: 7});
+    await expect(
+      controller.updateById({id: 7} as never, 5, {status: 'merged'}),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.replaceById({id: 7} as never, 5, {
+        repositoryId: 8,
+        githubPrNumber: 13,
+        title: 'Update auth',
+        status: 'open',
+        description: 'Auth changes',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(controller.deleteAll()).resolves.toEqual({count: 0});
+
+    expect(pullRequestRepository.count).toHaveBeenCalledWith({
+      and: [{status: 'open'}, {repositoryId: {inq: [8]}}],
+    });
+    expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(4, 7);
+    expect(pullRequestRepository.updateById).toHaveBeenCalledWith(5, {
+      status: 'merged',
+    });
+    expect(pullRequestRepository.replaceById).toHaveBeenCalled();
   });
 });

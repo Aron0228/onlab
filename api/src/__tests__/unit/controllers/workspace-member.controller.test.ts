@@ -73,4 +73,46 @@ describe('WorkspaceMemberController (unit)', () => {
     );
     expect(repository.deleteById).toHaveBeenCalledWith(17);
   });
+
+  it('covers member count, single reads, relations, and updates', async () => {
+    const {controller, repository, authorization} = createController();
+    repository.count.mockResolvedValue({count: 1});
+    repository.findById.mockResolvedValue({
+      id: 17,
+      workspaceId: 11,
+      userId: 9,
+      role: 'MEMBER',
+      user: {id: 9},
+    });
+    repository.updateById.mockResolvedValue(undefined);
+    repository.replaceById.mockResolvedValue(undefined);
+
+    await expect(
+      controller.count({id: 7} as never, {workspaceId: 11}),
+    ).resolves.toEqual({count: 1});
+    await expect(
+      controller.findById({id: 7} as never, 17),
+    ).resolves.toMatchObject({id: 17});
+    await expect(
+      controller.getRelation({id: 7} as never, 17, 'user'),
+    ).resolves.toEqual({id: 9});
+    await expect(
+      controller.updateById({id: 7} as never, 17, {role: 'ADMIN'}),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.replaceById(
+        {id: 7} as never,
+        17,
+        new WorkspaceMember({workspaceId: 11, userId: 9, role: 'ADMIN'}),
+      ),
+    ).resolves.toBeUndefined();
+    await expect(controller.updateAll()).resolves.toEqual({count: 0});
+    await expect(controller.deleteAll()).resolves.toEqual({count: 0});
+
+    expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(11, 7);
+    expect(authorization.assertWorkspaceAdminOrOwner).toHaveBeenCalledWith(
+      11,
+      7,
+    );
+  });
 });
