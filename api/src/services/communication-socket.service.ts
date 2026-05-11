@@ -78,6 +78,12 @@ export class CommunicationSocketService {
     this.io?.to(this.channelRoom(channelId)).emit('message:created', message);
   }
 
+  emitPullRequestReviewReminder(userId: number, payload: unknown): void {
+    this.io
+      ?.to(this.userRoom(userId))
+      .emit('pull-request-review:reminder', payload);
+  }
+
   private registerHandlers(socket: Socket): void {
     socket.on('channel:join', async (channelId: number, callback) => {
       try {

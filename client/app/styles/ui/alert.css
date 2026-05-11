@@ -33,11 +33,21 @@
     flex-shrink: 0;
   }
 
+  .ui-alert__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-width: 0;
+  }
+
   .ui-alert__message {
     display: flex;
-    min-width: 0;
     word-break: break-word;
     overflow-wrap: break-word;
+  }
+
+  .ui-alert__action {
+    align-self: flex-start;
   }
 
   .ui-alert__close {
@@ -47,6 +57,10 @@
   }
 
   animation: alert-in 0.3s ease-out;
+}
+
+.ui-alert.--interactive {
+  cursor: pointer;
 }
 
 /* This is to wrap multiple alerts */

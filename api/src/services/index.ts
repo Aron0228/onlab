@@ -9,4 +9,6 @@ export * from './queue.service';
 export * from './capacity-planning-sync.service';
 export * from './communication.service';
 export * from './communication-socket.service';
+export * from './pr-review-reminder-scheduler.service';
+export * from './pull-request-review-reminder.service';
 export * from './redis.service';

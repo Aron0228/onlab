@@ -8,6 +8,7 @@ import {
 import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
 import {RestApplication} from '@loopback/rest';
+import {CronComponent} from '@loopback/cron';
 import {MySequence} from './sequence';
 import {PostgresDbDataSource} from './datasources';
 import {JsonApiSerializerInterceptor} from './interceptors/json-api-serializer.interceptor';
@@ -36,6 +37,8 @@ import {
   CapacityPlanningSyncService,
   CommunicationService,
   CommunicationSocketService,
+  PrReviewReminderSchedulerService,
+  PullRequestReviewReminderService,
   RedisService,
 } from './services';
 
@@ -69,6 +72,7 @@ export class RestApi extends BootMixin(
     this.component(RestExplorerComponent);
     this.component(JWTAuthenticationComponent);
     this.component(AuthenticationComponent);
+    this.component(CronComponent);
 
     this.service(RedisService);
     this.service(QueueService);
@@ -87,6 +91,8 @@ export class RestApi extends BootMixin(
     this.service(CapacityPlanningSyncService);
     this.service(CommunicationService);
     this.service(CommunicationSocketService);
+    this.service(PullRequestReviewReminderService);
+    this.lifeCycleObserver(PrReviewReminderSchedulerService);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here

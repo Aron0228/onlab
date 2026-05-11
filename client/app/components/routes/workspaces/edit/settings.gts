@@ -29,6 +29,7 @@ import type {
 } from 'client/types/services';
 import { task } from 'ember-concurrency';
 import { task as trackedTask } from 'reactiveweb/ember-concurrency';
+import cronstrue from 'cronstrue';
 
 type WorkspaceMemberCountResponse = {
   count: number;
@@ -133,6 +134,8 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   @tracked capacityPlanningSyncDraft = Boolean(
     this.args.model.capacityPlanningSync
   );
+  @tracked prReviewReminderCronDraft =
+    this.args.model.prReviewReminderCron ?? '';
   @tracked prRiskPredictionSyncDraft = Boolean(
     this.args.model.prRiskPredictionSync
   );
@@ -165,6 +168,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       name: workspace.name,
       issueSync: workspace.issueSync,
       capacityPlanningSync: workspace.capacityPlanningSync,
+      prReviewReminderCron: workspace.prReviewReminderCron,
       prRiskPredictionSync: workspace.prRiskPredictionSync,
       reviewerSuggestionSync: workspace.reviewerSuggestionSync,
       avatarUrl: workspace.avatarUrl,
@@ -173,6 +177,8 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     workspace.name = this.workspaceNameDraft.trim();
     workspace.issueSync = this.issueSyncDraft;
     workspace.capacityPlanningSync = this.capacityPlanningSyncDraft;
+    workspace.prReviewReminderCron =
+      this.prReviewReminderCronDraft.trim() || null;
     workspace.prRiskPredictionSync = this.prRiskPredictionSyncDraft;
     workspace.reviewerSuggestionSync = this.reviewerSuggestionSyncDraft;
 
@@ -195,6 +201,8 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       this.capacityPlanningSyncDraft = Boolean(
         savedWorkspace.capacityPlanningSync
       );
+      this.prReviewReminderCronDraft =
+        savedWorkspace.prReviewReminderCron ?? '';
       this.prRiskPredictionSyncDraft = Boolean(
         savedWorkspace.prRiskPredictionSync
       );
@@ -210,6 +218,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       workspace.name = previousState.name;
       workspace.issueSync = previousState.issueSync;
       workspace.capacityPlanningSync = previousState.capacityPlanningSync;
+      workspace.prReviewReminderCron = previousState.prReviewReminderCron;
       workspace.prRiskPredictionSync = previousState.prRiskPredictionSync;
       workspace.reviewerSuggestionSync = previousState.reviewerSuggestionSync;
       workspace.avatarUrl = previousState.avatarUrl;
@@ -580,6 +589,8 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       this.issueSyncDraft !== Boolean(this.args.model.issueSync) ||
       this.capacityPlanningSyncDraft !==
         Boolean(this.args.model.capacityPlanningSync) ||
+      this.prReviewReminderCronDraft.trim() !==
+        (this.args.model.prReviewReminderCron ?? '') ||
       this.prRiskPredictionSyncDraft !==
         Boolean(this.args.model.prRiskPredictionSync) ||
       this.reviewerSuggestionSyncDraft !==
@@ -590,6 +601,20 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
   get isExpertisePanelOpen(): boolean {
     return this.isExpertiseCatalogOpen;
+  }
+
+  get prReviewReminderDescription(): string {
+    const cronExpression = this.prReviewReminderCronDraft.trim();
+
+    if (!cronExpression) {
+      return 'Review reminders are disabled until a cron expression is set.';
+    }
+
+    try {
+      return cronstrue.toString(cronExpression);
+    } catch {
+      return 'This cron expression cannot be explained yet.';
+    }
   }
 
   get canSendInvitation(): boolean {
@@ -741,6 +766,11 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   @action
   updateCapacityPlanningSync(checked: boolean): void {
     this.capacityPlanningSyncDraft = checked;
+  }
+
+  @action
+  updatePrReviewReminderCron(value: string): void {
+    this.prReviewReminderCronDraft = value;
   }
 
   @action
@@ -972,6 +1002,18 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                             @placeholder="Workspace name"
                             type="text"
                             required
+                          />
+                        </UiFormGroup>
+
+                        <UiFormGroup
+                          @label="PR review reminder cron"
+                          @trailingText={{this.prReviewReminderDescription}}
+                        >
+                          <UiInput
+                            @value={{this.prReviewReminderCronDraft}}
+                            @onInput={{this.updatePrReviewReminderCron}}
+                            @placeholder="*/30 * * * *"
+                            type="text"
                           />
                         </UiFormGroup>
                       </div>

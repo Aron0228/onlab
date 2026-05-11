@@ -1,11 +1,13 @@
 import Component from '@glimmer/component';
 import { LinkTo } from '@ember/routing';
+import { action } from '@ember/object';
 import { modifier } from 'ember-modifier';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { WorkspacesEditPullRequestsEditRouteModel } from 'client/routes/workspaces/edit/pull-requests/edit';
 import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
+import UiButton from 'client/components/ui/button';
 
 const AI_PRIORITY_NOTE_START = '<!-- onlab-ai-priority:start -->';
 const AI_PRIORITY_NOTE_END = '<!-- onlab-ai-priority:end -->';
@@ -137,6 +139,16 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     return this.args.model.repositoryName ?? 'Unknown repository';
   }
 
+  get githubPullRequestUrl(): string | null {
+    const repositoryFullName = this.args.model.repositoryFullName;
+
+    if (!repositoryFullName) {
+      return null;
+    }
+
+    return `https://github.com/${repositoryFullName}/pull/${this.pullRequest.githubPrNumber}`;
+  }
+
   get closeRoute(): string {
     return this.args.closeRoute ?? 'workspaces.edit.pull-requests';
   }
@@ -150,6 +162,15 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
       element.innerHTML = html;
     }
   );
+
+  @action
+  openPullRequestOnGithub(): void {
+    if (!this.githubPullRequestUrl) {
+      return;
+    }
+
+    globalThis.open?.(this.githubPullRequestUrl, '_blank', 'noopener');
+  }
 
   <template>
     <aside class="route-workspaces-edit-pull-requests-edit">
@@ -171,6 +192,16 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
             <UiIcon @name="x" />
           </LinkTo>
         </div>
+
+        {{#if this.githubPullRequestUrl}}
+          <UiButton
+            class="pull-request-edit-github-button"
+            @text="Open on GitHub"
+            @hierarchy="secondary"
+            @iconRight="external-link"
+            @onClick={{this.openPullRequestOnGithub}}
+          />
+        {{/if}}
 
         <div class="layout-vertical --gap-md">
           <h3 class="pull-request-edit-panel__title margin-zero">

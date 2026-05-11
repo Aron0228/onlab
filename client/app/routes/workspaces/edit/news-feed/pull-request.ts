@@ -14,6 +14,7 @@ export type WorkspacesEditNewsFeedPullRequestRouteModel = {
   workspaceId: number;
   pullRequest: GithubPullRequestModel;
   repositoryName: string | null;
+  repositoryFullName: string | null;
 };
 
 export default class WorkspacesEditNewsFeedPullRequestRoute extends Route {
@@ -49,6 +50,7 @@ export default class WorkspacesEditNewsFeedPullRequestRoute extends Route {
       workspaceId: Number(newsFeedModel.workspace.id),
       pullRequest,
       repositoryName: repository?.name ?? null,
+      repositoryFullName: repository?.fullName ?? null,
     };
   }
 }

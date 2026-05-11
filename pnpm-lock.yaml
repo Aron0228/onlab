@@ -47,6 +47,9 @@ importers:
       '@loopback/core':
         specifier: ^7.0.4
         version: 7.0.8
+      '@loopback/cron':
+        specifier: ^0.13.11
+        version: 0.13.11(@loopback/core@7.0.8)
       '@loopback/repository':
         specifier: ^8.0.4
         version: 8.0.8(@loopback/core@7.0.8)
@@ -153,6 +156,9 @@ importers:
 
   client:
     dependencies:
+      cronstrue:
+        specifier: ^3.14.0
+        version: 3.14.0
       dompurify:
         specifier: ^3.4.0
         version: 3.4.0
@@ -1862,6 +1868,12 @@ packages:
     resolution: {integrity: sha512-cUK//4j2K9u583f69hJJKIt04kbwpcEfB2INwskIsNJ1n3D2Mkl26bZqv72UVeANLcEuxxIRP4PAcgoJPZXrsw==}
     engines: {node: 20 || 22 || 24}
 
+  '@loopback/cron@0.13.11':
+    resolution: {integrity: sha512-WoeVY9f9fnsNCSC/vLwlG8sS8J1/kRppJtYpUCGYDx4kIorC5/No7/vohKeBD/Y6Dqq2QZFlubu0cD8C82XSSg==}
+    engines: {node: 20 || 22 || 24}
+    peerDependencies:
+      '@loopback/core': ^7.0.0
+
   '@loopback/eslint-config@16.0.1':
     resolution: {integrity: sha512-R+zUANIwAxJUSzqseU1GuHXNkyWuWJse8211XR/SM5wgcJp6NWvZz/JR7QoOyW4nOoanSwTgvvBPYjXZIQcqDQ==}
     engines: {node: 20 || 22 || 24}
@@ -2479,6 +2491,9 @@ packages:
   '@types/debug@4.1.12':
     resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
 
+  '@types/debug@4.1.13':
+    resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
+
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
@@ -2524,6 +2539,9 @@ packages:
 
   '@types/lodash@4.17.23':
     resolution: {integrity: sha512-RDvF6wTulMPjrNdCoYRC8gNR880JNGT8uB+REUpC2Ns4pRqQJhGz90wh7rgdXDPpCczF3VGktDuFGVnz8zP7HA==}
+
+  '@types/luxon@3.3.8':
+    resolution: {integrity: sha512-jYvz8UMLDgy3a5SkGJne8H7VA7zPV2Lwohjx0V8V31+SqAjNmurWMkk9cQhfvlcnXWudBpK9xPM1n4rljOcHYQ==}
 
   '@types/methods@1.1.4':
     resolution: {integrity: sha512-ymXWVrDiCxTBE3+RIrrP533E70eA+9qu7zdWoHuOmGujkYtzf4HQF96b8nwHLqhuf4ykX61IGRIB38CC6/sImQ==}
@@ -4176,6 +4194,13 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+
+  cron@2.4.4:
+    resolution: {integrity: sha512-MHlPImXJj3K7x7lyUHjtKEOl69CSlTOWxS89jiFgNkzXfvhVjhMz/nc7/EIfN9vgooZp8XTtXJ1FREdmbyXOiQ==}
+
+  cronstrue@3.14.0:
+    resolution: {integrity: sha512-XnW4vuK/jPJjmTyDWiej1Zq36Od7ITwxaV2O1pzHZuyMVvdy7NAvyvIBzybt+idqSpfqYuoDG7uf/ocGtJVWxA==}
+    hasBin: true
 
   cross-spawn@6.0.6:
     resolution: {integrity: sha512-VqCUuhcd1iB+dsv8gxPttb5iZh/D0iubSP21g36KXdEuf6I5JiioesUVjpCdHV9MZRUfVFlvwtIUyPfxo5trtw==}
@@ -6469,6 +6494,10 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
+
+  luxon@3.3.0:
+    resolution: {integrity: sha512-An0UCfG/rSiqtAIiBPO0Y9/zAnHUZxAMiCpTd5h2smgsj7GGmcenvrvww2cqNA8/4A5ZrD1gJpHN2mIHZQF+Mg==}
+    engines: {node: '>=12'}
 
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
@@ -11062,6 +11091,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@loopback/cron@0.13.11(@loopback/core@7.0.8)':
+    dependencies:
+      '@loopback/core': 7.0.8
+      '@types/debug': 4.1.13
+      cron: 2.4.4
+      debug: 4.4.3(supports-color@8.1.1)
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@loopback/eslint-config@16.0.1(eslint@8.57.1)(typescript@5.2.2)':
     dependencies:
       '@typescript-eslint/eslint-plugin': 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.2.2))(eslint@8.57.1)(typescript@5.2.2)
@@ -11712,6 +11751,10 @@ snapshots:
     dependencies:
       '@types/ms': 2.1.0
 
+  '@types/debug@4.1.13':
+    dependencies:
+      '@types/ms': 2.1.0
+
   '@types/deep-eql@4.0.2': {}
 
   '@types/eslint-scope@3.7.7':
@@ -11768,6 +11811,8 @@ snapshots:
       '@types/node': 16.18.126
 
   '@types/lodash@4.17.23': {}
+
+  '@types/luxon@3.3.8': {}
 
   '@types/methods@1.1.4': {}
 
@@ -13745,6 +13790,13 @@ snapshots:
   cron-parser@4.9.0:
     dependencies:
       luxon: 3.7.2
+
+  cron@2.4.4:
+    dependencies:
+      '@types/luxon': 3.3.8
+      luxon: 3.3.0
+
+  cronstrue@3.14.0: {}
 
   cross-spawn@6.0.6:
     dependencies:
@@ -17024,6 +17076,8 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  luxon@3.3.0: {}
 
   luxon@3.7.2: {}
 

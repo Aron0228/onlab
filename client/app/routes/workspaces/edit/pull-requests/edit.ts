@@ -14,6 +14,7 @@ export type WorkspacesEditPullRequestsEditRouteModel = {
   workspaceId: number;
   pullRequest: GithubPullRequestModel;
   repositoryName: string | null;
+  repositoryFullName: string | null;
 };
 
 export default class WorkspacesEditPullRequestsEditRoute extends Route {
@@ -49,6 +50,7 @@ export default class WorkspacesEditPullRequestsEditRoute extends Route {
       workspaceId: Number(pullRequestsModel.workspace.id),
       pullRequest,
       repositoryName: repository?.name ?? null,
+      repositoryFullName: repository?.fullName ?? null,
     };
   }
 }

@@ -23,6 +23,11 @@ describe('GithubWebhookService (unit)', () => {
   };
   let pullRequestService: {
     upsertPullRequest: ReturnType<typeof vi.fn>;
+    findOne: ReturnType<typeof vi.fn>;
+  };
+  let pullRequestReviewerService: {
+    syncRequestedReviewers: ReturnType<typeof vi.fn>;
+    markProgress: ReturnType<typeof vi.fn>;
   };
   let githubRepositoryRepository: {
     findOne: ReturnType<typeof vi.fn>;
@@ -68,6 +73,11 @@ describe('GithubWebhookService (unit)', () => {
     };
     pullRequestService = {
       upsertPullRequest: vi.fn().mockResolvedValue(undefined),
+      findOne: vi.fn().mockResolvedValue({id: 101}),
+    };
+    pullRequestReviewerService = {
+      syncRequestedReviewers: vi.fn().mockResolvedValue(undefined),
+      markProgress: vi.fn().mockResolvedValue(undefined),
     };
     githubRepositoryRepository = {
       findOne: vi.fn().mockResolvedValue({
@@ -85,6 +95,7 @@ describe('GithubWebhookService (unit)', () => {
       queueService as never,
       issueService as never,
       pullRequestService as never,
+      pullRequestReviewerService as never,
       githubRepositoryRepository as never,
       userRepository as never,
     );
@@ -134,6 +145,24 @@ describe('GithubWebhookService (unit)', () => {
     expect(
       githubService.syncInstallationForConnectedWorkspace,
     ).toHaveBeenCalledWith(123);
+  });
+
+  it('ignores installation webhooks that do not include an installation id', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await service.handleWebhook('installation', {
+      action: 'created',
+    });
+    await service.handleWebhook('installation_repositories', {
+      action: 'added',
+    });
+
+    expect(
+      githubService.syncInstallationForConnectedWorkspace,
+    ).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+
+    warnSpy.mockRestore();
   });
 
   it('upserts issues on issue edits', async () => {
@@ -359,6 +388,74 @@ describe('GithubWebhookService (unit)', () => {
       status: 'open',
       authorGithubId: 55,
     });
+    expect(
+      pullRequestReviewerService.syncRequestedReviewers,
+    ).toHaveBeenCalledWith({
+      pullRequest: {id: 101},
+      reviewers: [],
+    });
+  });
+
+  it('syncs requested reviewers for pull request review request events', async () => {
+    await service.handleWebhook('pull_request', {
+      action: 'review_requested',
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 17,
+        number: 202,
+        title: 'Ship it',
+        body: 'Merged body',
+        state: 'open',
+        requested_reviewers: [
+          {id: 101, login: 'octocat'},
+          {id: 102, login: 'hubot'},
+        ],
+      },
+    });
+
+    expect(
+      pullRequestReviewerService.syncRequestedReviewers,
+    ).toHaveBeenCalledWith({
+      pullRequest: {id: 101},
+      reviewers: [
+        {id: 101, login: 'octocat'},
+        {id: 102, login: 'hubot'},
+      ],
+    });
+    expect(
+      queueService.enqueueGithubPullRequestPrioritization,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('skips reviewer sync when the local pull request is not found', async () => {
+    pullRequestService.findOne.mockResolvedValueOnce(null);
+
+    await service.handleWebhook('pull_request', {
+      action: 'review_request_removed',
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 17,
+        number: 202,
+        title: 'Ship it',
+        body: 'Merged body',
+        state: 'open',
+        requested_reviewers: [{id: 101, login: 'octocat'}],
+      },
+    });
+
+    expect(
+      pullRequestReviewerService.syncRequestedReviewers,
+    ).not.toHaveBeenCalled();
   });
 
   it('ignores pull request events authored by the GitHub app bot', async () => {
@@ -519,5 +616,166 @@ describe('GithubWebhookService (unit)', () => {
     expect(
       queueService.enqueueGithubPullRequestPrioritization,
     ).not.toHaveBeenCalled();
+  });
+
+  it('marks reviewer progress from pull request review events', async () => {
+    await service.handleWebhook('pull_request_review', {
+      action: 'submitted',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 18,
+        number: 203,
+        title: 'Review me',
+        body: 'Body',
+        state: 'open',
+      },
+      review: {
+        state: 'APPROVED',
+        user: {id: 55, login: 'reviewer'},
+      },
+    });
+
+    expect(pullRequestReviewerService.markProgress).toHaveBeenCalledWith({
+      repositoryId: 99,
+      pullRequestNumber: 203,
+      reviewer: {id: 55, login: 'reviewer'},
+      status: 'approved',
+    });
+  });
+
+  it('ignores unsupported pull request review states', async () => {
+    await service.handleWebhook('pull_request_review', {
+      action: 'submitted',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 18,
+        number: 203,
+        title: 'Review me',
+        body: 'Body',
+        state: 'open',
+      },
+      review: {
+        state: 'pending',
+        user: {id: 55, login: 'reviewer'},
+      },
+    });
+
+    expect(pullRequestReviewerService.markProgress).not.toHaveBeenCalled();
+  });
+
+  it('marks reviewer progress from review comments and PR issue comments', async () => {
+    await service.handleWebhook('pull_request_review_comment', {
+      action: 'created',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      pull_request: {
+        id: 18,
+        number: 203,
+        title: 'Review me',
+        body: 'Body',
+        state: 'open',
+      },
+      comment: {
+        user: {id: 55, login: 'reviewer'},
+      },
+    });
+
+    await service.handleWebhook('issue_comment', {
+      action: 'created',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 18,
+        node_id: 'node-18',
+        number: 203,
+        title: 'Review me',
+        body: 'Body',
+        state: 'open',
+        pull_request: {},
+      },
+      comment: {
+        user: {id: 56, login: 'commenter'},
+      },
+    });
+
+    expect(pullRequestReviewerService.markProgress).toHaveBeenCalledWith({
+      repositoryId: 99,
+      pullRequestNumber: 203,
+      reviewer: {id: 55, login: 'reviewer'},
+      status: 'commented',
+    });
+    expect(pullRequestReviewerService.markProgress).toHaveBeenCalledWith({
+      repositoryId: 99,
+      pullRequestNumber: 203,
+      reviewer: {id: 56, login: 'commenter'},
+      status: 'commented',
+    });
+  });
+
+  it('ignores issue comments outside pull requests and comments authored by the app bot', async () => {
+    await service.handleWebhook('issue_comment', {
+      action: 'created',
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 18,
+        node_id: 'node-18',
+        number: 203,
+        title: 'Issue',
+        body: 'Body',
+        state: 'open',
+      },
+      comment: {
+        user: {id: 56, login: 'commenter'},
+      },
+    });
+
+    await service.handleWebhook('issue_comment', {
+      action: 'created',
+      sender: {
+        login: 'devteams-demo[bot]',
+        type: 'Bot',
+      },
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 18,
+        node_id: 'node-18',
+        number: 203,
+        title: 'PR',
+        body: 'Body',
+        state: 'open',
+        pull_request: {},
+      },
+      comment: {
+        user: {id: 56, login: 'commenter'},
+      },
+    });
+
+    expect(pullRequestReviewerService.markProgress).not.toHaveBeenCalled();
   });
 });
