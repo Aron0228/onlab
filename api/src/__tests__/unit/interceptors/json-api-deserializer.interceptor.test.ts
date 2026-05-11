@@ -7,11 +7,12 @@ import {JsonApiDeserializerInterceptor} from '../../../interceptors/json-api-des
 const buildInvocationContext = (
   args: unknown[],
   entityClass?: typeof Workspace,
+  repositoryProperty = 'repository',
 ): InvocationContext =>
   ({
     args,
     target: {
-      repository: entityClass ? {entityClass} : undefined,
+      [repositoryProperty]: entityClass ? {entityClass} : undefined,
     },
   }) as InvocationContext;
 
@@ -115,6 +116,41 @@ describe('JsonApiDeserializerInterceptor (unit)', () => {
       {name: 'Workspace One', ownerId: 1},
       {name: 'Workspace Two', ownerId: 2},
     ]);
+  });
+
+  it('discovers entity metadata from named controller repositories', async () => {
+    const request = {
+      headers: {'content-type': 'application/vnd.api+json'},
+      body: {
+        data: {
+          attributes: {
+            name: 'Demo Workspace',
+          },
+          relationships: {
+            owner: {
+              data: {id: 7},
+            },
+          },
+        },
+      },
+    };
+    const args = [{data: request.body}];
+    const interceptor = new JsonApiDeserializerInterceptor(request as never);
+    const invoke = await interceptor.value();
+
+    await expect(
+      invoke(
+        buildInvocationContext(args, Workspace, 'workspaceRepository'),
+        async () => request.body,
+      ),
+    ).resolves.toEqual({
+      name: 'Demo Workspace',
+      ownerId: 7,
+    });
+    expect(args[0]).toEqual({
+      name: 'Demo Workspace',
+      ownerId: 7,
+    });
   });
 
   it('maps null belongsTo relationship data to null foreign keys', async () => {

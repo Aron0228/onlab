@@ -1,4 +1,3 @@
-import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 import type CapacityPlanEntryModel from 'client/models/capacity-plan-entry';
 import type CapacityPlanModel from 'client/models/capacity-plan';
@@ -9,6 +8,7 @@ import type UserModel from 'client/models/user';
 import type WorkspaceMemberModel from 'client/models/workspace-member';
 import type WorkspaceModel from 'client/models/workspace';
 import type { WorkspacesIssuesRouteModel } from 'client/routes/workspaces/edit';
+import ProtectedRoute from 'client/routes/protected';
 
 type StoreLike = {
   findRecord(modelName: 'user', id: number): Promise<UserModel>;
@@ -51,7 +51,7 @@ export type WorkspacesEditCapacityPlanningRouteModel = {
   issues: GithubIssueModel[];
 };
 
-export default class WorkspacesEditCapacityPlanningRoute extends Route {
+export default class WorkspacesEditCapacityPlanningRoute extends ProtectedRoute {
   @service declare store: StoreLike;
 
   async model(): Promise<WorkspacesEditCapacityPlanningRouteModel> {
@@ -61,6 +61,23 @@ export default class WorkspacesEditCapacityPlanningRoute extends Route {
     const workspace = workspacesEditModel.workspace;
     const repositories = workspacesEditModel.repositories;
     const workspaceId = Number(workspace.id);
+    const canManageCapacityPlanning = await this.requireWorkspacePermission(
+      workspaceId,
+      'capacity-plan.manage'
+    );
+
+    if (!canManageCapacityPlanning) {
+      return {
+        workspace,
+        repositories,
+        plans: [],
+        entries: [],
+        issueAssignments: [],
+        teamMembers: [],
+        issues: [],
+      };
+    }
+
     const repositoryIds = repositories.map((repository) =>
       Number(repository.id)
     );

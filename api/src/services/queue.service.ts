@@ -1,6 +1,7 @@
 import {BindingScope, injectable, service} from '@loopback/core';
 import {JobsOptions, Queue} from 'bullmq';
 import type {NewsFeedEventAction, NewsFeedSourceType} from '../models';
+import type {IssuePriorityPrediction} from './issue-priority.service';
 import {RedisService} from './redis.service';
 
 export const GITHUB_ISSUES_QUEUE_NAME = 'github-issues-queue';
@@ -20,6 +21,7 @@ export type CreateGithubIssueJobData = {
   repositoryId: number;
   title: string;
   description: string;
+  prediction?: IssuePriorityPrediction | null;
 };
 
 export type PrioritizeGithubPullRequestJobData = {

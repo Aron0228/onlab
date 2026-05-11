@@ -25,10 +25,11 @@ const createResponse = () => {
 const buildInvocationContext = (
   entityClass?: typeof Workspace | typeof User,
   targetName?: string,
+  repositoryProperty = 'repository',
 ): InvocationContext =>
   ({
     target: {
-      repository: entityClass ? {entityClass} : undefined,
+      [repositoryProperty]: entityClass ? {entityClass} : undefined,
     },
     targetName,
   }) as InvocationContext;
@@ -168,6 +169,37 @@ describe('JsonApiSerializerInterceptor (unit)', () => {
     expect(payload.data[1].links.self).toBe(
       'https://api.example.com/workspaces/12',
     );
+  });
+
+  it('discovers entity metadata from named controller repositories', async () => {
+    const request = {
+      originalUrl: '/workspaces',
+      path: '/workspaces',
+      params: {},
+    };
+    const {response, state} = createResponse();
+    const interceptor = new JsonApiSerializerInterceptor(
+      request as never,
+      response as never,
+    );
+    const invoke = await interceptor.value();
+
+    await invoke(
+      buildInvocationContext(Workspace, undefined, 'workspaceRepository'),
+      async () => [
+        new Workspace({
+          id: 11,
+          name: 'Workspace One',
+          ownerId: 7,
+        }),
+      ],
+    );
+
+    const payload = JSON.parse(state.payload ?? '');
+
+    expect(state.header).toBe('application/vnd.api+json');
+    expect(payload.data[0].type).toBe('workspaces');
+    expect(payload.data[0].attributes.name).toBe('Workspace One');
   });
 
   it('includes loaded relations in the included payload', async () => {

@@ -195,10 +195,32 @@ export class JsonApiSerializerInterceptor implements Provider<Interceptor> {
   private getEntityClassFromContext(
     invocationCtx: InvocationContext,
   ): typeof Entity | undefined {
-    const target = invocationCtx.target as {
-      repository?: {entityClass?: typeof Entity};
-    };
-    return target.repository?.entityClass;
+    const target = invocationCtx.target as Record<string, unknown>;
+    const repository = this.getRepositoryFromTarget(target);
+
+    return repository?.entityClass;
+  }
+
+  private getRepositoryFromTarget(
+    target: Record<string, unknown>,
+  ): {entityClass?: typeof Entity} | undefined {
+    const directRepository = target.repository;
+
+    if (this.isRepository(directRepository)) {
+      return directRepository;
+    }
+
+    for (const value of Object.values(target)) {
+      if (this.isRepository(value)) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
+  private isRepository(value: unknown): value is {entityClass?: typeof Entity} {
+    return this.isRecord(value) && 'entityClass' in value;
   }
 
   private asRecordArray(value: unknown): JsonRecord[] | undefined {

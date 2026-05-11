@@ -1,9 +1,9 @@
-import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 import type WorkspaceModel from 'client/models/workspace';
 import type WorkspaceMemberModel from 'client/models/workspace-member';
 import type UserModel from 'client/models/user';
 import type { WorkspacesIssuesRouteModel } from 'client/routes/workspaces/edit';
+import ProtectedRoute from 'client/routes/protected';
 import type ApiService from 'client/services/api';
 
 type StoreLike = {
@@ -81,7 +81,7 @@ type JsonApiDocument = {
   included?: JsonApiResource[];
 };
 
-export default class WorkspacesEditCommunicationRoute extends Route {
+export default class WorkspacesEditCommunicationRoute extends ProtectedRoute {
   @service declare store: StoreLike;
   @service declare api: ApiService;
 
@@ -99,6 +99,19 @@ export default class WorkspacesEditCommunicationRoute extends Route {
     ) as WorkspacesIssuesRouteModel;
     const workspace = workspacesEditModel.workspace;
     const workspaceId = Number(workspace.id);
+    const canAccessCommunication = await this.requireWorkspacePermission(
+      workspaceId,
+      'communication.view'
+    );
+
+    if (!canAccessCommunication) {
+      return {
+        workspace,
+        members: [],
+        channels: [],
+        selectedChannelId: null,
+      };
+    }
 
     const [members, owner, channelsPayload] = await Promise.all([
       this.store.query('workspace-member', {

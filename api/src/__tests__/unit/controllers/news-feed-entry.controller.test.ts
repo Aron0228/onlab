@@ -8,7 +8,13 @@ describe('NewsFeedEntryController (unit)', () => {
   describeCrudController({
     controllerName: 'NewsFeedEntryController',
     createController: repository =>
-      new NewsFeedEntryController(repository as never),
+      new NewsFeedEntryController(
+        repository as never,
+        {
+          getAuthenticatedUserId: vi.fn().mockReturnValue(9),
+          assertWorkspaceMember: vi.fn().mockResolvedValue('MEMBER'),
+        } as never,
+      ),
     id: 14,
     filter: {where: {workspaceId: 3}},
     where: {workspaceId: 3},
@@ -42,13 +48,24 @@ describe('NewsFeedEntryController (unit)', () => {
   let repository: {
     findPersonalizedFeed: ReturnType<typeof vi.fn>;
   };
+  let authorization: {
+    getAuthenticatedUserId: ReturnType<typeof vi.fn>;
+    assertWorkspaceMember: ReturnType<typeof vi.fn>;
+  };
   let controller: NewsFeedEntryController;
 
   beforeEach(() => {
     repository = {
       findPersonalizedFeed: vi.fn(),
     };
-    controller = new NewsFeedEntryController(repository as never);
+    authorization = {
+      getAuthenticatedUserId: vi.fn().mockReturnValue(9),
+      assertWorkspaceMember: vi.fn().mockResolvedValue('MEMBER'),
+    };
+    controller = new NewsFeedEntryController(
+      repository as never,
+      authorization as never,
+    );
   });
 
   it('returns the personalized feed for a workspace and user', async () => {
@@ -66,7 +83,10 @@ describe('NewsFeedEntryController (unit)', () => {
     ];
     repository.findPersonalizedFeed.mockResolvedValue(entries);
 
-    await expect(controller.feed(3, 9)).resolves.toEqual(entries);
+    await expect(controller.feed({id: 9} as never, 3)).resolves.toEqual(
+      entries,
+    );
+    expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(3, 9);
     expect(repository.findPersonalizedFeed).toHaveBeenCalledWith(3, 9);
   });
 });

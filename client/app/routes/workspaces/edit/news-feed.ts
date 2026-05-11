@@ -1,10 +1,9 @@
-import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 import type GithubRepositoryModel from 'client/models/github-repository';
 import type NewsFeedEntryModel from 'client/models/news-feed-entry';
 import type WorkspaceModel from 'client/models/workspace';
-import type SessionAccountService from 'client/services/session-account';
 import type { WorkspacesIssuesRouteModel } from 'client/routes/workspaces/edit';
+import ProtectedRoute from 'client/routes/protected';
 
 type StoreLike = {
   query(
@@ -19,23 +18,31 @@ export type WorkspacesEditNewsFeedRouteModel = {
   entries: NewsFeedEntryModel[];
 };
 
-export default class WorkspacesEditNewsFeedRoute extends Route {
+export default class WorkspacesEditNewsFeedRoute extends ProtectedRoute {
   @service declare store: StoreLike;
-  @service declare sessionAccount: SessionAccountService;
 
   async model(): Promise<WorkspacesEditNewsFeedRouteModel> {
     const workspacesEditModel = this.modelFor(
       'workspaces.edit'
     ) as WorkspacesIssuesRouteModel;
     const workspace = workspacesEditModel.workspace;
-    const userId = Number(this.sessionAccount.id);
+    const workspaceId = Number(workspace.id);
+    const canAccessNewsFeed = await this.requireWorkspacePermission(
+      workspaceId,
+      'workspace.view'
+    );
+
+    if (!canAccessNewsFeed) {
+      return {
+        workspace,
+        repositories: workspacesEditModel.repositories,
+        entries: [],
+      };
+    }
 
     const entries =
-      Number.isFinite(userId) && userId > 0
-        ? await this.store.query('news-feed-entry', {
-            workspaceId: Number(workspace.id),
-            userId,
-          })
+      Number.isFinite(workspaceId) && workspaceId > 0
+        ? await this.store.query('news-feed-entry', { workspaceId })
         : [];
 
     return {

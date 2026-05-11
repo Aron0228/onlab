@@ -74,6 +74,29 @@ describe('IssuePriorityService (unit)', () => {
     });
   });
 
+  it('normalizes already analyzed predictions for queued issue creation', () => {
+    expect(
+      service.normalizePredictionInput({
+        priority: 'very high' as never,
+        reason: '  Authentication bypass is explicitly confirmed.  ',
+        estimatedHours: 8.4,
+        estimationConfidence: 'MEDIUM' as never,
+      }),
+    ).toEqual({
+      priority: 'Very-High',
+      reason: 'Authentication bypass is explicitly confirmed.',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
+    });
+
+    expect(
+      service.normalizePredictionInput({
+        priority: 'not-real' as never,
+        reason: 'Nope',
+      }),
+    ).toBeNull();
+  });
+
   it('removes the previous AI note before appending a new one', () => {
     const withNote = service.upsertPredictionNote('Original description', {
       priority: 'High',

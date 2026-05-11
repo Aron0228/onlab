@@ -1,6 +1,6 @@
-import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 import type GithubIssueModel from 'client/models/github-issue';
+import ProtectedRoute from 'client/routes/protected';
 import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';
 
 type StoreLike = {
@@ -16,7 +16,7 @@ export type WorkspacesEditIssuesEditRouteModel = {
   repositoryName: string | null;
 };
 
-export default class WorkspacesEditIssuesEditRoute extends Route {
+export default class WorkspacesEditIssuesEditRoute extends ProtectedRoute {
   @service declare store: StoreLike;
 
   async model(params: {
@@ -25,6 +25,16 @@ export default class WorkspacesEditIssuesEditRoute extends Route {
     const issuesModel = this.modelFor(
       'workspaces.edit.issues'
     ) as WorkspacesEditIssuesRouteModel;
+    const workspaceId = Number(issuesModel.workspace.id);
+    const canManageIssues = await this.requireWorkspacePermission(
+      workspaceId,
+      'github.issue.manage'
+    );
+
+    if (!canManageIssues) {
+      return undefined as never;
+    }
+
     const [issue] = await this.store.query('github-issue', {
       filter: {
         include: ['aiPrediction'],
@@ -44,7 +54,7 @@ export default class WorkspacesEditIssuesEditRoute extends Route {
     );
 
     return {
-      workspaceId: Number(issuesModel.workspace.id),
+      workspaceId,
       issue,
       repositoryName: repository?.name ?? null,
     };

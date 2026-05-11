@@ -1,74 +1,123 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {GithubIssueController} from '../../../controllers/github/issue.controller';
+import {GithubIssue} from '../../../models';
+import type {IssuePriorityPrediction} from '../../../services';
 
 describe('GithubIssueController (unit)', () => {
-  let githubIssueRepository: object;
-  let issueService: {
-    deleteById: ReturnType<typeof vi.fn>;
-    deleteAll: ReturnType<typeof vi.fn>;
+  let issueRepository: {
+    find: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+  };
+  let repositoryRepository: {
+    find: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+  };
+  let workspaceRepository: {findById: ReturnType<typeof vi.fn>};
+  let issueService: {deleteById: ReturnType<typeof vi.fn>};
+  let priorityService: {
+    predictIssuePriority: ReturnType<typeof vi.fn>;
+    normalizePredictionInput: ReturnType<typeof vi.fn>;
+  };
+  let queueService: {enqueueGithubIssueCreation: ReturnType<typeof vi.fn>};
+  let authorization: {
+    getAuthenticatedUserId: ReturnType<typeof vi.fn>;
+    accessibleWorkspaceIds: ReturnType<typeof vi.fn>;
+    assertWorkspaceMember: ReturnType<typeof vi.fn>;
+    assertWorkspaceAdminOrOwner: ReturnType<typeof vi.fn>;
   };
   let controller: GithubIssueController;
 
   beforeEach(() => {
-    githubIssueRepository = {};
+    issueRepository = {
+      find: vi.fn(),
+      findById: vi.fn(),
+    };
+    repositoryRepository = {
+      find: vi.fn().mockResolvedValue([{id: 4, workspaceId: 9}]),
+      findById: vi
+        .fn()
+        .mockResolvedValue({id: 4, workspaceId: 9, fullName: 'team/api'}),
+    };
+    workspaceRepository = {
+      findById: vi.fn().mockResolvedValue({githubInstallationId: 11}),
+    };
     issueService = {
       deleteById: vi.fn().mockResolvedValue(undefined),
-      deleteAll: vi.fn().mockResolvedValue({count: 2}),
     };
-
-    controller = new GithubIssueController(
-      githubIssueRepository as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      issueService as never,
-      {} as never,
-    );
-  });
-
-  it('deletes a single issue through IssueService', async () => {
-    await expect(controller.deleteById(7)).resolves.toBeUndefined();
-    expect(issueService.deleteById).toHaveBeenCalledWith(7);
-  });
-
-  it('deletes matching issues through IssueService', async () => {
-    const where = {repositoryId: 3} as never;
-
-    await expect(controller.deleteAll(where)).resolves.toEqual({count: 2});
-    expect(issueService.deleteAll).toHaveBeenCalledWith(where);
-  });
-
-  it('still supports priority analysis for issue drafts', async () => {
-    const priorityService = {
+    priorityService = {
       predictIssuePriority: vi.fn().mockResolvedValue({
         priority: 'High',
         reason: 'Blocks the release',
         estimatedHours: 8,
         estimationConfidence: 'medium',
       }),
+      normalizePredictionInput: vi.fn().mockImplementation(prediction =>
+        prediction
+          ? {
+              priority: prediction.priority,
+              reason: prediction.reason,
+              estimatedHours: prediction.estimatedHours ?? null,
+              estimationConfidence: prediction.estimationConfidence ?? null,
+            }
+          : null,
+      ),
     };
-    const repositoryRepository = {
-      findById: vi
-        .fn()
-        .mockResolvedValue({workspaceId: 9, fullName: 'team/api'}),
+    queueService = {
+      enqueueGithubIssueCreation: vi.fn().mockResolvedValue(undefined),
     };
-    const workspaceRepository = {
-      findById: vi.fn().mockResolvedValue({githubInstallationId: 11}),
+    authorization = {
+      getAuthenticatedUserId: vi.fn().mockReturnValue(7),
+      accessibleWorkspaceIds: vi.fn().mockResolvedValue([9]),
+      assertWorkspaceMember: vi.fn().mockResolvedValue('MEMBER'),
+      assertWorkspaceAdminOrOwner: vi.fn().mockResolvedValue('ADMIN'),
     };
-    const controllerWithDeps = new GithubIssueController(
-      githubIssueRepository as never,
+
+    controller = new GithubIssueController(
+      issueRepository as never,
       repositoryRepository as never,
       workspaceRepository as never,
       {} as never,
       priorityService as never,
       issueService as never,
-      {} as never,
+      queueService as never,
+      authorization as never,
+    );
+  });
+
+  it('scopes issue lists to repositories in accessible workspaces', async () => {
+    const issue = new GithubIssue({id: 7, repositoryId: 4, title: 'Bug'});
+    issueRepository.find.mockResolvedValue([issue]);
+
+    await expect(
+      controller.find({id: 7} as never, {where: {status: 'open'}}),
+    ).resolves.toEqual([issue]);
+
+    expect(issueRepository.find).toHaveBeenCalledWith({
+      where: {
+        and: [{status: 'open'}, {repositoryId: {inq: [4]}}],
+      },
+    });
+  });
+
+  it('deletes a single issue through IssueService after admin check', async () => {
+    issueRepository.findById.mockResolvedValue(
+      new GithubIssue({id: 7, repositoryId: 4}),
     );
 
     await expect(
-      controllerWithDeps.analyzePriority({
+      controller.deleteById({id: 7} as never, 7),
+    ).resolves.toBeUndefined();
+    expect(authorization.assertWorkspaceAdminOrOwner).toHaveBeenCalledWith(
+      9,
+      7,
+    );
+    expect(issueService.deleteById).toHaveBeenCalledWith(7);
+  });
+
+  it('supports priority analysis for issue drafts', async () => {
+    await expect(
+      controller.analyzePriority({id: 7} as never, {
         repositoryId: 4,
         title: 'Broken sign-in',
         description: 'Users cannot log in',
@@ -84,6 +133,34 @@ describe('GithubIssueController (unit)', () => {
       repositoryFullName: 'team/api',
       title: 'Broken sign-in',
       description: 'Users cannot log in',
+    });
+  });
+
+  it('queues issue creation with the already analyzed prediction', async () => {
+    const prediction: IssuePriorityPrediction = {
+      priority: 'High',
+      reason: 'Blocks the release',
+      estimatedHours: 8,
+      estimationConfidence: 'medium',
+    };
+
+    await expect(
+      controller.createWithPriority({id: 7} as never, {
+        repositoryId: 4,
+        title: 'Broken sign-in',
+        description: 'Users cannot log in',
+        prediction,
+      }),
+    ).resolves.toEqual({queued: true});
+
+    expect(priorityService.normalizePredictionInput).toHaveBeenCalledWith(
+      prediction,
+    );
+    expect(queueService.enqueueGithubIssueCreation).toHaveBeenCalledWith({
+      repositoryId: 4,
+      title: 'Broken sign-in',
+      description: 'Users cannot log in',
+      prediction,
     });
   });
 });

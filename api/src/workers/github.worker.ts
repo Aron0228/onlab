@@ -295,12 +295,14 @@ async function processCreateIssueJob(
     labelService,
   );
 
-  const prediction = await issuePriorityService.predictIssuePriority({
-    installationId,
-    repositoryFullName: repository.fullName,
-    title: job.data.title,
-    description: job.data.description,
-  });
+  const prediction =
+    job.data.prediction ??
+    (await issuePriorityService.predictIssuePriority({
+      installationId,
+      repositoryFullName: repository.fullName,
+      title: job.data.title,
+      description: job.data.description,
+    }));
   const githubIssue = await githubService.createIssue(
     installationId,
     repository.fullName,

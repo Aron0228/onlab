@@ -9,6 +9,11 @@ import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
 import {RestApplication} from '@loopback/rest';
 import {CronComponent} from '@loopback/cron';
+import {
+  AuthorizationComponent,
+  AuthorizationDecision,
+  AuthorizationTags,
+} from '@loopback/authorization';
 import {MySequence} from './sequence';
 import {PostgresDbDataSource} from './datasources';
 import {JsonApiSerializerInterceptor} from './interceptors/json-api-serializer.interceptor';
@@ -20,27 +25,11 @@ import {
 } from '@loopback/authentication';
 import {JwtTokenStrategy} from './strategies/jwt-token.strategy';
 import {QueryTokenStrategy} from './strategies/query-token.strategy';
+import {PrReviewReminderSchedulerService} from './services';
 import {
-  GithubService,
-  GithubWebhookService,
-  IssuePriorityService,
-  GithubOauthService,
-  IssueService,
-  AIPredictionService,
-  JwtTokenService,
-  LabelService,
-  NewsFeedPredictionService,
-  OllamaService,
-  PullRequestMergeRiskService,
-  PullRequestService,
-  QueueService,
-  CapacityPlanningSyncService,
-  CommunicationService,
-  CommunicationSocketService,
-  PrReviewReminderSchedulerService,
-  PullRequestReviewReminderService,
-  RedisService,
-} from './services';
+  WORKSPACE_AUTHORIZER,
+  WorkspaceAuthorizerProvider,
+} from './authorization/workspace-authorizer.provider';
 
 export {ApplicationConfig};
 
@@ -72,27 +61,17 @@ export class RestApi extends BootMixin(
     this.component(RestExplorerComponent);
     this.component(JWTAuthenticationComponent);
     this.component(AuthenticationComponent);
+    const authorizationBinding = this.component(AuthorizationComponent);
+    this.configure(authorizationBinding.key).to({
+      precedence: AuthorizationDecision.DENY,
+      defaultDecision: AuthorizationDecision.DENY,
+    });
     this.component(CronComponent);
 
-    this.service(RedisService);
-    this.service(QueueService);
-    this.service(AIPredictionService);
-    this.service(JwtTokenService);
-    this.service(GithubOauthService);
-    this.service(OllamaService);
-    this.service(IssuePriorityService);
-    this.service(PullRequestMergeRiskService);
-    this.service(GithubService);
-    this.service(GithubWebhookService);
-    this.service(IssueService);
-    this.service(LabelService);
-    this.service(PullRequestService);
-    this.service(NewsFeedPredictionService);
-    this.service(CapacityPlanningSyncService);
-    this.service(CommunicationService);
-    this.service(CommunicationSocketService);
-    this.service(PullRequestReviewReminderService);
     this.lifeCycleObserver(PrReviewReminderSchedulerService);
+    this.bind(WORKSPACE_AUTHORIZER)
+      .toProvider(WorkspaceAuthorizerProvider)
+      .tag(AuthorizationTags.AUTHORIZER);
 
     this.projectRoot = __dirname;
     // Customize @loopback/boot Booter Conventions here
@@ -101,6 +80,11 @@ export class RestApi extends BootMixin(
         // Customize ControllerBooter Conventions here
         dirs: ['controllers'],
         extensions: ['.controller.js'],
+        nested: true,
+      },
+      services: {
+        dirs: ['services'],
+        extensions: ['.service.js'],
         nested: true,
       },
     };

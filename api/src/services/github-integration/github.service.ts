@@ -81,6 +81,11 @@ type GithubRepositoryDirectoryEntry = {
   size?: number;
 };
 
+export type GithubInstallationState = {
+  workspaceId: number;
+  userId: number;
+};
+
 type GithubPullRequestOverview = {
   number: number;
   title: string;
@@ -155,17 +160,19 @@ export class GithubService {
       process.env.GITHUB_APP_STATE_SECRET ?? process.env.GITHUB_WEBHOOK_SECRET!;
   }
 
-  public async getInstallationUrl(workspaceId?: string): Promise<string> {
+  public async getInstallationUrl(
+    state?: GithubInstallationState,
+  ): Promise<string> {
     const appInfo = await this.getGithubAppInfo();
     const installationUrl = new URL(
       `/apps/${appInfo.slug}/installations/new`,
       'https://github.com',
     );
 
-    if (workspaceId) {
+    if (state) {
       installationUrl.searchParams.set(
         'state',
-        this.createInstallationStateToken(workspaceId),
+        this.createInstallationStateToken(state),
       );
     }
 
@@ -309,7 +316,19 @@ export class GithubService {
       return undefined;
     }
 
-    const [workspaceIdText, issuedAtText, signature] = state.trim().split('.');
+    const parts = state.trim().split('.');
+
+    if (parts.length !== 3 && parts.length !== 4) {
+      console.warn('GitHub App callback received invalid workspace state', {
+        state,
+      });
+      return undefined;
+    }
+
+    const hasUserId = parts.length === 4;
+    const [workspaceIdText, maybeUserIdText, maybeIssuedAtText, signature] =
+      hasUserId ? parts : [parts[0], undefined, parts[1], parts[2]];
+    const issuedAtText = maybeIssuedAtText;
 
     if (!workspaceIdText || !issuedAtText || !signature) {
       console.warn('GitHub App callback received invalid workspace state', {
@@ -319,11 +338,13 @@ export class GithubService {
     }
 
     const workspaceId = Number(workspaceIdText);
+    const userId = maybeUserIdText ? Number(maybeUserIdText) : undefined;
     const issuedAt = Number(issuedAtText);
 
     if (
       !workspaceId ||
       Number.isNaN(workspaceId) ||
+      (maybeUserIdText && (!userId || Number.isNaN(userId))) ||
       !issuedAt ||
       Number.isNaN(issuedAt)
     ) {
@@ -341,7 +362,9 @@ export class GithubService {
       return undefined;
     }
 
-    const signedPayload = `${workspaceId}.${issuedAt}`;
+    const signedPayload = hasUserId
+      ? `${workspaceId}.${userId}.${issuedAt}`
+      : `${workspaceId}.${issuedAt}`;
     const expectedSignature = createHmac('sha256', this.appStateSecret)
       .update(signedPayload)
       .digest('hex');
@@ -359,10 +382,9 @@ export class GithubService {
     return workspaceId;
   }
 
-  private createInstallationStateToken(workspaceId: string): string {
-    const normalizedWorkspaceId = workspaceId.trim();
+  private createInstallationStateToken(state: GithubInstallationState): string {
     const issuedAt = Date.now();
-    const signedPayload = `${normalizedWorkspaceId}.${issuedAt}`;
+    const signedPayload = `${state.workspaceId}.${state.userId}.${issuedAt}`;
     const signature = createHmac('sha256', this.appStateSecret)
       .update(signedPayload)
       .digest('hex');

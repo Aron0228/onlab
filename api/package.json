@@ -55,6 +55,7 @@
   "dependencies": {
     "@loopback/authentication": "^12.0.11",
     "@loopback/authentication-jwt": "^0.16.11",
+    "@loopback/authorization": "^0.16.12",
     "@loopback/boot": "^8.0.5",
     "@loopback/core": "^7.0.4",
     "@loopback/cron": "^0.13.11",

@@ -246,7 +246,10 @@ describe('GithubService (unit)', () => {
       redirect: vi.fn(),
     };
 
-    const installationUrl = await service.getInstallationUrl('42');
+    const installationUrl = await service.getInstallationUrl({
+      workspaceId: 42,
+      userId: 7,
+    });
     const signedState = new URL(installationUrl).searchParams.get('state');
 
     expect(signedState).toBeTruthy();
@@ -283,7 +286,10 @@ describe('GithubService (unit)', () => {
       redirect: vi.fn(),
     };
 
-    const installationUrl = await service.getInstallationUrl('42');
+    const installationUrl = await service.getInstallationUrl({
+      workspaceId: 42,
+      userId: 7,
+    });
     const signedState = new URL(installationUrl).searchParams.get('state')!;
     const tamperedState = `${signedState.slice(0, -1)}${
       signedState.endsWith('a') ? 'b' : 'a'

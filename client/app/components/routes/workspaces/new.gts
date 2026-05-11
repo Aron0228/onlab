@@ -152,8 +152,10 @@ export default class RoutesWorkspacesNew extends Component<RoutesWorkspacesNewSi
   }
 
   redirectToGithubAppInstallation(workspaceId: number) {
+    const token = this.session.data.authenticated?.token;
     const installUrl = this.api.buildUrl('/github/installApp', {
       workspaceId: String(workspaceId),
+      ...(token ? { token: String(token) } : {}),
     });
     globalThis.location.assign(installUrl.toString());
   }
