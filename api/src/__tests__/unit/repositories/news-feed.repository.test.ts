@@ -12,6 +12,7 @@ import {
   CapacityPlanRepository,
   GithubIssueRepository,
   GithubPullRequestRepository,
+  GithubPullRequestReviewerRepository,
   NewsFeedEntryExpertiseAssocRepository,
   NewsFeedEntryRepository,
   WorkspaceMemberRepository,
@@ -300,6 +301,12 @@ describe('News feed repositories (unit)', () => {
       async () => ({}) as never,
       async () => ({}) as never,
     );
+
+    expect(typeof pullRequestRepository.reviewers).toBe('function');
+    expect(pullRequestRepository.inclusionResolvers.has('reviewers')).toBe(
+      true,
+    );
+
     const pullRequestRepositoryInternals =
       pullRequestRepository as unknown as PullRequestRepositoryNewsFeedInternals;
     pullRequestRepositoryInternals.repository = vi.fn().mockResolvedValue({
@@ -347,6 +354,19 @@ describe('News feed repositories (unit)', () => {
         {},
       ),
     ).toBe(true);
+  });
+
+  it('registers pull request reviewer relations', () => {
+    const repository = new GithubPullRequestReviewerRepository(
+      dataSource as never,
+      async () => ({}) as never,
+      async () => ({}) as never,
+    );
+
+    expect(typeof repository.pullRequest).toBe('function');
+    expect(typeof repository.user).toBe('function');
+    expect(repository.inclusionResolvers.has('pullRequest')).toBe(true);
+    expect(repository.inclusionResolvers.has('user')).toBe(true);
   });
 
   it('builds workspace member and capacity plan snapshots and keeps updates disabled', async () => {

@@ -60,6 +60,53 @@ describe('PullRequestReviewerService (unit)', () => {
     expect(reviewerRepository.deleteById).toHaveBeenCalledWith(2);
   });
 
+  it('updates existing pending reviewer assignments instead of creating duplicates', async () => {
+    reviewerRepository.findOne.mockResolvedValueOnce({
+      id: 7,
+      pullRequestId: 12,
+      githubLogin: 'octocat',
+      status: 'pending',
+    });
+    reviewerRepository.find.mockResolvedValueOnce([
+      {
+        id: 7,
+        pullRequestId: 12,
+        githubLogin: 'octocat',
+        status: 'pending',
+      },
+    ]);
+
+    await service.syncRequestedReviewers({
+      pullRequest: {id: 12} as never,
+      reviewers: [{id: 111, login: ' octocat '}],
+    });
+
+    expect(reviewerRepository.create).not.toHaveBeenCalled();
+    expect(reviewerRepository.updateById).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        pullRequestId: 12,
+        userId: 9,
+        githubUserId: 111,
+        githubLogin: 'octocat',
+      }),
+    );
+    expect(reviewerRepository.deleteById).not.toHaveBeenCalled();
+  });
+
+  it('ignores reviewer entries without a login', async () => {
+    await service.syncRequestedReviewers({
+      pullRequest: {id: 12} as never,
+      reviewers: [{id: 111, login: '   '}, {id: 222}],
+    });
+
+    expect(userRepository.findOne).not.toHaveBeenCalled();
+    expect(reviewerRepository.create).not.toHaveBeenCalled();
+    expect(reviewerRepository.find).toHaveBeenCalledWith({
+      where: {pullRequestId: 12, status: 'pending'},
+    });
+  });
+
   it('marks reviewer progress for an existing assignment', async () => {
     reviewerRepository.findOne.mockResolvedValueOnce({id: 44});
 
@@ -79,6 +126,87 @@ describe('PullRequestReviewerService (unit)', () => {
         pullRequestId: 12,
         githubLogin: 'octocat',
         status: 'approved',
+      }),
+    );
+  });
+
+  it('creates progress records when review activity arrives before a pending assignment sync', async () => {
+    reviewerRepository.findOne.mockResolvedValueOnce(null);
+
+    await service.markProgress({
+      repositoryId: 4,
+      pullRequestNumber: 18,
+      reviewer: {id: 111, login: 'octocat'},
+      status: 'commented',
+    });
+
+    expect(reviewerRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pullRequestId: 12,
+        userId: 9,
+        githubUserId: 111,
+        githubLogin: 'octocat',
+        status: 'commented',
+        reviewedAt: expect.any(String),
+      }),
+    );
+  });
+
+  it('skips progress updates without a reviewer login or local pull request', async () => {
+    await service.markProgress({
+      repositoryId: 4,
+      pullRequestNumber: 18,
+      reviewer: {id: 111, login: '   '},
+      status: 'approved',
+    });
+
+    expect(pullRequestRepository.findOne).not.toHaveBeenCalled();
+    expect(reviewerRepository.create).not.toHaveBeenCalled();
+
+    pullRequestRepository.findOne.mockResolvedValueOnce(null);
+
+    await service.markProgress({
+      repositoryId: 4,
+      pullRequestNumber: 18,
+      reviewer: {id: 111, login: 'octocat'},
+      status: 'approved',
+    });
+
+    expect(reviewerRepository.create).not.toHaveBeenCalled();
+    expect(reviewerRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it('keeps reviewer user id nullable when GitHub user id is missing or unmapped', async () => {
+    userRepository.findOne.mockResolvedValueOnce(null);
+
+    await service.markProgress({
+      repositoryId: 4,
+      pullRequestNumber: 18,
+      reviewer: {id: 999, login: 'unknown-user'},
+      status: 'dismissed',
+    });
+
+    expect(reviewerRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        githubUserId: 999,
+        githubLogin: 'unknown-user',
+      }),
+    );
+
+    reviewerRepository.create.mockClear();
+    await service.markProgress({
+      repositoryId: 4,
+      pullRequestNumber: 18,
+      reviewer: {login: 'login-only'},
+      status: 'dismissed',
+    });
+
+    expect(reviewerRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        githubUserId: null,
+        githubLogin: 'login-only',
       }),
     );
   });

@@ -282,6 +282,26 @@ describe('CommunicationSocketService (unit)', () => {
     expect(callback).toHaveBeenCalledWith(payload);
   });
 
+  it('emits pull request review reminders to the user room', () => {
+    const socketIoServer = createSocketIoServer();
+    service['io'] = socketIoServer.server as never;
+    const payload = {
+      workspaceId: 7,
+      pullRequestId: 5,
+      pullRequestNumber: 37,
+    };
+
+    service.emitPullRequestReviewReminder(12, payload);
+
+    expect(socketIoServer.server.to).toHaveBeenCalledWith(
+      'communication:user:12',
+    );
+    expect(socketIoServer.roomEmit).toHaveBeenCalledWith(
+      'pull-request-review:reminder',
+      payload,
+    );
+  });
+
   it('tracks presence counts and notifies related users on first connect and final disconnect', async () => {
     const {socket, emit} = createSocket();
     const socketIoServer = createSocketIoServer();
