@@ -2,6 +2,7 @@ import {Getter, inject, service} from '@loopback/core';
 import {
   BelongsToAccessor,
   DataObject,
+  HasManyRepositoryFactory,
   InclusionResolver,
   repository,
 } from '@loopback/repository';
@@ -10,6 +11,7 @@ import {
   AIPrediction,
   GithubPullRequest,
   GithubPullRequestRelations,
+  GithubPullRequestReviewer,
   GithubRepository,
   User,
 } from '../../models';
@@ -21,6 +23,7 @@ import {UserRepository} from '../auth';
 import {QueueService} from '../../services/queue.service';
 import {AIPredictionRepository, NewsFeedAwareCrudRepository} from '../system';
 import {GithubRepositoryRepository} from './repository.repository';
+import {GithubPullRequestReviewerRepository} from './pull-request-reviewer.repository';
 
 export class GithubPullRequestRepository extends NewsFeedAwareCrudRepository<
   GithubPullRequest,
@@ -33,6 +36,10 @@ export class GithubPullRequestRepository extends NewsFeedAwareCrudRepository<
   >;
   public readonly author: BelongsToAccessor<
     User,
+    typeof GithubPullRequest.prototype.id
+  >;
+  public readonly reviewers: HasManyRepositoryFactory<
+    GithubPullRequestReviewer,
     typeof GithubPullRequest.prototype.id
   >;
   public readonly aiPrediction: {
@@ -48,6 +55,8 @@ export class GithubPullRequestRepository extends NewsFeedAwareCrudRepository<
     userRepositoryGetter: Getter<UserRepository>,
     @repository.getter('AIPredictionRepository')
     aiPredictionRepositoryGetter: Getter<AIPredictionRepository>,
+    @repository.getter('GithubPullRequestReviewerRepository')
+    reviewerRepositoryGetter: Getter<GithubPullRequestReviewerRepository>,
   ) {
     super(GithubPullRequest, dataSource, queueService);
 
@@ -66,6 +75,10 @@ export class GithubPullRequestRepository extends NewsFeedAwareCrudRepository<
         aiPredictionRepositoryGetter,
       ),
     };
+    this.reviewers = this.createHasManyRepositoryFactoryFor(
+      'reviewers',
+      reviewerRepositoryGetter,
+    );
 
     registerInclusionResolvers(GithubPullRequest, this);
   }

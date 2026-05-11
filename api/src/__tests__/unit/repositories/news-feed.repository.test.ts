@@ -298,6 +298,7 @@ describe('News feed repositories (unit)', () => {
       async () => ({}) as never,
       async () => ({}) as never,
       async () => ({}) as never,
+      async () => ({}) as never,
     );
     const pullRequestRepositoryInternals =
       pullRequestRepository as unknown as PullRequestRepositoryNewsFeedInternals;

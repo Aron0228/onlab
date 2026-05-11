@@ -23,6 +23,11 @@ describe('GithubWebhookService (unit)', () => {
   };
   let pullRequestService: {
     upsertPullRequest: ReturnType<typeof vi.fn>;
+    findOne: ReturnType<typeof vi.fn>;
+  };
+  let pullRequestReviewerService: {
+    syncRequestedReviewers: ReturnType<typeof vi.fn>;
+    markProgress: ReturnType<typeof vi.fn>;
   };
   let githubRepositoryRepository: {
     findOne: ReturnType<typeof vi.fn>;
@@ -68,6 +73,11 @@ describe('GithubWebhookService (unit)', () => {
     };
     pullRequestService = {
       upsertPullRequest: vi.fn().mockResolvedValue(undefined),
+      findOne: vi.fn().mockResolvedValue({id: 101}),
+    };
+    pullRequestReviewerService = {
+      syncRequestedReviewers: vi.fn().mockResolvedValue(undefined),
+      markProgress: vi.fn().mockResolvedValue(undefined),
     };
     githubRepositoryRepository = {
       findOne: vi.fn().mockResolvedValue({
@@ -85,6 +95,7 @@ describe('GithubWebhookService (unit)', () => {
       queueService as never,
       issueService as never,
       pullRequestService as never,
+      pullRequestReviewerService as never,
       githubRepositoryRepository as never,
       userRepository as never,
     );

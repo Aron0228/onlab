@@ -26,6 +26,7 @@ import type {
   CommunicationMember,
   CommunicationMessage,
 } from 'client/routes/workspaces/edit/communication';
+import type { FlashMessagesServiceLike } from 'client/types/services';
 import type Owner from '@ember/owner';
 
 type WorkspacesEditModel = {
@@ -52,12 +53,24 @@ const SEPARATOR = {
 } as const;
 
 type SocketLike = {
+  socket?: RawSocketLike;
   on(
     event: string,
     callback: (...args: unknown[]) => void,
     context?: unknown
   ): void;
   off(event: string, callback: (...args: unknown[]) => void): void;
+};
+
+type RawSocketLike = {
+  id?: string;
+  connected?: boolean;
+  io?: {
+    uri?: string;
+    readyState?: string;
+  };
+  on?(event: string, callback: (...args: unknown[]) => void): void;
+  onAny?(callback: (event: string, ...args: unknown[]) => void): void;
 };
 
 type SocketIoServiceLike = {
@@ -82,6 +95,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
   @service declare router: RouterService;
   @service declare session: SessionService;
   @service declare sessionAccount: SessionAccountService;
+  @service declare flashMessages: FlashMessagesServiceLike;
   @service declare store: StoreLike;
   @service('socket-io') declare socketIOService: SocketIoServiceLike;
 
@@ -112,6 +126,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       ((callback: FrameRequestCallback) => globalThis.setTimeout(callback, 0));
 
     scheduleLoad(() => {
+      this.connectSocket();
       void this.loadCommunicationMenu();
     });
     globalThis.addEventListener?.('pointerdown', this.enableNotificationSound, {
@@ -130,6 +145,10 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
   willDestroy(): void {
     super.willDestroy();
     this.socket?.off('channel:updated', this.onChannelUpdated);
+    this.socket?.off(
+      'pull-request-review:reminder',
+      this.onPullRequestReviewReminder
+    );
     globalThis.removeEventListener?.(
       'pointerdown',
       this.enableNotificationSound
@@ -376,16 +395,123 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
 
   private connectSocket(): void {
     const token = this.session.data.authenticated?.token;
-    if (!token || this.socket) return;
+    if (!token) {
+      console.log('[PR review reminder] Client socket skipped: no token.');
+      return;
+    }
+
+    if (this.socket) {
+      console.log('[PR review reminder] Client socket already connected.');
+      return;
+    }
 
     const socket = this.socketIOService.socketFor(
       import.meta.env.VITE_API_URL as string,
-      { query: { token } }
+      {
+        auth: { token },
+        query: { token },
+      }
     );
 
+    this.registerSocketDebugHandlers(socket);
     socket.on('channel:updated', this.onChannelUpdated, this);
+    socket.on(
+      'pull-request-review:reminder',
+      this.onPullRequestReviewReminder,
+      this
+    );
     this.socket = socket;
+    console.log('[PR review reminder] Client listener registered.', {
+      url: import.meta.env.VITE_API_URL as string,
+      event: 'pull-request-review:reminder',
+      sessionUserId: this.sessionAccount.id,
+      socket: this.socketDebugSnapshot(socket),
+    });
   }
+
+  private registerSocketDebugHandlers(socket: SocketLike): void {
+    const rawSocket = socket.socket;
+
+    if (!rawSocket) {
+      console.log('[PR review reminder] Client raw socket unavailable.');
+      return;
+    }
+
+    rawSocket.on?.('connect', () => {
+      console.log('[PR review reminder] Client socket connected.', {
+        socket: this.socketDebugSnapshot(socket),
+      });
+    });
+    rawSocket.on?.('connect_error', (error: unknown) => {
+      console.log('[PR review reminder] Client socket connect error.', {
+        error,
+        socket: this.socketDebugSnapshot(socket),
+      });
+    });
+    rawSocket.on?.('disconnect', (reason: unknown) => {
+      console.log('[PR review reminder] Client socket disconnected.', {
+        reason,
+        socket: this.socketDebugSnapshot(socket),
+      });
+    });
+    rawSocket.onAny?.((event, ...args) => {
+      console.log('[PR review reminder] Client socket event seen.', {
+        event,
+        args,
+      });
+    });
+  }
+
+  private socketDebugSnapshot(socket: SocketLike): Record<string, unknown> {
+    const rawSocket = socket.socket;
+
+    return {
+      id: rawSocket?.id,
+      connected: rawSocket?.connected,
+      uri: rawSocket?.io?.uri,
+      readyState: rawSocket?.io?.readyState,
+    };
+  }
+
+  private onPullRequestReviewReminder = (payload: unknown): void => {
+    console.log('[PR review reminder] Client received reminder payload.', {
+      payload,
+    });
+    const reminder = payload as {
+      workspaceId?: number;
+      pullRequestId?: number;
+      pullRequestNumber?: number;
+      pullRequestTitle?: string;
+      repositoryName?: string;
+    };
+
+    if (!reminder.workspaceId || !reminder.pullRequestId) {
+      console.log('[PR review reminder] Client ignored invalid reminder.', {
+        workspaceId: reminder.workspaceId,
+        pullRequestId: reminder.pullRequestId,
+      });
+      return;
+    }
+
+    console.log('[PR review reminder] Client creating sticky flash.', {
+      workspaceId: reminder.workspaceId,
+      pullRequestId: reminder.pullRequestId,
+      pullRequestNumber: reminder.pullRequestNumber,
+    });
+    this.flashMessages.info?.(
+      `Review requested: #${reminder.pullRequestNumber ?? ''} ${
+        reminder.pullRequestTitle ?? 'Pull request'
+      } in ${reminder.repositoryName ?? 'GitHub'}.`,
+      {
+        title: 'Pull request review reminder',
+        sticky: true,
+        route: 'workspaces.edit.pull-requests.edit',
+        models: [reminder.workspaceId, reminder.pullRequestId],
+        actionText: 'Open PR',
+      }
+    );
+    void this.playNotificationSound();
+  };
 
   private onChannelUpdated = (payload: unknown): void => {
     const update = payload as {

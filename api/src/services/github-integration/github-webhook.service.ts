@@ -4,6 +4,10 @@ import {GithubRepositoryRepository, UserRepository} from '../../repositories';
 import {GithubService} from './github.service';
 import {IssueService} from './issue.service';
 import {PullRequestService} from './pull-request.service';
+import {
+  GithubReviewerIdentity,
+  PullRequestReviewerService,
+} from './pull-request-reviewer.service';
 import {IssuePriorityService} from '../issue-priority.service';
 import {QueueService} from '../queue.service';
 
@@ -33,7 +37,9 @@ export type GithubWebhookPayload = {
     merged_at?: string | null;
     user?: {
       id: number;
+      login?: string;
     } | null;
+    requested_reviewers?: GithubReviewerIdentity[];
   };
   issue?: {
     id: number;
@@ -42,6 +48,14 @@ export type GithubWebhookPayload = {
     title: string;
     body: string | null;
     state: string;
+    pull_request?: unknown;
+  };
+  review?: {
+    state?: string;
+    user?: GithubReviewerIdentity | null;
+  };
+  comment?: {
+    user?: GithubReviewerIdentity | null;
   };
 };
 
@@ -60,6 +74,8 @@ export class GithubWebhookService {
     @service(QueueService) private queueService: QueueService,
     @service(IssueService) private issueService: IssueService,
     @service(PullRequestService) private pullRequestService: PullRequestService,
+    @service(PullRequestReviewerService)
+    private pullRequestReviewerService: PullRequestReviewerService,
     @repository(GithubRepositoryRepository)
     private githubRepositoryRepository: GithubRepositoryRepository,
     @repository(UserRepository)
@@ -70,6 +86,15 @@ export class GithubWebhookService {
     switch (event) {
       case 'pull_request':
         await this.handlePullRequestEvent(payload);
+        break;
+      case 'pull_request_review':
+        await this.handlePullRequestReviewEvent(payload);
+        break;
+      case 'pull_request_review_comment':
+        await this.handlePullRequestReviewCommentEvent(payload);
+        break;
+      case 'issue_comment':
+        await this.handleIssueCommentEvent(payload);
         break;
       case 'issues':
         await this.handleIssueEvent(payload);
@@ -124,7 +149,10 @@ export class GithubWebhookService {
       case 'ready_for_review':
       case 'converted_to_draft':
       case 'synchronize':
+      case 'review_requested':
+      case 'review_request_removed':
         await this.upsertPullRequest(payload);
+        await this.syncPullRequestReviewers(payload);
 
         if (
           payload.installation?.id &&
@@ -179,6 +207,55 @@ export class GithubWebhookService {
       default:
         console.log(`Unhandled installation action: ${payload.action}`);
     }
+  }
+
+  private async handlePullRequestReviewEvent(
+    payload: GithubWebhookPayload,
+  ): Promise<void> {
+    if (this.isAppAuthoredPullRequestEvent(payload)) {
+      return;
+    }
+
+    const state = payload.review?.state?.toLowerCase();
+    if (
+      state !== 'approved' &&
+      state !== 'changes_requested' &&
+      state !== 'commented' &&
+      state !== 'dismissed'
+    ) {
+      return;
+    }
+
+    await this.markPullRequestReviewProgress(payload, {
+      reviewer: payload.review?.user,
+      status: state,
+    });
+  }
+
+  private async handlePullRequestReviewCommentEvent(
+    payload: GithubWebhookPayload,
+  ): Promise<void> {
+    if (this.isAppAuthoredPullRequestEvent(payload)) {
+      return;
+    }
+
+    await this.markPullRequestReviewProgress(payload, {
+      reviewer: payload.comment?.user,
+      status: 'commented',
+    });
+  }
+
+  private async handleIssueCommentEvent(
+    payload: GithubWebhookPayload,
+  ): Promise<void> {
+    if (!payload.issue?.pull_request || this.isAppBotSender(payload)) {
+      return;
+    }
+
+    await this.markPullRequestReviewProgress(payload, {
+      reviewer: payload.comment?.user,
+      status: 'commented',
+    });
   }
 
   private async handleInstallationRepositoriesEvent(
@@ -316,6 +393,56 @@ export class GithubWebhookService {
 
   private shouldQueuePullRequestPrediction(action?: string): boolean {
     return action === 'opened' || action === 'synchronize';
+  }
+
+  private async syncPullRequestReviewers(
+    payload: GithubWebhookPayload,
+  ): Promise<void> {
+    const repository = await this.resolveRepository(payload);
+
+    if (!repository || !payload.pull_request) {
+      return;
+    }
+
+    const pullRequest = await this.pullRequestService.findOne({
+      repositoryId: repository.id,
+      githubPrNumber: payload.pull_request.number,
+    });
+
+    if (!pullRequest) {
+      return;
+    }
+
+    await this.pullRequestReviewerService.syncRequestedReviewers({
+      pullRequest,
+      reviewers: payload.pull_request.requested_reviewers ?? [],
+    });
+  }
+
+  private async markPullRequestReviewProgress(
+    payload: GithubWebhookPayload,
+    {
+      reviewer,
+      status,
+    }: {
+      reviewer?: GithubReviewerIdentity | null;
+      status: 'commented' | 'approved' | 'changes_requested' | 'dismissed';
+    },
+  ): Promise<void> {
+    const repository = await this.resolveRepository(payload);
+    const pullRequestNumber =
+      payload.pull_request?.number ?? payload.issue?.number;
+
+    if (!repository || !pullRequestNumber) {
+      return;
+    }
+
+    await this.pullRequestReviewerService.markProgress({
+      repositoryId: repository.id,
+      pullRequestNumber,
+      reviewer,
+      status,
+    });
   }
 
   private isAppBotSender(payload: GithubWebhookPayload): boolean {

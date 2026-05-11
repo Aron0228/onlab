@@ -1,7 +1,14 @@
-import {belongsTo, hasOne, model, property} from '@loopback/repository';
+import {
+  belongsTo,
+  hasMany,
+  hasOne,
+  model,
+  property,
+} from '@loopback/repository';
 import {User} from '../auth';
 import {AIPrediction, AIPredictable} from '../system';
 import {GithubRepository} from './repository.model';
+import {GithubPullRequestReviewer} from './pull-request-reviewer.model';
 
 @model({
   settings: {
@@ -72,6 +79,9 @@ export class GithubPullRequest extends AIPredictable {
   )
   authorId?: number | null;
 
+  @hasMany(() => GithubPullRequestReviewer, {keyTo: 'pullRequestId'})
+  reviewers?: GithubPullRequestReviewer[];
+
   constructor(data?: Partial<GithubPullRequest>) {
     super(data);
   }
@@ -81,6 +91,7 @@ export type GithubPullRequestRelations = {
   repository?: GithubRepository;
   author?: User;
   aiPrediction?: AIPrediction | null;
+  reviewers?: GithubPullRequestReviewer[];
 };
 
 export type GithubPullRequestWithRelations = GithubPullRequest &

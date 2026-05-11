@@ -258,6 +258,10 @@
     align-items: center;
   }
 
+  .pull-request-edit-github-button {
+    align-self: flex-start;
+  }
+
   .pull-request-edit-panel__title {
     font-size: clamp(1.4rem, 2vw, 2rem);
     line-height: 1.2;

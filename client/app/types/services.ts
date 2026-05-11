@@ -27,8 +27,17 @@ export type SessionAccountServiceLike = {
 };
 
 export type FlashMessagesServiceLike = {
-  success?(message: string, options?: { title?: string }): void;
-  danger(message: string, options?: { title?: string }): void;
+  success?(message: string, options?: FlashMessageOptions): void;
+  info?(message: string, options?: FlashMessageOptions): void;
+  danger(message: string, options?: FlashMessageOptions): void;
+};
+
+export type FlashMessageOptions = {
+  title?: string;
+  sticky?: boolean;
+  route?: string;
+  models?: unknown[];
+  actionText?: string;
 };
 
 export type RouterServiceLike = {

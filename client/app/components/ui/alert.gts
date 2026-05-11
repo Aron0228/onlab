@@ -1,12 +1,17 @@
 import Component from '@glimmer/component';
+import { action } from '@ember/object';
+import { on } from '@ember/modifier';
 import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
+import UiButton from 'client/components/ui/button';
 
 export interface UiAlertSignature {
   Args: {
     message: string;
     type?: 'info' | 'success' | 'warning' | 'alert';
     onClose: () => void;
+    onActivate?: () => void;
+    actionText?: string;
   };
   Element: HTMLDivElement;
 }
@@ -31,21 +36,52 @@ export default class UiAlert extends Component<UiAlertSignature> {
     return ICONS.find((icon) => icon.alertType === this.type) ?? ICONS[0];
   }
 
+  @action activate(): void {
+    this.args.onActivate?.();
+  }
+
+  @action close(event?: Event): void {
+    event?.stopPropagation();
+    this.args.onClose();
+  }
+
+  @action activateAction(event?: Event): void {
+    event?.stopPropagation();
+    this.args.onActivate?.();
+  }
+
   <template>
-    <div class="ui-alert --type-{{this.type}}" role="alert">
+    <div
+      class="ui-alert --type-{{this.type}} {{if @onActivate '--interactive'}}"
+      role={{if @onActivate "button" "alert"}}
+      tabindex={{if @onActivate "0"}}
+      {{on "click" this.activate}}
+    >
       <div class="ui-alert__icon">
         <UiIcon @name={{this.icon.name}} @variant={{this.icon.variant}} />
       </div>
 
-      <div class="ui-alert__message">
-        {{@message}}
+      <div class="ui-alert__content">
+        <div class="ui-alert__message">
+          {{@message}}
+        </div>
+
+        {{#if @actionText}}
+          <UiButton
+            class="ui-alert__action"
+            @text={{@actionText}}
+            @hierarchy="secondary"
+            @iconRight="arrow-right"
+            @onClick={{this.activateAction}}
+          />
+        {{/if}}
       </div>
 
       <div class="ui-alert__close">
         <UiIconButton
           @iconName="x"
           @iconVariant={{this.icon.variant}}
-          @onClick={{@onClose}}
+          @onClick={{this.close}}
         />
       </div>
     </div>
