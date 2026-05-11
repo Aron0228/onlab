@@ -1,37 +1,82 @@
-import {describe} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 
-import {Workspace} from '../../../models';
 import {WorkspaceController} from '../../../controllers/system/workspace.controller';
-import {describeCrudController} from './test-helpers';
+import {Workspace} from '../../../models';
 
 describe('WorkspaceController (unit)', () => {
-  describeCrudController({
-    controllerName: 'WorkspaceController',
-    createController: repository =>
-      new WorkspaceController(repository as never),
-    id: 11,
-    filter: {where: {ownerId: 7}},
-    where: {ownerId: 7},
-    entityFactory: () =>
-      new Workspace({
-        id: 11,
-        name: 'Demo Workspace',
-        ownerId: 7,
-        avatarUrl: 'https://example.com/workspace.png',
+  const createController = () => {
+    const repository = {
+      find: vi.fn(),
+      count: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      updateById: vi.fn(),
+      replaceById: vi.fn(),
+      deleteById: vi.fn(),
+    };
+    const authorization = {
+      getAuthenticatedUserId: vi.fn().mockReturnValue(7),
+      mergeWorkspaceAccessFilter: vi.fn().mockResolvedValue({
+        where: {ownerId: 7},
       }),
-    createPayloadFactory: () => ({
-      name: 'Demo Workspace',
+      assertWorkspaceOwner: vi.fn().mockResolvedValue('OWNER'),
+      assertWorkspaceMember: vi.fn().mockResolvedValue('OWNER'),
+    };
+
+    return {
+      repository,
+      authorization,
+      controller: new WorkspaceController(
+        repository as never,
+        authorization as never,
+      ),
+    };
+  };
+
+  it('scopes workspace listing to the authenticated user', async () => {
+    const {controller, repository, authorization} = createController();
+    const workspace = new Workspace({id: 11, name: 'Demo', ownerId: 7});
+    repository.find.mockResolvedValue([workspace]);
+
+    await expect(
+      controller.find({id: 7} as never, {where: {name: 'Demo'}}),
+    ).resolves.toEqual([workspace]);
+
+    expect(authorization.mergeWorkspaceAccessFilter).toHaveBeenCalledWith(
+      {where: {name: 'Demo'}},
+      7,
+    );
+    expect(repository.find).toHaveBeenCalledWith({where: {ownerId: 7}});
+  });
+
+  it('creates workspaces owned by the authenticated user', async () => {
+    const {controller, repository} = createController();
+    const workspace = new Workspace({id: 11, name: 'Demo', ownerId: 7});
+    repository.create.mockResolvedValue(workspace);
+
+    await expect(
+      controller.create({id: 7} as never, {name: 'Demo', ownerId: 99}),
+    ).resolves.toEqual(workspace);
+
+    expect(repository.create).toHaveBeenCalledWith({
+      name: 'Demo',
       ownerId: 7,
-      avatarUrl: 'https://example.com/workspace.png',
-    }),
-    updatePayloadFactory: () => ({
-      name: 'Updated Workspace',
-      avatarUrl: 'https://example.com/updated-workspace.png',
-    }),
-    relationName: 'owner',
-    relationValueFactory: () => ({
-      id: 7,
-      username: 'aron0228',
-    }),
+    });
+  });
+
+  it('requires workspace owner for AI and sync settings updates', async () => {
+    const {controller, repository, authorization} = createController();
+    repository.updateById.mockResolvedValue(undefined);
+
+    await expect(
+      controller.updateById({id: 7} as never, 11, {
+        capacityPlanningSync: false,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(authorization.assertWorkspaceOwner).toHaveBeenCalledWith(11, 7);
+    expect(repository.updateById).toHaveBeenCalledWith(11, {
+      capacityPlanningSync: false,
+    });
   });
 });

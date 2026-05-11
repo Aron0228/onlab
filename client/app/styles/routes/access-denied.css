@@ -1,0 +1,34 @@
+.route-access-denied,
+.workspace-access-denied {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: var(--space-xl);
+}
+
+.workspace-access-denied {
+  min-height: 100%;
+}
+
+.access-denied-panel {
+  width: min(34rem, 100%);
+}
+
+.access-denied-content {
+  align-items: center;
+  text-align: center;
+}
+
+.access-denied-icon {
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--bg-muted);
+}
+
+.access-denied-content p {
+  max-width: 28rem;
+}

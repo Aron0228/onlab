@@ -31,7 +31,7 @@ type ApiServiceLike = {
     path: string,
     options: {
       method: 'POST';
-      body: Record<string, number | string | null>;
+      body: Record<string, number | string | AnalyzeIssueResponse | null>;
     }
   ): Promise<AnalyzeIssueResponse | CreateIssueResponse>;
 };
@@ -173,6 +173,7 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
           repositoryId: Number(this.selectedRepository.id),
           title: this.title.trim(),
           description: this.description.trim(),
+          prediction: this.analysisResult,
         },
       }
     )) as CreateIssueResponse;

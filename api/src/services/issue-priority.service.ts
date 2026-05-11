@@ -429,6 +429,30 @@ export class IssuePriorityService {
     return descriptionWithoutNote.replace(/^👀\s*/u, '').trimStart();
   }
 
+  public normalizePredictionInput(
+    prediction: Partial<IssuePriorityPrediction> | null | undefined,
+  ): IssuePriorityPrediction | null {
+    if (!prediction) {
+      return null;
+    }
+
+    const priority = normalizeIssuePriority(prediction.priority);
+    const reason = prediction.reason?.trim();
+
+    if (!priority || !reason) {
+      return null;
+    }
+
+    return {
+      priority,
+      reason,
+      estimatedHours: normalizeEstimatedHours(prediction.estimatedHours),
+      estimationConfidence: normalizeEstimationConfidence(
+        prediction.estimationConfidence,
+      ),
+    };
+  }
+
   public stripPredictionNote(description: string | null | undefined): string {
     if (!description) {
       return '';

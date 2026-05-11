@@ -13,6 +13,7 @@ Router.map(function () {
     this.route('callback');
   });
   this.route('profile');
+  this.route('access-denied');
   this.route('workspaces', function () {
     this.route('callback');
     this.route('new');
@@ -28,6 +29,7 @@ Router.map(function () {
       });
 
       this.route('settings');
+      this.route('access-denied');
       this.route('communication');
       this.route('news-feed', function () {
         this.route('issue', { path: '/issues/:issue_id' });

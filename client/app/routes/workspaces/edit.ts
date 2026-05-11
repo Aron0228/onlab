@@ -1,7 +1,7 @@
-import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 import type WorkspaceModel from 'client/models/workspace';
 import type GithubRepositoryModel from 'client/models/github-repository';
+import ProtectedRoute from 'client/routes/protected';
 
 type StoreLike = {
   findRecord(modelName: 'workspace', id: number): Promise<WorkspaceModel>;
@@ -20,12 +20,24 @@ export type WorkspacesIssuesRouteModel = {
   repositories: GithubRepositoryModel[];
 };
 
-export default class WorkspacesEditRoute extends Route {
+export default class WorkspacesEditRoute extends ProtectedRoute {
   @service declare store: StoreLike;
   @service declare lastWorkspace: LastWorkspaceServiceLike;
 
   async model(params: { id: string }): Promise<WorkspacesIssuesRouteModel> {
     const workspaceId = Number.parseInt(params.id, 10);
+
+    const canAccessWorkspace = await this.requireWorkspacePermission(
+      workspaceId,
+      'workspace.view'
+    );
+
+    if (!canAccessWorkspace) {
+      return {
+        workspace: undefined as never,
+        repositories: [],
+      };
+    }
 
     const workspace = await this.store.findRecord('workspace', workspaceId);
     const repositories = await this.store.query('github-repository', {
