@@ -56,6 +56,11 @@ describe('GithubService (unit)', () => {
     updateById: ReturnType<typeof vi.fn>;
     deleteCascade: ReturnType<typeof vi.fn>;
   };
+  let installationStateRepository: {
+    create: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+    updateById: ReturnType<typeof vi.fn>;
+  };
   let queueService: {
     enqueueGithubIssuesSync: ReturnType<typeof vi.fn>;
     enqueueGithubLabelsSync: ReturnType<typeof vi.fn>;
@@ -85,6 +90,20 @@ describe('GithubService (unit)', () => {
       updateById: vi.fn().mockResolvedValue(undefined),
       deleteCascade: vi.fn().mockResolvedValue(undefined),
     };
+    installationStateRepository = {
+      create: vi.fn().mockImplementation(state => Promise.resolve(state)),
+      findById: vi.fn().mockImplementation((nonce: string) =>
+        Promise.resolve({
+          nonce,
+          workspaceId: 42,
+          userId: 7,
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          consumedAt: null,
+        }),
+      ),
+      updateById: vi.fn().mockResolvedValue(undefined),
+    };
     queueService = {
       enqueueGithubLabelsSync: vi.fn().mockResolvedValue(undefined),
       enqueueGithubIssuesSync: vi.fn().mockResolvedValue(undefined),
@@ -104,6 +123,7 @@ describe('GithubService (unit)', () => {
     service = new GithubService(
       async () => workspaceRepository as never,
       async () => githubRepositoryRepository as never,
+      async () => installationStateRepository as never,
       queueService as never,
       issuePriorityService as never,
     );
@@ -254,12 +274,70 @@ describe('GithubService (unit)', () => {
 
     expect(signedState).toBeTruthy();
     expect(signedState).not.toBe('42');
+    expect(installationStateRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 42,
+        userId: 7,
+        consumedAt: null,
+      }),
+    );
 
     await service.callback(response as never, '77', 'install', signedState!);
 
     expect(syncWorkspaceInstallationSpy).toHaveBeenCalledWith(42, 77);
+    expect(installationStateRepository.updateById).toHaveBeenCalledWith(
+      signedState!.split('.')[2],
+      expect.objectContaining({
+        consumedAt: expect.any(Date),
+      }),
+    );
     expect(response.redirect).toHaveBeenCalledWith(
       'https://client.example.com/workspaces/callback?workspaceId=42',
+    );
+  });
+
+  it('rejects replayed installation callback state tokens', async () => {
+    internals.getGithubAppInfo = vi.fn().mockResolvedValue({
+      slug: 'devteams-demo',
+      name: 'DevTeams Demo',
+    });
+    internals.getInstallation = vi.fn().mockResolvedValue({
+      id: 77,
+      account: null,
+      app_id: 1,
+      app_slug: 'devteams-demo',
+      target_id: 2,
+      target_type: 'Organization',
+      permissions: {},
+      events: [],
+    });
+    vi.spyOn(internals, 'listInstallationRepositories').mockResolvedValue([]);
+    const syncWorkspaceInstallationSpy = vi
+      .spyOn(internals, 'syncWorkspaceInstallation')
+      .mockResolvedValue(undefined);
+    const response = {
+      redirect: vi.fn(),
+    };
+
+    const installationUrl = await service.getInstallationUrl({
+      workspaceId: 42,
+      userId: 7,
+    });
+    const signedState = new URL(installationUrl).searchParams.get('state')!;
+    installationStateRepository.findById.mockResolvedValueOnce({
+      nonce: signedState.split('.')[2],
+      workspaceId: 42,
+      userId: 7,
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: new Date(),
+    });
+
+    await service.callback(response as never, '77', 'install', signedState);
+
+    expect(syncWorkspaceInstallationSpy).not.toHaveBeenCalled();
+    expect(response.redirect).toHaveBeenCalledWith(
+      'https://client.example.com/workspaces/callback',
     );
   });
 

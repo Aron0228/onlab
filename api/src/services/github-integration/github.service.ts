@@ -2,13 +2,14 @@
 import {BindingScope, Getter, injectable, service} from '@loopback/core';
 import {repository} from '@loopback/repository';
 import {HttpErrors, Response} from '@loopback/rest';
-import {createHmac, timingSafeEqual} from 'crypto';
+import {createHmac, randomBytes, timingSafeEqual} from 'crypto';
 import {App} from 'octokit';
 import {
   IssuePriorityService,
   type IssuePriorityPrediction,
 } from '../issue-priority.service';
 import {
+  GithubInstallationStateRepository,
   GithubRepositoryRepository,
   WorkspaceRepository,
 } from '../../repositories';
@@ -143,6 +144,8 @@ export class GithubService {
     private workspaceRepositoryGetter: Getter<WorkspaceRepository>,
     @repository.getter('GithubRepositoryRepository')
     private githubRepositoryRepositoryGetter: Getter<GithubRepositoryRepository>,
+    @repository.getter('GithubInstallationStateRepository')
+    private githubInstallationStateRepositoryGetter: Getter<GithubInstallationStateRepository>,
     @service(QueueService)
     private queueService: QueueService,
     @service(IssuePriorityService)
@@ -172,7 +175,7 @@ export class GithubService {
     if (state) {
       installationUrl.searchParams.set(
         'state',
-        this.createInstallationStateToken(state),
+        await this.createInstallationStateToken(state),
       );
     }
 
@@ -200,7 +203,7 @@ export class GithubService {
     }
 
     const callbackUrl = new URL('/workspaces/callback', this.clientUrl);
-    const workspaceId = this.parseWorkspaceId(state);
+    const workspaceId = await this.parseWorkspaceId(state);
 
     if (workspaceId) {
       callbackUrl.searchParams.set('workspaceId', workspaceId.toString());
@@ -311,26 +314,29 @@ export class GithubService {
     };
   }
 
-  private parseWorkspaceId(state?: string): number | undefined {
+  private async parseWorkspaceId(state?: string): Promise<number | undefined> {
     if (!state) {
       return undefined;
     }
 
     const parts = state.trim().split('.');
 
-    if (parts.length !== 3 && parts.length !== 4) {
+    if (parts.length !== 5) {
       console.warn('GitHub App callback received invalid workspace state', {
         state,
       });
       return undefined;
     }
 
-    const hasUserId = parts.length === 4;
-    const [workspaceIdText, maybeUserIdText, maybeIssuedAtText, signature] =
-      hasUserId ? parts : [parts[0], undefined, parts[1], parts[2]];
-    const issuedAtText = maybeIssuedAtText;
+    const [workspaceIdText, userIdText, nonce, issuedAtText, signature] = parts;
 
-    if (!workspaceIdText || !issuedAtText || !signature) {
+    if (
+      !workspaceIdText ||
+      !userIdText ||
+      !nonce ||
+      !issuedAtText ||
+      !signature
+    ) {
       console.warn('GitHub App callback received invalid workspace state', {
         state,
       });
@@ -338,13 +344,14 @@ export class GithubService {
     }
 
     const workspaceId = Number(workspaceIdText);
-    const userId = maybeUserIdText ? Number(maybeUserIdText) : undefined;
+    const userId = Number(userIdText);
     const issuedAt = Number(issuedAtText);
 
     if (
       !workspaceId ||
       Number.isNaN(workspaceId) ||
-      (maybeUserIdText && (!userId || Number.isNaN(userId))) ||
+      !userId ||
+      Number.isNaN(userId) ||
       !issuedAt ||
       Number.isNaN(issuedAt)
     ) {
@@ -362,9 +369,7 @@ export class GithubService {
       return undefined;
     }
 
-    const signedPayload = hasUserId
-      ? `${workspaceId}.${userId}.${issuedAt}`
-      : `${workspaceId}.${issuedAt}`;
+    const signedPayload = `${workspaceId}.${userId}.${nonce}.${issuedAt}`;
     const expectedSignature = createHmac('sha256', this.appStateSecret)
       .update(signedPayload)
       .digest('hex');
@@ -379,17 +384,65 @@ export class GithubService {
       return undefined;
     }
 
+    if (
+      !(await this.consumeInstallationStateNonce(nonce, workspaceId, userId))
+    ) {
+      return undefined;
+    }
+
     return workspaceId;
   }
 
-  private createInstallationStateToken(state: GithubInstallationState): string {
+  private async createInstallationStateToken(
+    state: GithubInstallationState,
+  ): Promise<string> {
     const issuedAt = Date.now();
-    const signedPayload = `${state.workspaceId}.${state.userId}.${issuedAt}`;
+    const nonce = randomBytes(24).toString('hex');
+    const signedPayload = `${state.workspaceId}.${state.userId}.${nonce}.${issuedAt}`;
     const signature = createHmac('sha256', this.appStateSecret)
       .update(signedPayload)
       .digest('hex');
 
+    const repository = await this.githubInstallationStateRepositoryGetter();
+    await repository.create({
+      nonce,
+      workspaceId: state.workspaceId,
+      userId: state.userId,
+      issuedAt: new Date(issuedAt),
+      expiresAt: new Date(issuedAt + INSTALLATION_STATE_TTL_MS),
+      consumedAt: null,
+    });
+
     return `${signedPayload}.${signature}`;
+  }
+
+  private async consumeInstallationStateNonce(
+    nonce: string,
+    workspaceId: number,
+    userId: number,
+  ): Promise<boolean> {
+    const repository = await this.githubInstallationStateRepositoryGetter();
+    const state = await repository.findById(nonce).catch(() => undefined);
+
+    if (
+      !state ||
+      state.workspaceId !== workspaceId ||
+      state.userId !== userId ||
+      state.consumedAt ||
+      state.expiresAt.getTime() <= Date.now()
+    ) {
+      console.warn('GitHub App callback received replayed or expired state', {
+        workspaceId,
+        userId,
+      });
+      return false;
+    }
+
+    await repository.updateById(nonce, {
+      consumedAt: new Date(),
+    });
+
+    return true;
   }
 
   private async saveInstallationRepositories(
