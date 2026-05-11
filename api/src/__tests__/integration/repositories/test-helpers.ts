@@ -1,4 +1,5 @@
 import {AuthenticationBindings} from '@loopback/authentication';
+import {asService} from '@loopback/core';
 import {juggler} from '@loopback/repository';
 import {securityId, UserProfile} from '@loopback/security';
 import {RestApi} from '../../..';
@@ -6,6 +7,7 @@ import {PostgresDbDataSource} from '../../../datasources';
 import {User, Workspace} from '../../../models';
 import {UserRepository, WorkspaceRepository} from '../../../repositories';
 import * as repositoryExports from '../../../repositories';
+import {QueueService} from '../../../services/queue.service';
 import {TEST_DATASOURCE_CONFIG} from '../../test-database';
 
 const TEST_SCHEMAS = ['auth', 'system', 'github', 'planning', 'communication'];
@@ -80,7 +82,10 @@ export const setupRepositoryTestApp = async (
   app
     .bind(AuthenticationBindings.CURRENT_USER)
     .toDynamicValue(async () => currentUser);
-  app.bind('services.QueueService').to(NOOP_QUEUE_SERVICE);
+  app
+    .bind('services.QueueService')
+    .to(NOOP_QUEUE_SERVICE)
+    .apply(asService(QueueService));
   registerRepositories(app);
 
   return {
