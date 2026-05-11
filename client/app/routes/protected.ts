@@ -39,7 +39,14 @@ export default class ProtectedRoute extends Route {
     const allowed = await this.canAccessWorkspaceRoute(workspaceId, permission);
 
     if (!allowed) {
-      this.router.transitionTo('workspaces.index');
+      if (
+        this.routeName.startsWith('workspaces.edit.') &&
+        this.routeName !== 'workspaces.edit.access-denied'
+      ) {
+        this.router.transitionTo('workspaces.edit.access-denied', workspaceId);
+      } else {
+        this.router.transitionTo('access-denied');
+      }
     }
 
     return allowed;
