@@ -26,6 +26,11 @@ jobs:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DATABASE: onlab_test
       POSTGRES_URL: postgres://postgres:postgres@localhost:5432/onlab_test
+      TEST_POSTGRES_HOST: localhost
+      TEST_POSTGRES_PORT: 5432
+      TEST_POSTGRES_USER: postgres
+      TEST_POSTGRES_PASSWORD: postgres
+      TEST_POSTGRES_DATABASE: onlab_test
 
     services:
       postgres:
@@ -69,10 +74,6 @@ jobs:
           until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE"; do
             sleep 1
           done
-
-      - name: Run API migrations
-        working-directory: api
-        run: pnpm exec db-migrate up --env dev
 
       - name: Run API tests with coverage
         working-directory: api

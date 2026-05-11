@@ -6,48 +6,41 @@ import {PostgresDbDataSource} from '../../../datasources';
 import {User, Workspace} from '../../../models';
 import {UserRepository, WorkspaceRepository} from '../../../repositories';
 import * as repositoryExports from '../../../repositories';
+import {TEST_DATASOURCE_CONFIG} from '../../test-database';
 
-const TEST_TABLES = [
-  '"system"."ai_prediction"',
-  'github."label"',
-  'github."pull_request"',
-  'github."issue"',
-  'github."repository"',
-  '"system"."file"',
-  '"system"."invitation"',
-  '"system"."workspace_member"',
-  '"system".workspace',
-  'auth.access_token',
-  'auth."user"',
-];
-
-const TEST_POSTGRES_HOST = process.env.POSTGRES_TEST_HOST ?? 'localhost';
-const TEST_POSTGRES_PORT = Number(process.env.POSTGRES_TEST_PORT ?? 5432);
-const TEST_POSTGRES_USER = process.env.POSTGRES_TEST_USER ?? 'postgres';
-const TEST_POSTGRES_PASSWORD = process.env.POSTGRES_TEST_PASSWORD ?? 'postgres';
-const TEST_POSTGRES_DATABASE =
-  process.env.POSTGRES_TEST_DATABASE ?? 'onlab_test';
-
-const TEST_DATASOURCE_CONFIG = {
-  name: 'postgresDB',
-  connector: 'postgresql' as const,
-  url:
-    process.env.POSTGRES_TEST_URL ??
-    `postgres://${TEST_POSTGRES_USER}:${TEST_POSTGRES_PASSWORD}@${TEST_POSTGRES_HOST}:${TEST_POSTGRES_PORT}/${TEST_POSTGRES_DATABASE}`,
-  host: TEST_POSTGRES_HOST,
-  port: TEST_POSTGRES_PORT,
-  user: TEST_POSTGRES_USER,
-  password: TEST_POSTGRES_PASSWORD,
-  database: TEST_POSTGRES_DATABASE,
-  connectionTimeoutMillis: 3000,
-};
+const TEST_SCHEMAS = ['auth', 'system', 'github', 'planning', 'communication'];
 
 export const createTestDataSource = () =>
   new PostgresDbDataSource(TEST_DATASOURCE_CONFIG);
 
 export const resetTestDataSource = async (dataSource: juggler.DataSource) => {
+  const tables = await getTestTableNames(dataSource);
+
+  if (!tables.length) {
+    return;
+  }
+
   await dataSource.execute(
-    `TRUNCATE TABLE ${TEST_TABLES.join(', ')} RESTART IDENTITY CASCADE;`,
+    `TRUNCATE TABLE ${tables.join(', ')} RESTART IDENTITY CASCADE;`,
+  );
+};
+
+const getTestTableNames = async (
+  dataSource: juggler.DataSource,
+): Promise<string[]> => {
+  const rows = await dataSource.execute(
+    `
+      SELECT schemaname, tablename
+      FROM pg_tables
+      WHERE schemaname = ANY($1)
+      ORDER BY schemaname, tablename;
+    `,
+    [TEST_SCHEMAS],
+  );
+
+  return rows.map(
+    (row: {schemaname: string; tablename: string}) =>
+      `"${row.schemaname}"."${row.tablename}"`,
   );
 };
 
