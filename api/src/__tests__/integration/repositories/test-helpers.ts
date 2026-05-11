@@ -9,6 +9,14 @@ import * as repositoryExports from '../../../repositories';
 import {TEST_DATASOURCE_CONFIG} from '../../test-database';
 
 const TEST_SCHEMAS = ['auth', 'system', 'github', 'planning', 'communication'];
+const NOOP_QUEUE_SERVICE = {
+  enqueueGithubIssuesSync: async () => undefined,
+  enqueueGithubLabelsSync: async () => undefined,
+  enqueueGithubIssueCreation: async () => undefined,
+  enqueueGithubPullRequestPrioritization: async () => undefined,
+  enqueueNewsFeedPrediction: async () => undefined,
+  close: async () => undefined,
+};
 
 export const createTestDataSource = () =>
   new PostgresDbDataSource(TEST_DATASOURCE_CONFIG);
@@ -72,6 +80,7 @@ export const setupRepositoryTestApp = async (
   app
     .bind(AuthenticationBindings.CURRENT_USER)
     .toDynamicValue(async () => currentUser);
+  app.bind('services.QueueService').to(NOOP_QUEUE_SERVICE);
   registerRepositories(app);
 
   return {
