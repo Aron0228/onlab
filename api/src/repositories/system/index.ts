@@ -5,6 +5,7 @@ export * from './invitation.repository';
 export * from './news-feed-aware-crud.repository';
 export * from './news-feed-entry-expertise-assoc.repository';
 export * from './news-feed-entry.repository';
+export * from './notification.repository';
 export * from './user-expertise-assoc.repository';
 export * from './workspace-member.repository';
 export * from './workspace.repository';

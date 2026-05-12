@@ -1,0 +1,118 @@
+.route-notifications {
+  background: var(--bg-sidebar);
+}
+
+.route-notifications__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.route-notifications__body {
+  flex: 1;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--bg-app);
+}
+
+.route-notifications__section-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+}
+
+.route-notifications__list {
+  gap: 0;
+}
+
+.route-notifications__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  padding: var(--space-md);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.route-notifications__item:hover {
+  background: var(--bg-hover);
+}
+
+.route-notifications__item.--unread {
+  background: color-mix(in srgb, var(--color-accent-subtle) 28%, transparent);
+}
+
+.route-notifications__item-icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-hover);
+  flex-shrink: 0;
+}
+
+.route-notifications__item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.route-notifications__item-title {
+  font-weight: var(--font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.route-notifications__item-message {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.route-notifications__item-meta {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.route-notifications__empty .ui-container__body {
+  display: grid;
+  place-items: center;
+  gap: var(--space-md);
+  min-height: 20rem;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .route-notifications__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .route-notifications__body {
+    padding: var(--space-md);
+  }
+
+  .route-notifications__item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .route-notifications__item-meta {
+    grid-column: 2;
+  }
+}

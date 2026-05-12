@@ -29,6 +29,7 @@
 @import url('routes/workspaces/pull-requests.css');
 @import url('routes/workspaces/settings.css');
 @import url('routes/profile.css');
+@import url('routes/notifications.css');
 
 @import url('utils.css');
 @import url('route-profile.css');

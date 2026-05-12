@@ -13,6 +13,7 @@ Router.map(function () {
     this.route('callback');
   });
   this.route('profile');
+  this.route('notifications');
   this.route('access-denied');
   this.route('workspaces', function () {
     this.route('callback');
