@@ -14,6 +14,7 @@ import {
   WorkspaceRepository,
 } from '../../repositories';
 import {QueueService} from '../queue.service';
+import {AuditEventService} from '../audit-event.service';
 
 type GithubAppInfo = {
   slug: string;
@@ -150,6 +151,8 @@ export class GithubService {
     private queueService: QueueService,
     @service(IssuePriorityService)
     private issuePriorityService: IssuePriorityService,
+    @service(AuditEventService)
+    private auditEventService: AuditEventService,
   ) {
     this.app = new App({
       appId: process.env.GITHUB_APP_ID!,
@@ -219,6 +222,22 @@ export class GithubService {
       const repositories =
         await this.listInstallationRepositories(installationIdNumber);
 
+      if (workspaceId) {
+        await this.auditEventService.record({
+          workspaceId,
+          actorUserId: this.tryParseInstallationStateUserId(state),
+          action: 'github.installation.connected',
+          resourceType: 'github-installation',
+          resourceId: String(installationIdNumber),
+          source: 'github',
+          payload: {
+            setupAction,
+            account: installation.account,
+            repositoryCount: repositories.length,
+          },
+        });
+      }
+
       console.log('GitHub App installation callback', {
         installationId: installationIdNumber,
         setupAction,
@@ -285,6 +304,16 @@ export class GithubService {
         githubInstallationId: undefined,
         issueSyncDone: false,
         prSyncDone: false,
+      });
+      await this.auditEventService.record({
+        workspaceId: workspace.id,
+        action: 'github.installation.disconnected',
+        resourceType: 'github-installation',
+        resourceId: String(installationId),
+        source: 'github',
+        payload: {
+          deletedRepositoryCount: repositories.length,
+        },
       });
     }
   }
@@ -504,6 +533,34 @@ export class GithubService {
 
       await githubRepositoryRepository.deleteCascade(existingRepository.id);
     }
+
+    await this.auditEventService.record({
+      workspaceId,
+      action: 'github.installation.repositories.synced',
+      resourceType: 'github-installation',
+      resourceId: String(installationId),
+      source: 'github',
+      payload: {
+        repositoryCount: repositories.length,
+        incomingRepositoryIds: [...incomingGithubRepoIds],
+      },
+    });
+  }
+
+  private tryParseInstallationStateUserId(state?: string): number | undefined {
+    if (!state) {
+      return undefined;
+    }
+
+    const [, userIdText] = state.trim().split('.');
+
+    if (!userIdText) {
+      return undefined;
+    }
+
+    const userId = Number(userIdText);
+
+    return Number.isFinite(userId) ? userId : undefined;
   }
 
   private async syncWorkspaceInstallation(

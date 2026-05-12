@@ -17,6 +17,8 @@ describe('PullRequestService (unit)', () => {
     createPredictionsBulk: ReturnType<typeof vi.fn>;
     deleteForSources: ReturnType<typeof vi.fn>;
   };
+  let githubRepositoryRepository: {findById: ReturnType<typeof vi.fn>};
+  let auditEventService: {record: ReturnType<typeof vi.fn>};
   let service: PullRequestService;
 
   beforeEach(() => {
@@ -42,10 +44,22 @@ describe('PullRequestService (unit)', () => {
       createPredictionsBulk: vi.fn().mockResolvedValue(undefined),
       deleteForSources: vi.fn().mockResolvedValue(undefined),
     };
+    githubRepositoryRepository = {
+      findById: vi.fn().mockResolvedValue({
+        id: 1,
+        workspaceId: 3,
+        fullName: 'team/api',
+      }),
+    };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new PullRequestService(
       githubPullRequestRepository as never,
+      githubRepositoryRepository as never,
       aiPredictionService as never,
+      auditEventService as never,
     );
   });
 
@@ -74,6 +88,15 @@ describe('PullRequestService (unit)', () => {
     });
     expect(githubPullRequestRepository.updateById).not.toHaveBeenCalled();
     expect(aiPredictionService.syncPrediction).not.toHaveBeenCalled();
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 3,
+        action: 'github.pull-request.created',
+        resourceType: 'github-pull-request',
+        resourceId: '1',
+        source: 'github',
+      }),
+    );
   });
 
   it('creates a prediction alongside a pull request when prediction details are provided', async () => {

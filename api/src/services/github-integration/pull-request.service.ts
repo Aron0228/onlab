@@ -1,8 +1,12 @@
 import {BindingScope, injectable, service} from '@loopback/core';
 import {Count, DataObject, repository, Where} from '@loopback/repository';
 import {GithubPullRequest} from '../../models';
-import {GithubPullRequestRepository} from '../../repositories';
+import {
+  GithubPullRequestRepository,
+  GithubRepositoryRepository,
+} from '../../repositories';
 import {AIPredictionService} from '../ai-prediction.service';
+import {AuditEventService} from '../audit-event.service';
 
 type PullRequestPredictionWrite = {
   priority: string;
@@ -32,8 +36,12 @@ export class PullRequestService {
   constructor(
     @repository(GithubPullRequestRepository)
     private githubPullRequestRepository: GithubPullRequestRepository,
+    @repository(GithubRepositoryRepository)
+    private githubRepositoryRepository: GithubRepositoryRepository,
     @service(AIPredictionService)
     private aiPredictionService: AIPredictionService,
+    @service(AuditEventService)
+    private auditEventService: AuditEventService,
   ) {}
 
   public async deleteByRepositoryId(repositoryId: number): Promise<void> {
@@ -64,6 +72,10 @@ export class PullRequestService {
     if (!existingPullRequest) {
       const createdPullRequest =
         await this.githubPullRequestRepository.create(pullRequest);
+      await this.recordPullRequestAudit(
+        createdPullRequest,
+        'github.pull-request.created',
+      );
       if (prediction) {
         await this.aiPredictionService.syncPrediction({
           sourceType: 'github-pull-request',
@@ -81,6 +93,14 @@ export class PullRequestService {
     await this.githubPullRequestRepository.updateById(
       existingPullRequest.id,
       pullRequest,
+    );
+    await this.recordPullRequestAudit(
+      {
+        ...existingPullRequest,
+        ...pullRequest,
+        id: existingPullRequest.id,
+      } as GithubPullRequest,
+      'github.pull-request.updated',
     );
     if (prediction) {
       await this.aiPredictionService.syncPrediction({
@@ -103,6 +123,12 @@ export class PullRequestService {
       'pull-request-merge-risk',
     );
     await this.githubPullRequestRepository.deleteAll(where);
+    for (const pullRequest of pullRequests) {
+      await this.recordPullRequestAudit(
+        pullRequest,
+        'github.pull-request.deleted',
+      );
+    }
   }
 
   public async deleteById(id: number): Promise<void> {
@@ -117,7 +143,15 @@ export class PullRequestService {
       'pull-request-merge-risk',
     );
 
-    return this.githubPullRequestRepository.deleteAll(where);
+    const result = await this.githubPullRequestRepository.deleteAll(where);
+    for (const pullRequest of pullRequests) {
+      await this.recordPullRequestAudit(
+        pullRequest,
+        'github.pull-request.deleted',
+      );
+    }
+
+    return result;
   }
 
   public async savePullRequestsBulk(
@@ -133,6 +167,12 @@ export class PullRequestService {
         this.githubPullRequestRepository,
         batch.map(entry => entry.pullRequest),
       );
+      for (const pullRequest of createdPullRequests) {
+        await this.recordPullRequestAudit(
+          pullRequest as GithubPullRequest,
+          'github.pull-request.synced',
+        );
+      }
       await this.aiPredictionService.createPredictionsBulk(
         createdPullRequests.flatMap((pullRequest, batchIndex) => {
           const prediction = batch[batchIndex].prediction;
@@ -155,6 +195,34 @@ export class PullRequestService {
         }),
       );
     }
+  }
+
+  private async recordPullRequestAudit(
+    pullRequest: GithubPullRequest,
+    action: string,
+  ): Promise<void> {
+    if (!pullRequest.repositoryId) {
+      return;
+    }
+
+    const repository = await this.githubRepositoryRepository.findById(
+      pullRequest.repositoryId,
+    );
+
+    await this.auditEventService.record({
+      workspaceId: repository.workspaceId,
+      action,
+      resourceType: 'github-pull-request',
+      resourceId: String(pullRequest.id),
+      source: 'github',
+      payload: {
+        githubPrNumber: pullRequest.githubPrNumber,
+        repositoryId: repository.id,
+        repositoryFullName: repository.fullName,
+        status: pullRequest.status,
+        title: pullRequest.title,
+      },
+    });
   }
 }
 

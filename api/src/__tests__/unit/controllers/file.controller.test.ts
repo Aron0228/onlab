@@ -17,6 +17,7 @@ describe('FileController (unit)', () => {
     accessibleWorkspaceIds: ReturnType<typeof vi.fn>;
     assertWorkspaceMember: ReturnType<typeof vi.fn>;
   };
+  let auditEventService: {record: ReturnType<typeof vi.fn>};
   let controller: FileController;
 
   beforeEach(() => {
@@ -33,9 +34,13 @@ describe('FileController (unit)', () => {
       accessibleWorkspaceIds: vi.fn().mockResolvedValue([11]),
       assertWorkspaceMember: vi.fn().mockResolvedValue('MEMBER'),
     };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
     controller = new FileController(
       repository as never,
       authorization as never,
+      auditEventService as never,
     );
   });
 
@@ -63,7 +68,14 @@ describe('FileController (unit)', () => {
   it('checks workspace membership before upload and streaming', async () => {
     const request = {query: {workspaceId: '11'}};
     const response = {status: vi.fn()};
-    const uploadResult = {id: 31, url: '/files/31/preview'};
+    const uploadResult = new File({
+      id: 31,
+      workspaceId: 11,
+      originalName: 'avatar.png',
+      mimeType: 'image/png',
+      size: 2048,
+      path: '/uploads/avatar.png',
+    });
     repository.upload.mockResolvedValue(uploadResult);
     repository.findById.mockResolvedValue(
       new File({
@@ -92,5 +104,19 @@ describe('FileController (unit)', () => {
     expect(repository.upload).toHaveBeenCalledWith(request, response);
     expect(repository.download).toHaveBeenCalledWith(31, response);
     expect(repository.preview).toHaveBeenCalledWith(31, response);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 7,
+        workspaceId: 11,
+        action: 'file.uploaded',
+        resourceType: 'file',
+        resourceId: '31',
+        payload: {
+          originalName: 'avatar.png',
+          mimeType: 'image/png',
+          size: 2048,
+        },
+      }),
+    );
   });
 });

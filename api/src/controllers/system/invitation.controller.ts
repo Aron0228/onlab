@@ -9,7 +9,7 @@ import {
 } from '@loopback/repository';
 import {del, get, param, patch, post, put, requestBody} from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
-import {WorkspaceAuthorizationService} from '../../services';
+import {AuditEventService, WorkspaceAuthorizationService} from '../../services';
 import {Invitation, InvitationRelations} from '../../models';
 import {InvitationRepository} from '../../repositories';
 
@@ -20,6 +20,8 @@ export class InvitationController {
     private invitationRepository: InvitationRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @inject('services.AuditEventService')
+    private auditEventService: AuditEventService,
   ) {}
 
   @get('/invitations')
@@ -93,7 +95,20 @@ export class InvitationController {
   ): Promise<Invitation> {
     await this.assertCanManageInvitation(userProfile, data.workspaceId);
 
-    return this.invitationRepository.create(data);
+    const invitation = await this.invitationRepository.create(data);
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: invitation.workspaceId,
+      action: 'invitation.created',
+      resourceType: 'invitation',
+      resourceId: String(invitation.id),
+      payload: {email: invitation.email},
+    });
+
+    return invitation;
   }
 
   @patch('/invitations/{id}')
@@ -116,7 +131,18 @@ export class InvitationController {
     const invitation = await this.invitationRepository.findById(id);
     await this.assertCanManageInvitation(userProfile, invitation.workspaceId);
 
-    return this.invitationRepository.updateById(id, data);
+    await this.invitationRepository.updateById(id, data);
+
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: invitation.workspaceId,
+      action: 'invitation.updated',
+      resourceType: 'invitation',
+      resourceId: String(id),
+      payload: {changedFields: Object.keys(data)},
+    });
   }
 
   @put('/invitations/{id}')
@@ -139,7 +165,18 @@ export class InvitationController {
     const invitation = await this.invitationRepository.findById(id);
     await this.assertCanManageInvitation(userProfile, invitation.workspaceId);
 
-    return this.invitationRepository.replaceById(id, data);
+    await this.invitationRepository.replaceById(id, data);
+
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: invitation.workspaceId,
+      action: 'invitation.replaced',
+      resourceType: 'invitation',
+      resourceId: String(id),
+      payload: {email: data.email},
+    });
   }
 
   @del('/invitations/{id}')
@@ -151,7 +188,18 @@ export class InvitationController {
     const invitation = await this.invitationRepository.findById(id);
     await this.assertCanManageInvitation(userProfile, invitation.workspaceId);
 
-    return this.invitationRepository.deleteById(id);
+    await this.invitationRepository.deleteById(id);
+
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: invitation.workspaceId,
+      action: 'invitation.deleted',
+      resourceType: 'invitation',
+      resourceId: String(id),
+      payload: {email: invitation.email},
+    });
   }
 
   @post('/invitations/accept')

@@ -170,6 +170,7 @@ describe('Workspace RBAC security contract (unit)', () => {
     const controller = new FileController(
       fileRepository as never,
       authorization as never,
+      {record: vi.fn()} as never,
     );
 
     await expect(

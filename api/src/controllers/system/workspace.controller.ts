@@ -8,7 +8,7 @@ import {SecurityBindings, UserProfile} from '@loopback/security';
 import {WORKSPACE_PERMISSION} from '../../constants';
 import {Workspace, WorkspaceRelations} from '../../models';
 import {WorkspaceRepository} from '../../repositories';
-import {WorkspaceAuthorizationService} from '../../services';
+import {AuditEventService, WorkspaceAuthorizationService} from '../../services';
 import {WORKSPACE_AUTHORIZER} from '../../authorization/workspace-authorizer.provider';
 
 const OWNER_ONLY_WORKSPACE_FIELDS = new Set<keyof Workspace>([
@@ -29,6 +29,8 @@ export class WorkspaceController {
     private workspaceRepository: WorkspaceRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @inject('services.AuditEventService')
+    private auditEventService: AuditEventService,
   ) {}
 
   @get('/workspaces')
@@ -118,10 +120,21 @@ export class WorkspaceController {
     const userId =
       this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
 
-    return this.workspaceRepository.create({
+    const workspace = await this.workspaceRepository.create({
       ...data,
       ownerId: userId,
     });
+
+    await this.auditEventService.record({
+      actorUserId: userId,
+      workspaceId: workspace.id,
+      action: 'workspace.created',
+      resourceType: 'workspace',
+      resourceId: String(workspace.id),
+      payload: {name: workspace.name},
+    });
+
+    return workspace;
   }
 
   @authorize({
@@ -147,7 +160,18 @@ export class WorkspaceController {
   ): Promise<void> {
     await this.assertOwnerForSensitiveWorkspaceFields(id, userProfile, data);
 
-    return this.workspaceRepository.updateById(id, data);
+    await this.workspaceRepository.updateById(id, data);
+
+    const userId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId: userId,
+      workspaceId: id,
+      action: 'workspace.updated',
+      resourceType: 'workspace',
+      resourceId: String(id),
+      payload: {changedFields: Object.keys(data)},
+    });
   }
 
   @authorize({
@@ -173,7 +197,18 @@ export class WorkspaceController {
   ): Promise<void> {
     await this.assertOwnerForSensitiveWorkspaceFields(id, userProfile, data);
 
-    return this.workspaceRepository.replaceById(id, data);
+    await this.workspaceRepository.replaceById(id, data);
+
+    const userId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId: userId,
+      workspaceId: id,
+      action: 'workspace.replaced',
+      resourceType: 'workspace',
+      resourceId: String(id),
+      payload: {changedFields: Object.keys(data)},
+    });
   }
 
   @authorize({
@@ -181,8 +216,22 @@ export class WorkspaceController {
     voters: [WORKSPACE_AUTHORIZER],
   })
   @del('/workspaces/{id}')
-  public async deleteById(@param.path.number('id') id: number): Promise<void> {
-    return this.workspaceRepository.deleteById(id);
+  public async deleteById(
+    @inject(SecurityBindings.USER)
+    userProfile: UserProfile,
+    @param.path.number('id') id: number,
+  ): Promise<void> {
+    await this.workspaceRepository.deleteById(id);
+
+    const userId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId: userId,
+      workspaceId: id,
+      action: 'workspace.deleted',
+      resourceType: 'workspace',
+      resourceId: String(id),
+    });
   }
 
   @patch('/workspaces')

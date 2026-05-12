@@ -10,6 +10,7 @@ describe('CapacityPlanningSyncService (unit)', () => {
   let userRepository: {findById: ReturnType<typeof vi.fn>};
   let workspaceRepository: {findById: ReturnType<typeof vi.fn>};
   let githubService: {setIssueAssignees: ReturnType<typeof vi.fn>};
+  let auditEventService: {record: ReturnType<typeof vi.fn>};
   let service: CapacityPlanningSyncService;
 
   beforeEach(() => {
@@ -37,6 +38,9 @@ describe('CapacityPlanningSyncService (unit)', () => {
     githubService = {
       setIssueAssignees: vi.fn().mockResolvedValue(undefined),
     };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new CapacityPlanningSyncService(
       capacityPlanRepository as never,
@@ -45,6 +49,7 @@ describe('CapacityPlanningSyncService (unit)', () => {
       userRepository as never,
       workspaceRepository as never,
       githubService as never,
+      auditEventService as never,
     );
   });
 
@@ -65,6 +70,16 @@ describe('CapacityPlanningSyncService (unit)', () => {
       27,
       ['octocat'],
     );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 5,
+        workspaceId: 3,
+        action: 'capacity-planning.assignment.synced',
+        resourceType: 'issue-assignment',
+        resourceId: '9',
+        source: 'system',
+      }),
+    );
   });
 
   it('skips GitHub updates when capacity planning sync is disabled', async () => {
@@ -84,6 +99,7 @@ describe('CapacityPlanningSyncService (unit)', () => {
     );
 
     expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
   });
 
   it('skips GitHub updates when the workspace has no GitHub installation', async () => {
@@ -103,5 +119,6 @@ describe('CapacityPlanningSyncService (unit)', () => {
     );
 
     expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
   });
 });

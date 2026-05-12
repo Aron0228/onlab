@@ -70,6 +70,7 @@ describe('GithubService (unit)', () => {
     getRiskLabelName: ReturnType<typeof vi.fn>;
     upsertPredictionNote: ReturnType<typeof vi.fn>;
   };
+  let auditEventService: {record: ReturnType<typeof vi.fn>};
   let service: GithubService;
   let internals: GithubServiceInternals;
 
@@ -119,6 +120,9 @@ describe('GithubService (unit)', () => {
         .fn()
         .mockImplementation((description: string) => description),
     };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new GithubService(
       async () => workspaceRepository as never,
@@ -126,6 +130,7 @@ describe('GithubService (unit)', () => {
       async () => installationStateRepository as never,
       queueService as never,
       issuePriorityService as never,
+      auditEventService as never,
     );
     internals = service as unknown as GithubServiceInternals;
   });
@@ -185,6 +190,15 @@ describe('GithubService (unit)', () => {
     });
     expect(githubRepositoryRepository.deleteCascade).toHaveBeenCalledWith(12);
     expect(githubRepositoryRepository.deleteCascade).toHaveBeenCalledTimes(1);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 7,
+        action: 'github.installation.repositories.synced',
+        resourceType: 'github-installation',
+        resourceId: '99',
+        source: 'github',
+      }),
+    );
   });
 
   it('does not create, update, or delete when repositories are already in sync', async () => {
@@ -285,6 +299,16 @@ describe('GithubService (unit)', () => {
     await service.callback(response as never, '77', 'install', signedState!);
 
     expect(syncWorkspaceInstallationSpy).toHaveBeenCalledWith(42, 77);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 7,
+        workspaceId: 42,
+        action: 'github.installation.connected',
+        resourceType: 'github-installation',
+        resourceId: '77',
+        source: 'github',
+      }),
+    );
     expect(installationStateRepository.updateById).toHaveBeenCalledWith(
       signedState!.split('.')[2],
       expect.objectContaining({
