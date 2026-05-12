@@ -20,6 +20,8 @@ describe('IssueService (unit)', () => {
   let issueAssignmentRepository: {
     deleteAll: ReturnType<typeof vi.fn>;
   };
+  let githubRepositoryRepository: {findById: ReturnType<typeof vi.fn>};
+  let auditEventService: {record: ReturnType<typeof vi.fn>};
   let service: IssueService;
 
   beforeEach(() => {
@@ -45,17 +47,35 @@ describe('IssueService (unit)', () => {
     issueAssignmentRepository = {
       deleteAll: vi.fn().mockResolvedValue(undefined),
     };
+    githubRepositoryRepository = {
+      findById: vi.fn().mockResolvedValue({
+        id: 1,
+        workspaceId: 3,
+        fullName: 'team/api',
+      }),
+    };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new IssueService(
       githubIssueRepository as never,
       issueAssignmentRepository as never,
+      githubRepositoryRepository as never,
       aiPredictionService as never,
+      auditEventService as never,
     );
   });
 
   it('creates an issue when upsert does not find an existing row', async () => {
     githubIssueRepository.findOne.mockResolvedValue(null);
-    githubIssueRepository.create.mockResolvedValue({id: 3});
+    githubIssueRepository.create.mockResolvedValue({
+      id: 3,
+      repositoryId: 1,
+      githubIssueNumber: 12,
+      title: 'Broken',
+      status: 'open',
+    });
 
     await service.upsertIssue(
       {
@@ -79,6 +99,15 @@ describe('IssueService (unit)', () => {
     });
     expect(githubIssueRepository.updateById).not.toHaveBeenCalled();
     expect(aiPredictionService.syncPrediction).not.toHaveBeenCalled();
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 3,
+        action: 'github.issue.created',
+        resourceType: 'github-issue',
+        resourceId: '3',
+        source: 'github',
+      }),
+    );
   });
 
   it('creates a prediction alongside a newly created issue when one is provided', async () => {

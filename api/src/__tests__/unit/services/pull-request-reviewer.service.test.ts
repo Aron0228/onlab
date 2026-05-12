@@ -5,11 +5,15 @@ describe('PullRequestReviewerService (unit)', () => {
   let pullRequestRepository: Record<string, ReturnType<typeof vi.fn>>;
   let reviewerRepository: Record<string, ReturnType<typeof vi.fn>>;
   let userRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let githubRepositoryRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let auditEventService: Record<string, ReturnType<typeof vi.fn>>;
   let service: PullRequestReviewerService;
 
   beforeEach(() => {
     pullRequestRepository = {
-      findOne: vi.fn().mockResolvedValue({id: 12}),
+      findOne: vi
+        .fn()
+        .mockResolvedValue({id: 12, repositoryId: 4, githubPrNumber: 18}),
     };
     reviewerRepository = {
       findOne: vi.fn().mockResolvedValue(null),
@@ -21,10 +25,22 @@ describe('PullRequestReviewerService (unit)', () => {
     userRepository = {
       findOne: vi.fn().mockResolvedValue({id: 9}),
     };
+    githubRepositoryRepository = {
+      findById: vi.fn().mockResolvedValue({
+        id: 4,
+        workspaceId: 3,
+        fullName: 'team/api',
+      }),
+    };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
     service = new PullRequestReviewerService(
       pullRequestRepository as never,
       reviewerRepository as never,
       userRepository as never,
+      githubRepositoryRepository as never,
+      auditEventService as never,
     );
   });
 
@@ -41,7 +57,7 @@ describe('PullRequestReviewerService (unit)', () => {
       .mockResolvedValue([]);
 
     await service.syncRequestedReviewers({
-      pullRequest: {id: 12} as never,
+      pullRequest: {id: 12, repositoryId: 4, githubPrNumber: 18} as never,
       reviewers: [{id: 111, login: 'octocat'}],
     });
 
@@ -58,6 +74,21 @@ describe('PullRequestReviewerService (unit)', () => {
       }),
     );
     expect(reviewerRepository.deleteById).toHaveBeenCalledWith(2);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 3,
+        action: 'pull-request.reviewer.requested',
+        resourceType: 'pull-request-reviewer',
+        source: 'github',
+      }),
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 3,
+        action: 'pull-request.reviewer.removed',
+        resourceId: '2',
+      }),
+    );
   });
 
   it('updates existing pending reviewer assignments instead of creating duplicates', async () => {
@@ -77,7 +108,7 @@ describe('PullRequestReviewerService (unit)', () => {
     ]);
 
     await service.syncRequestedReviewers({
-      pullRequest: {id: 12} as never,
+      pullRequest: {id: 12, repositoryId: 4, githubPrNumber: 18} as never,
       reviewers: [{id: 111, login: ' octocat '}],
     });
 
@@ -92,6 +123,12 @@ describe('PullRequestReviewerService (unit)', () => {
       }),
     );
     expect(reviewerRepository.deleteById).not.toHaveBeenCalled();
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'pull-request.reviewer.updated',
+        resourceId: '7',
+      }),
+    );
   });
 
   it('ignores reviewer entries without a login', async () => {
@@ -126,6 +163,13 @@ describe('PullRequestReviewerService (unit)', () => {
         pullRequestId: 12,
         githubLogin: 'octocat',
         status: 'approved',
+      }),
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'pull-request.reviewer.progressed',
+        resourceId: '44',
+        payload: expect.objectContaining({status: 'approved'}),
       }),
     );
   });

@@ -6,7 +6,7 @@ import {del, get, param, patch, post, put, requestBody} from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
 import {WorkspaceMember, WorkspaceMemberRelations} from '../../models';
 import {WorkspaceMemberRepository} from '../../repositories';
-import {WorkspaceAuthorizationService} from '../../services';
+import {AuditEventService, WorkspaceAuthorizationService} from '../../services';
 
 @authenticate('jwt-header')
 export class WorkspaceMemberController {
@@ -15,6 +15,8 @@ export class WorkspaceMemberController {
     private workspaceMemberRepository: WorkspaceMemberRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @inject('services.AuditEventService')
+    private auditEventService: AuditEventService,
   ) {}
 
   @get('/workspaceMembers')
@@ -103,7 +105,23 @@ export class WorkspaceMemberController {
   ): Promise<WorkspaceMember> {
     await this.assertCanManageMember(userProfile, data.workspaceId);
 
-    return this.workspaceMemberRepository.create(data);
+    const member = await this.workspaceMemberRepository.create(data);
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: member.workspaceId,
+      action: 'workspace.member.created',
+      resourceType: 'workspace-member',
+      resourceId: String(member.id),
+      payload: {
+        memberUserId: member.userId,
+        role: member.role,
+      },
+    });
+
+    return member;
   }
 
   @patch('/workspaceMembers/{id}')
@@ -126,7 +144,21 @@ export class WorkspaceMemberController {
     const member = await this.workspaceMemberRepository.findById(id);
     await this.assertCanManageMember(userProfile, member.workspaceId);
 
-    return this.workspaceMemberRepository.updateById(id, data);
+    await this.workspaceMemberRepository.updateById(id, data);
+
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: member.workspaceId,
+      action: 'workspace.member.updated',
+      resourceType: 'workspace-member',
+      resourceId: String(id),
+      payload: {
+        memberUserId: member.userId,
+        changedFields: Object.keys(data),
+      },
+    });
   }
 
   @put('/workspaceMembers/{id}')
@@ -149,7 +181,21 @@ export class WorkspaceMemberController {
     const member = await this.workspaceMemberRepository.findById(id);
     await this.assertCanManageMember(userProfile, member.workspaceId);
 
-    return this.workspaceMemberRepository.replaceById(id, data);
+    await this.workspaceMemberRepository.replaceById(id, data);
+
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: member.workspaceId,
+      action: 'workspace.member.replaced',
+      resourceType: 'workspace-member',
+      resourceId: String(id),
+      payload: {
+        memberUserId: member.userId,
+        role: data.role,
+      },
+    });
   }
 
   @del('/workspaceMembers/{id}')
@@ -161,7 +207,21 @@ export class WorkspaceMemberController {
     const member = await this.workspaceMemberRepository.findById(id);
     await this.assertCanManageMember(userProfile, member.workspaceId);
 
-    return this.workspaceMemberRepository.deleteById(id);
+    await this.workspaceMemberRepository.deleteById(id);
+
+    const actorUserId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.auditEventService.record({
+      actorUserId,
+      workspaceId: member.workspaceId,
+      action: 'workspace.member.deleted',
+      resourceType: 'workspace-member',
+      resourceId: String(id),
+      payload: {
+        memberUserId: member.userId,
+        role: member.role,
+      },
+    });
   }
 
   @patch('/workspaceMembers')

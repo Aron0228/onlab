@@ -10,6 +10,7 @@ describe('CommunicationService (unit)', () => {
   let workspaceMemberRepository: Record<string, ReturnType<typeof vi.fn>>;
   let workspaceRepository: Record<string, ReturnType<typeof vi.fn>>;
   let fileRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let auditEventService: Record<string, ReturnType<typeof vi.fn>>;
   let service: CommunicationService;
 
   beforeEach(() => {
@@ -46,6 +47,9 @@ describe('CommunicationService (unit)', () => {
     fileRepository = {
       findById: vi.fn(),
     };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new CommunicationService(
       channelRepository as never,
@@ -55,6 +59,7 @@ describe('CommunicationService (unit)', () => {
       workspaceMemberRepository as never,
       workspaceRepository as never,
       fileRepository as never,
+      auditEventService as never,
     );
   });
 
@@ -111,6 +116,16 @@ describe('CommunicationService (unit)', () => {
       name: 'general',
     });
     expect(channelMemberRepository.create).toHaveBeenCalledTimes(3);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 10,
+        workspaceId: 3,
+        action: 'communication.channel.created',
+        resourceType: 'communication-channel',
+        resourceId: '20',
+        payload: {name: 'general', memberIds: [10, 11, 12]},
+      }),
+    );
   });
 
   it('reuses an existing direct channel', async () => {
@@ -223,6 +238,15 @@ describe('CommunicationService (unit)', () => {
       channelId: 20,
       userId: 11,
     });
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 10,
+        workspaceId: 3,
+        action: 'communication.channel.member.added',
+        resourceId: '20',
+        payload: {memberUserId: 11},
+      }),
+    );
   });
 
   it('renames group channels and returns the updated channel', async () => {
@@ -243,6 +267,12 @@ describe('CommunicationService (unit)', () => {
       name: 'product',
       updatedAt: expect.any(String),
     });
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'communication.channel.updated',
+        payload: {changedFields: ['name'], name: 'product'},
+      }),
+    );
   });
 
   it('rejects group channel actions for direct channels', async () => {
@@ -282,6 +312,12 @@ describe('CommunicationService (unit)', () => {
 
     expect(channelMemberRepository.deleteById).toHaveBeenCalledWith(4);
     expect(channelRepository.deleteById).toHaveBeenCalledWith(20);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'communication.channel.deleted',
+        payload: {reason: 'last-member-left', name: undefined},
+      }),
+    );
   });
 
   it('deletes group channels when requested by a member', async () => {
@@ -299,6 +335,12 @@ describe('CommunicationService (unit)', () => {
     await expect(service.deleteGroupChannel(20, 10)).resolves.toBeUndefined();
 
     expect(channelRepository.deleteById).toHaveBeenCalledWith(20);
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'communication.channel.deleted',
+        resourceId: '20',
+      }),
+    );
   });
 
   it('updates a channel mute preference for the requester membership', async () => {

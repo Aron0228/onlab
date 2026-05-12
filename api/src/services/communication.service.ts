@@ -1,4 +1,4 @@
-import {injectable, BindingScope} from '@loopback/core';
+import {injectable, BindingScope, service} from '@loopback/core';
 import {Filter, repository} from '@loopback/repository';
 import {HttpErrors} from '@loopback/rest';
 import {Channel, ChannelMember, Message, MessageAttachment} from '../models';
@@ -11,6 +11,7 @@ import {
   WorkspaceMemberRepository,
   WorkspaceRepository,
 } from '../repositories';
+import {AuditEventService} from './audit-event.service';
 
 export interface CreateGroupChannelData {
   workspaceId: number;
@@ -50,6 +51,8 @@ export class CommunicationService {
     private workspaceRepository: WorkspaceRepository,
     @repository(FileRepository)
     private fileRepository: FileRepository,
+    @service(AuditEventService)
+    private auditEventService: AuditEventService,
   ) {}
 
   async listChannels(workspaceId: number, userId: number): Promise<Channel[]> {
@@ -99,6 +102,15 @@ export class CommunicationService {
       await this.assertWorkspaceMember(data.workspaceId, memberId);
       await this.createMemberIfMissing(channel.id, memberId);
     }
+
+    await this.auditEventService.record({
+      actorUserId: creatorId,
+      workspaceId: data.workspaceId,
+      action: 'communication.channel.created',
+      resourceType: 'communication-channel',
+      resourceId: String(channel.id),
+      payload: {name: data.name, memberIds: [...memberIds]},
+    });
 
     return this.channelRepository.findById(channel.id, {
       include: [{relation: 'members'}],
@@ -158,7 +170,17 @@ export class CommunicationService {
 
     if (existing) return existing;
 
-    return this.createMemberIfMissing(channelId, userId);
+    const member = await this.createMemberIfMissing(channelId, userId);
+    await this.auditEventService.record({
+      actorUserId: requesterId,
+      workspaceId: channel.workspaceId,
+      action: 'communication.channel.member.added',
+      resourceType: 'communication-channel',
+      resourceId: String(channelId),
+      payload: {memberUserId: userId},
+    });
+
+    return member;
   }
 
   async updateGroupChannel(
@@ -178,6 +200,15 @@ export class CommunicationService {
     await this.channelRepository.updateById(channelId, {
       name,
       updatedAt: new Date().toISOString(),
+    });
+
+    await this.auditEventService.record({
+      actorUserId: requesterId,
+      workspaceId: channel.workspaceId,
+      action: 'communication.channel.updated',
+      resourceType: 'communication-channel',
+      resourceId: String(channelId),
+      payload: {changedFields: ['name'], name},
     });
 
     return this.channelRepository.findById(channelId, {
@@ -207,6 +238,22 @@ export class CommunicationService {
 
     if (remainingMembers.length === 0) {
       await this.channelRepository.deleteById(channelId);
+      await this.auditEventService.record({
+        actorUserId: requesterId,
+        workspaceId: channel.workspaceId,
+        action: 'communication.channel.deleted',
+        resourceType: 'communication-channel',
+        resourceId: String(channelId),
+        payload: {reason: 'last-member-left', name: channel.name},
+      });
+    } else {
+      await this.auditEventService.record({
+        actorUserId: requesterId,
+        workspaceId: channel.workspaceId,
+        action: 'communication.channel.member.left',
+        resourceType: 'communication-channel',
+        resourceId: String(channelId),
+      });
     }
   }
 
@@ -219,6 +266,14 @@ export class CommunicationService {
     this.assertGroupChannel(channel);
 
     await this.channelRepository.deleteById(channelId);
+    await this.auditEventService.record({
+      actorUserId: requesterId,
+      workspaceId: channel.workspaceId,
+      action: 'communication.channel.deleted',
+      resourceType: 'communication-channel',
+      resourceId: String(channelId),
+      payload: {name: channel.name},
+    });
   }
 
   async updateChannelMute(

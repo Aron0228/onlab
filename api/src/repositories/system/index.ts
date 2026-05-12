@@ -1,3 +1,4 @@
+export * from './audit-event.repository';
 export * from './ai-prediction.repository';
 export * from './expertise.repository';
 export * from './file.repository';

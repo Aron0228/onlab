@@ -12,7 +12,7 @@ import {
 import {SecurityBindings, UserProfile} from '@loopback/security';
 import {File, FileRelations} from '../../models';
 import {FileRepository} from '../../repositories';
-import {WorkspaceAuthorizationService} from '../../services';
+import {AuditEventService, WorkspaceAuthorizationService} from '../../services';
 
 export class FileController {
   constructor(
@@ -20,6 +20,8 @@ export class FileController {
     private fileRepository: FileRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @inject('services.AuditEventService')
+    private auditEventService: AuditEventService,
   ) {}
 
   @get('/files')
@@ -88,16 +90,37 @@ export class FileController {
   ) {
     const workspaceId = Number(request.query?.workspaceId);
 
+    const userId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+
     if (Number.isFinite(workspaceId)) {
-      const userId =
-        this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
       await this.workspaceAuthorizationService.assertWorkspaceMember(
         workspaceId,
         userId,
       );
     }
 
-    return this.fileRepository.upload(request, response);
+    const result = await this.fileRepository.upload(request, response);
+    const files = Array.isArray(result) ? result : [result];
+
+    for (const file of files) {
+      if (this.isUploadedFile(file)) {
+        await this.auditEventService.record({
+          actorUserId: userId,
+          workspaceId: file.workspaceId,
+          action: 'file.uploaded',
+          resourceType: 'file',
+          resourceId: String(file.id),
+          payload: {
+            originalName: file.originalName,
+            mimeType: file.mimeType,
+            size: file.size,
+          },
+        });
+      }
+    }
+
+    return result;
   }
 
   @get('/files/{id}/download')
@@ -157,6 +180,18 @@ export class FileController {
     await this.workspaceAuthorizationService.assertWorkspaceMember(
       file.workspaceId,
       userId,
+    );
+  }
+
+  private isUploadedFile(value: unknown): value is File {
+    return (
+      value instanceof File ||
+      (!!value &&
+        typeof value === 'object' &&
+        'id' in value &&
+        'originalName' in value &&
+        'mimeType' in value &&
+        'size' in value)
     );
   }
 }

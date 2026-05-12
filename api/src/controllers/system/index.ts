@@ -1,3 +1,4 @@
+export * from './audit-event.controller';
 export * from './expertise.controller';
 export * from './file.controller';
 export * from './invitation.controller';

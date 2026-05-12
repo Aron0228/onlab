@@ -3,9 +3,11 @@ import {Count, DataObject, repository, Where} from '@loopback/repository';
 import {GithubIssue} from '../../models';
 import {
   GithubIssueRepository,
+  GithubRepositoryRepository,
   IssueAssignmentRepository,
 } from '../../repositories';
 import {AIPredictionService} from '../ai-prediction.service';
+import {AuditEventService} from '../audit-event.service';
 
 type IssuePredictionWrite = {
   priority: string;
@@ -28,8 +30,12 @@ export class IssueService {
     private githubIssueRepository: GithubIssueRepository,
     @repository(IssueAssignmentRepository)
     private issueAssignmentRepository: IssueAssignmentRepository,
+    @repository(GithubRepositoryRepository)
+    private githubRepositoryRepository: GithubRepositoryRepository,
     @service(AIPredictionService)
     private aiPredictionService: AIPredictionService,
+    @service(AuditEventService)
+    private auditEventService: AuditEventService,
   ) {}
 
   public async deleteByRepositoryId(repositoryId: number): Promise<void> {
@@ -50,6 +56,7 @@ export class IssueService {
 
     if (!existingIssue) {
       const createdIssue = await this.githubIssueRepository.create(issue);
+      await this.recordIssueAudit(createdIssue, 'github.issue.created');
       if (prediction) {
         await this.aiPredictionService.syncPrediction({
           sourceType: 'github-issue',
@@ -65,6 +72,10 @@ export class IssueService {
     }
 
     await this.githubIssueRepository.updateById(existingIssue.id, issue);
+    await this.recordIssueAudit(
+      {...existingIssue, ...issue, id: existingIssue.id} as GithubIssue,
+      'github.issue.updated',
+    );
 
     if (prediction) {
       await this.aiPredictionService.syncPrediction({
@@ -84,6 +95,9 @@ export class IssueService {
     const issueIds = issues.map(issue => issue.id);
     await this.deleteAssociatedData(issueIds);
     await this.githubIssueRepository.deleteAll(where);
+    for (const issue of issues) {
+      await this.recordIssueAudit(issue, 'github.issue.deleted');
+    }
   }
 
   public async deleteById(id: number): Promise<void> {
@@ -95,7 +109,12 @@ export class IssueService {
     const issueIds = issues.map(issue => issue.id);
     await this.deleteAssociatedData(issueIds);
 
-    return this.githubIssueRepository.deleteAll(where);
+    const result = await this.githubIssueRepository.deleteAll(where);
+    for (const issue of issues) {
+      await this.recordIssueAudit(issue, 'github.issue.deleted');
+    }
+
+    return result;
   }
 
   public async saveIssuesBulk(issues: GithubIssueWrite[]): Promise<void> {
@@ -109,6 +128,12 @@ export class IssueService {
         this.githubIssueRepository,
         batch.map(entry => entry.issue),
       );
+      for (const issue of createdIssues) {
+        await this.recordIssueAudit(
+          issue as GithubIssue,
+          'github.issue.synced',
+        );
+      }
       await this.aiPredictionService.createPredictionsBulk(
         createdIssues.map((issue, batchIndex) => ({
           sourceType: 'github-issue',
@@ -136,6 +161,34 @@ export class IssueService {
     );
     await this.issueAssignmentRepository.deleteAll({
       issueId: {inq: issueIds},
+    });
+  }
+
+  private async recordIssueAudit(
+    issue: GithubIssue,
+    action: string,
+  ): Promise<void> {
+    if (!issue.repositoryId) {
+      return;
+    }
+
+    const repository = await this.githubRepositoryRepository.findById(
+      issue.repositoryId,
+    );
+
+    await this.auditEventService.record({
+      workspaceId: repository.workspaceId,
+      action,
+      resourceType: 'github-issue',
+      resourceId: String(issue.id),
+      source: 'github',
+      payload: {
+        githubIssueNumber: issue.githubIssueNumber,
+        repositoryId: repository.id,
+        repositoryFullName: repository.fullName,
+        status: issue.status,
+        title: issue.title,
+      },
     });
   }
 }

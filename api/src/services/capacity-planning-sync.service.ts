@@ -9,6 +9,7 @@ import {
   WorkspaceRepository,
 } from '../repositories';
 import {GithubService} from './github-integration/github.service';
+import {AuditEventService} from './audit-event.service';
 
 @injectable({scope: BindingScope.SINGLETON})
 export class CapacityPlanningSyncService {
@@ -25,6 +26,8 @@ export class CapacityPlanningSyncService {
     private workspaceRepository: WorkspaceRepository,
     @service(GithubService)
     private githubService: GithubService,
+    @service(AuditEventService)
+    private auditEventService: AuditEventService,
   ) {}
 
   async syncIssueAssignment(assignment: IssueAssignment): Promise<void> {
@@ -48,5 +51,20 @@ export class CapacityPlanningSyncService {
       issue.githubIssueNumber,
       [user.username],
     );
+
+    await this.auditEventService.record({
+      actorUserId: assignment.userId,
+      workspaceId: plan.workspaceId,
+      action: 'capacity-planning.assignment.synced',
+      resourceType: 'issue-assignment',
+      resourceId: String(assignment.id),
+      source: 'system',
+      payload: {
+        issueId: assignment.issueId,
+        githubIssueNumber: issue.githubIssueNumber,
+        repositoryFullName: githubRepository.fullName,
+        assignee: user.username,
+      },
+    });
   }
 }

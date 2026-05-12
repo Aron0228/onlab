@@ -8,6 +8,9 @@ describe('InvitationController (unit)', () => {
     find: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    updateById: ReturnType<typeof vi.fn>;
+    replaceById: ReturnType<typeof vi.fn>;
+    deleteById: ReturnType<typeof vi.fn>;
     accept: ReturnType<typeof vi.fn>;
   };
   let authorization: {
@@ -16,6 +19,7 @@ describe('InvitationController (unit)', () => {
     assertWorkspaceMember: ReturnType<typeof vi.fn>;
     assertWorkspaceAdminOrOwner: ReturnType<typeof vi.fn>;
   };
+  let auditEventService: {record: ReturnType<typeof vi.fn>};
   let controller: InvitationController;
 
   beforeEach(() => {
@@ -23,6 +27,9 @@ describe('InvitationController (unit)', () => {
       find: vi.fn(),
       findById: vi.fn(),
       create: vi.fn(),
+      updateById: vi.fn(),
+      replaceById: vi.fn(),
+      deleteById: vi.fn(),
       accept: vi.fn(),
     };
     authorization = {
@@ -31,9 +38,13 @@ describe('InvitationController (unit)', () => {
       assertWorkspaceMember: vi.fn().mockResolvedValue('MEMBER'),
       assertWorkspaceAdminOrOwner: vi.fn().mockResolvedValue('ADMIN'),
     };
+    auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
     controller = new InvitationController(
       repository as never,
       authorization as never,
+      auditEventService as never,
     );
   });
 
@@ -74,6 +85,63 @@ describe('InvitationController (unit)', () => {
     expect(authorization.assertWorkspaceAdminOrOwner).toHaveBeenCalledWith(
       11,
       7,
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 7,
+        workspaceId: 11,
+        action: 'invitation.created',
+        resourceType: 'invitation',
+        resourceId: '23',
+        payload: {email: 'aron@example.com'},
+      }),
+    );
+  });
+
+  it('audits invitation updates and deletion', async () => {
+    repository.findById.mockResolvedValue(
+      new Invitation({
+        id: 23,
+        email: 'aron@example.com',
+        workspaceId: 11,
+      }),
+    );
+    repository.updateById.mockResolvedValue(undefined);
+    repository.replaceById.mockResolvedValue(undefined);
+    repository.deleteById.mockResolvedValue(undefined);
+
+    await expect(
+      controller.updateById({id: 7} as never, 23, {
+        email: 'new@example.com',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.replaceById({id: 7} as never, 23, {
+        email: 'replace@example.com',
+        workspaceId: 11,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.deleteById({id: 7} as never, 23),
+    ).resolves.toBeUndefined();
+
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'invitation.updated',
+        payload: {changedFields: ['email']},
+      }),
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'invitation.replaced',
+        payload: {email: 'replace@example.com'},
+      }),
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'invitation.deleted',
+        payload: {email: 'aron@example.com'},
+      }),
     );
   });
 

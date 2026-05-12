@@ -1,3 +1,4 @@
+export * from './audit-event.model';
 export * from './ai-predictable.model';
 export * from './ai-prediction.model';
 export * from './expertise.model';

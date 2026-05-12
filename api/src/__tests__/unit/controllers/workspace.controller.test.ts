@@ -22,13 +22,18 @@ describe('WorkspaceController (unit)', () => {
       assertWorkspaceOwner: vi.fn().mockResolvedValue('OWNER'),
       assertWorkspaceMember: vi.fn().mockResolvedValue('OWNER'),
     };
+    const auditEventService = {
+      record: vi.fn().mockResolvedValue(undefined),
+    };
 
     return {
       repository,
       authorization,
+      auditEventService,
       controller: new WorkspaceController(
         repository as never,
         authorization as never,
+        auditEventService as never,
       ),
     };
   };
@@ -50,7 +55,7 @@ describe('WorkspaceController (unit)', () => {
   });
 
   it('creates workspaces owned by the authenticated user', async () => {
-    const {controller, repository} = createController();
+    const {controller, repository, auditEventService} = createController();
     const workspace = new Workspace({id: 11, name: 'Demo', ownerId: 7});
     repository.create.mockResolvedValue(workspace);
 
@@ -62,10 +67,20 @@ describe('WorkspaceController (unit)', () => {
       name: 'Demo',
       ownerId: 7,
     });
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 7,
+        workspaceId: 11,
+        action: 'workspace.created',
+        resourceType: 'workspace',
+        resourceId: '11',
+      }),
+    );
   });
 
   it('requires workspace owner for AI and sync settings updates', async () => {
-    const {controller, repository, authorization} = createController();
+    const {controller, repository, authorization, auditEventService} =
+      createController();
     repository.updateById.mockResolvedValue(undefined);
 
     await expect(
@@ -78,5 +93,39 @@ describe('WorkspaceController (unit)', () => {
     expect(repository.updateById).toHaveBeenCalledWith(11, {
       capacityPlanningSync: false,
     });
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'workspace.updated',
+        payload: {changedFields: ['capacityPlanningSync']},
+      }),
+    );
+  });
+
+  it('audits workspace replacement and deletion', async () => {
+    const {controller, repository, auditEventService} = createController();
+    repository.replaceById.mockResolvedValue(undefined);
+    repository.deleteById.mockResolvedValue(undefined);
+
+    await expect(
+      controller.replaceById({id: 7} as never, 11, {
+        name: 'Renamed',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.deleteById({id: 7} as never, 11),
+    ).resolves.toBeUndefined();
+
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'workspace.replaced',
+        resourceId: '11',
+      }),
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'workspace.deleted',
+        resourceId: '11',
+      }),
+    );
   });
 });
