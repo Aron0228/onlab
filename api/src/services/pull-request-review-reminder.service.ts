@@ -6,7 +6,9 @@ import {
   GithubRepositoryRepository,
   UserRepository,
 } from '../repositories';
+import {GithubPullRequestReviewer} from '../models';
 import {CommunicationSocketService} from './communication-socket.service';
+import {NotificationService} from './notification.service';
 
 export type PullRequestReviewReminderPayload = {
   workspaceId: number;
@@ -15,7 +17,10 @@ export type PullRequestReviewReminderPayload = {
   pullRequestTitle: string;
   repositoryName: string;
   reviewerLogin: string;
+  notificationId?: number;
 };
+
+const DUPLICATE_REMINDER_WINDOW_MS = 60_000;
 
 @injectable({scope: BindingScope.SINGLETON})
 export class PullRequestReviewReminderService {
@@ -32,6 +37,8 @@ export class PullRequestReviewReminderService {
     private userRepository: UserRepository,
     @service(CommunicationSocketService)
     private communicationSocketService: CommunicationSocketService,
+    @service(NotificationService)
+    private notificationService: NotificationService,
   ) {}
 
   async remindWorkspace(workspaceId: number): Promise<number> {
@@ -153,11 +160,37 @@ export class PullRequestReviewReminderService {
         repositoryName: repository.fullName,
         reviewerLogin: reviewer.githubLogin,
       };
-
-      this.communicationSocketService.emitPullRequestReviewReminder(
+      const notifiedAt = new Date().toISOString();
+      const reserved = await this.reserveReminder(
+        reviewer.id,
         userId,
-        payload,
+        notifiedAt,
       );
+
+      if (!reserved) {
+        console.log('[PR review reminder] Skipping duplicate reminder.', {
+          workspaceId,
+          userId,
+          reviewerId: reviewer.id,
+          pullRequestId: pullRequest.id,
+        });
+        continue;
+      }
+
+      const notification = await this.notificationService.create({
+        userId,
+        workspaceId,
+        type: 'pull-request-review-reminder',
+        title: 'Pull request review reminder',
+        message: `Review requested: #${pullRequest.githubPrNumber} ${pullRequest.title} in ${repository.fullName}.`,
+        targetRoute: 'workspaces.edit.pull-requests.edit',
+        payload,
+      });
+
+      this.communicationSocketService.emitPullRequestReviewReminder(userId, {
+        ...payload,
+        notificationId: notification.id,
+      });
       console.log('[PR review reminder] Emitted reviewer notification.', {
         workspaceId,
         userId,
@@ -168,15 +201,37 @@ export class PullRequestReviewReminderService {
         pullRequestId: pullRequest.id,
         pullRequestNumber: pullRequest.githubPrNumber,
       });
-      await this.reviewerRepository.updateById(reviewer.id, {
-        userId,
-        lastNotifiedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
       reminderCount += 1;
     }
 
     return reminderCount;
+  }
+
+  private async reserveReminder(
+    reviewerId: number,
+    userId: number,
+    notifiedAt: string,
+  ): Promise<boolean> {
+    const duplicateWindowStart = new Date(
+      Date.now() - DUPLICATE_REMINDER_WINDOW_MS,
+    ).toISOString();
+    const result = await this.reviewerRepository.updateAll(
+      {
+        userId,
+        lastNotifiedAt: notifiedAt,
+        updatedAt: notifiedAt,
+      },
+      {
+        id: reviewerId,
+        status: 'pending',
+        or: [
+          {lastNotifiedAt: null},
+          {lastNotifiedAt: {lt: duplicateWindowStart}},
+        ],
+      } as unknown as import('@loopback/repository').Where<GithubPullRequestReviewer>,
+    );
+
+    return result.count > 0;
   }
 
   private async resolveReviewerUserId(

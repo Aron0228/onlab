@@ -7,6 +7,7 @@ describe('PullRequestReviewReminderService (unit)', () => {
   let reviewerRepository: Record<string, ReturnType<typeof vi.fn>>;
   let userRepository: Record<string, ReturnType<typeof vi.fn>>;
   let socketService: Record<string, ReturnType<typeof vi.fn>>;
+  let notificationService: Record<string, ReturnType<typeof vi.fn>>;
   let service: PullRequestReviewReminderService;
 
   beforeEach(() => {
@@ -39,7 +40,7 @@ describe('PullRequestReviewReminderService (unit)', () => {
           githubLogin: 'octocat',
         },
       ]),
-      updateById: vi.fn().mockResolvedValue(undefined),
+      updateAll: vi.fn().mockResolvedValue({count: 1}),
     };
     userRepository = {
       findOne: vi.fn().mockResolvedValue({id: 12}),
@@ -47,12 +48,16 @@ describe('PullRequestReviewReminderService (unit)', () => {
     socketService = {
       emitPullRequestReviewReminder: vi.fn(),
     };
+    notificationService = {
+      create: vi.fn().mockResolvedValue({id: 44}),
+    };
     service = new PullRequestReviewReminderService(
       repositoryRepository as never,
       pullRequestRepository as never,
       reviewerRepository as never,
       userRepository as never,
       socketService as never,
+      notificationService as never,
     );
   });
 
@@ -69,13 +74,24 @@ describe('PullRequestReviewReminderService (unit)', () => {
         pullRequestTitle: 'Refactor scheduler',
         repositoryName: 'team/api',
         reviewerLogin: 'octocat',
+        notificationId: 44,
       },
     );
-    expect(reviewerRepository.updateById).toHaveBeenCalledWith(
-      8,
+    expect(reviewerRepository.updateAll).toHaveBeenCalledWith(
       expect.objectContaining({
         lastNotifiedAt: expect.any(String),
         userId: 12,
+      }),
+      expect.objectContaining({
+        id: 8,
+        status: 'pending',
+      }),
+    );
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 12,
+        workspaceId: 7,
+        type: 'pull-request-review-reminder',
       }),
     );
   });
@@ -160,7 +176,7 @@ describe('PullRequestReviewReminderService (unit)', () => {
     await expect(service.remindWorkspace(7)).resolves.toBe(0);
 
     expect(socketService.emitPullRequestReviewReminder).not.toHaveBeenCalled();
-    expect(reviewerRepository.updateById).not.toHaveBeenCalled();
+    expect(reviewerRepository.updateAll).not.toHaveBeenCalled();
   });
 
   it('skips orphaned pending reviewers without a matching open pull request', async () => {
@@ -176,7 +192,7 @@ describe('PullRequestReviewReminderService (unit)', () => {
     await expect(service.remindWorkspace(7)).resolves.toBe(0);
 
     expect(socketService.emitPullRequestReviewReminder).not.toHaveBeenCalled();
-    expect(reviewerRepository.updateById).not.toHaveBeenCalled();
+    expect(reviewerRepository.updateAll).not.toHaveBeenCalled();
   });
 
   it('skips pending reviewers whose pull request repository is missing', async () => {
@@ -193,7 +209,7 @@ describe('PullRequestReviewReminderService (unit)', () => {
     await expect(service.remindWorkspace(7)).resolves.toBe(0);
 
     expect(socketService.emitPullRequestReviewReminder).not.toHaveBeenCalled();
-    expect(reviewerRepository.updateById).not.toHaveBeenCalled();
+    expect(reviewerRepository.updateAll).not.toHaveBeenCalled();
   });
 
   it('prevents overlapping reminder runs for the same workspace', async () => {

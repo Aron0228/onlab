@@ -13,7 +13,6 @@ import { action } from '@ember/object';
 import { service } from '@ember/service';
 import type RouterService from '@ember/routing/router-service';
 import { tracked } from '@glimmer/tracking';
-import { eq, not } from 'ember-truth-helpers';
 import type WorkspaceModel from 'client/models/workspace';
 import type GithubRepositoryModel from 'client/models/github-repository';
 import type WorkspaceMemberModel from 'client/models/workspace-member';
@@ -149,6 +148,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       'pull-request-review:reminder',
       this.onPullRequestReviewReminder
     );
+    this.socket?.off('notification:created', this.onNotificationCreated);
     globalThis.removeEventListener?.(
       'pointerdown',
       this.enableNotificationSound
@@ -235,6 +235,10 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
 
   get canCreateChannel(): boolean {
     return this.newChannelName.trim().length > 0 && !this.isCreatingChannel;
+  }
+
+  get isCreateChannelDisabled(): boolean {
+    return !this.canCreateChannel;
   }
 
   get directUnreadCount(): number {
@@ -333,6 +337,14 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     return count > 99 ? '99+' : String(count);
   };
 
+  isDirectMessagesMenuItem = (menuItem: MenuItem): boolean => {
+    return !menuItem.separator && menuItem.name === 'Direct Messages';
+  };
+
+  isSelectedCommunicationChannel = (channelId: number): boolean => {
+    return channelId === this.selectedCommunicationChannelId;
+  };
+
   isNewChannelMemberSelected = (member: CommunicationMember): boolean => {
     return this.newChannelMemberIds.includes(member.userId);
   };
@@ -420,6 +432,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       this.onPullRequestReviewReminder,
       this
     );
+    socket.on('notification:created', this.onNotificationCreated, this);
     this.socket = socket;
     console.log('[PR review reminder] Client listener registered.', {
       url: import.meta.env.VITE_API_URL as string,
@@ -513,6 +526,38 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     void this.playNotificationSound();
   };
 
+  private onNotificationCreated = (payload: unknown): void => {
+    const notification = payload as {
+      type?: string;
+      title?: string;
+      message?: string;
+      payload?: {
+        workspaceId?: number;
+        channelId?: number;
+      };
+    };
+
+    if (notification.type !== 'communication-message') return;
+
+    const workspaceId = Number(notification.payload?.workspaceId);
+    const channelId = Number(notification.payload?.channelId);
+
+    if (!workspaceId || !channelId) return;
+    if (channelId === this.selectedCommunicationChannelId) return;
+
+    this.flashMessages.info?.(
+      notification.message ?? 'You received a new message.',
+      {
+        title: notification.title ?? 'New message',
+        sticky: true,
+        route: 'workspaces.edit.communication',
+        models: [workspaceId, { queryParams: { channelId } }],
+        actionText: 'Open chat',
+      }
+    );
+    void this.playNotificationSound();
+  };
+
   private onChannelUpdated = (payload: unknown): void => {
     const update = payload as {
       channelId: number;
@@ -547,10 +592,6 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       ...this.unreadCounts,
       [update.channelId]: (this.unreadCounts[update.channelId] ?? 0) + 1,
     };
-
-    if (!this.isChannelMuted(update.channelId)) {
-      void this.playNotificationSound();
-    }
   };
 
   private markChannelRead(channelId: number): void {
@@ -739,7 +780,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
               >
                 <UiIcon @name={{this.iconForMenuItem menuItem}} />
                 <span>{{this.labelForMenuItem menuItem}}</span>
-                {{#if (eq (this.labelForMenuItem menuItem) "Direct Messages")}}
+                {{#if (this.isDirectMessagesMenuItem menuItem)}}
                   {{#if this.directUnreadCount}}
                     <span class="workspace-unread-badge margin-left-auto">
                       {{this.unreadLabel this.directUnreadCount}}
@@ -766,7 +807,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
                 type="button"
                 class="workspace-channel-item layout-horizontal --gap-sm
                   {{if
-                    (eq channel.id this.selectedCommunicationChannelId)
+                    (this.isSelectedCommunicationChannel channel.id)
                     '--active'
                   }}"
                 {{on "click" (fn this.openChannel channel)}}
@@ -856,7 +897,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
               <UiButton
                 @text="Create channel"
                 @iconRight="plus"
-                @disabled={{not this.canCreateChannel}}
+                @disabled={{this.isCreateChannelDisabled}}
                 @loading={{this.isCreatingChannel}}
                 @onClick={{this.createChannel}}
               />

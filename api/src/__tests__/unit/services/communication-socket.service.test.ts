@@ -67,6 +67,7 @@ describe('CommunicationSocketService (unit)', () => {
   let userRepository: {findById: ReturnType<typeof vi.fn>};
   let channelRepository: {findById: ReturnType<typeof vi.fn>};
   let channelMemberRepository: {find: ReturnType<typeof vi.fn>};
+  let notificationService: {create: ReturnType<typeof vi.fn>};
   let service: CommunicationSocketService;
 
   beforeEach(() => {
@@ -79,6 +80,7 @@ describe('CommunicationSocketService (unit)', () => {
     userRepository = {findById: vi.fn()};
     channelRepository = {findById: vi.fn()};
     channelMemberRepository = {find: vi.fn()};
+    notificationService = {create: vi.fn()};
 
     service = new CommunicationSocketService(
       jwtTokenService as never,
@@ -86,6 +88,7 @@ describe('CommunicationSocketService (unit)', () => {
       userRepository as never,
       channelRepository as never,
       channelMemberRepository as never,
+      notificationService as never,
     );
   });
 

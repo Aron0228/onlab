@@ -3,6 +3,7 @@ export * from './file.controller';
 export * from './invitation.controller';
 export * from './news-feed-entry-expertise-assoc.controller';
 export * from './news-feed-entry.controller';
+export * from './notification.controller';
 export * from './user-expertise-assoc.controller';
 export * from './workspace-member.controller';
 export * from './workspace.controller';

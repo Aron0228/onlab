@@ -124,6 +124,11 @@ export class UserController {
         ...ownedWorkspaces.map(workspace => workspace.id),
       ]),
     );
+    const accessibleWorkspaces = allWorkspaceIds.length
+      ? await this.workspaceRepository.find({
+          where: {id: {inq: allWorkspaceIds}},
+        })
+      : [];
     const members = await this.workspaceMemberRepository.find({
       where: {workspaceId: {inq: allWorkspaceIds}},
     });
@@ -132,6 +137,7 @@ export class UserController {
       new Set(
         [
           userId,
+          ...accessibleWorkspaces.map(workspace => workspace.ownerId),
           ...ownedWorkspaces.map(workspace => workspace.ownerId),
           ...members.map(member => member.userId),
         ].filter((id): id is number => typeof id === 'number'),
