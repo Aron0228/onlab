@@ -75,6 +75,19 @@ describe('NotificationService (unit)', () => {
     );
   });
 
+  it('does not update notifications that are already read', async () => {
+    const {service, repository} = createSubject();
+    repository.findById.mockResolvedValue({
+      id: 8,
+      userId: 3,
+      readAt: '2026-05-12T08:00:00.000Z',
+    });
+
+    await expect(service.markRead(3, 8)).resolves.toBeUndefined();
+
+    expect(repository.updateById).not.toHaveBeenCalled();
+  });
+
   it('marks all unread notifications read for the user', async () => {
     const {service, repository} = createSubject();
     repository.updateAll.mockResolvedValue({count: 2});

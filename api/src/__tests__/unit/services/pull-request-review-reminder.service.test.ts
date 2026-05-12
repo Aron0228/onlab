@@ -146,10 +146,42 @@ describe('PullRequestReviewReminderService (unit)', () => {
     );
   });
 
+  it('skips reviewers when neither GitHub id nor login maps to a local user', async () => {
+    reviewerRepository.find.mockResolvedValueOnce([
+      {
+        id: 8,
+        pullRequestId: 5,
+        userId: null,
+        githubUserId: 1234,
+        githubLogin: 'ghost',
+      },
+    ]);
+    userRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.remindWorkspace(7)).resolves.toBe(0);
+
+    expect(userRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: {githubId: 1234},
+    });
+    expect(userRepository.findOne).toHaveBeenNthCalledWith(2, {
+      where: {username: 'ghost'},
+    });
+    expect(notificationService.create).not.toHaveBeenCalled();
+  });
+
   it('does not emit reminders when the workspace has no repositories', async () => {
     repositoryRepository.find.mockResolvedValueOnce([]);
 
     await expect(service.remindWorkspace(7)).resolves.toBe(0);
+    expect(socketService.emitPullRequestReviewReminder).not.toHaveBeenCalled();
+  });
+
+  it('skips duplicate reminders that cannot reserve the reviewer row', async () => {
+    reviewerRepository.updateAll.mockResolvedValueOnce({count: 0});
+
+    await expect(service.remindWorkspace(7)).resolves.toBe(0);
+
+    expect(notificationService.create).not.toHaveBeenCalled();
     expect(socketService.emitPullRequestReviewReminder).not.toHaveBeenCalled();
   });
 

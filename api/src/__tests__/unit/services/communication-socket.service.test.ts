@@ -120,6 +120,34 @@ describe('CommunicationSocketService (unit)', () => {
     expect(next).toHaveBeenCalledWith();
   });
 
+  it('registers connection handlers and forwards authentication errors', async () => {
+    const socketIoServer = createSocketIoServer();
+    socketIoMock.Server.mockImplementation(function () {
+      return socketIoServer.server;
+    });
+    const {socket, handlers, emit} = createSocket();
+    channelMemberRepository.find.mockResolvedValueOnce([]);
+    service.attach({} as never);
+
+    socketIoServer.connectionHandler?.(socket as never);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(handlers.has('channel:join')).toBe(true);
+    expect(emit).toHaveBeenCalledWith('presence:snapshot', {
+      onlineUserIds: [10],
+    });
+
+    const failingSocket = createSocket().socket;
+    failingSocket.handshake.auth = {token: 'token-1'};
+    jwtTokenService.validateToken.mockResolvedValue({userId: 10});
+    userRepository.findById.mockRejectedValue(new Error('database down'));
+    const next = vi.fn();
+
+    await socketIoServer.middleware?.(failingSocket as never, next as never);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+  });
+
   it('rejects socket authentication without a usable token or payload', async () => {
     const socketIoServer = createSocketIoServer();
     socketIoMock.Server.mockImplementation(function () {
@@ -177,15 +205,26 @@ describe('CommunicationSocketService (unit)', () => {
     });
   });
 
-  it('sends messages and broadcasts channel updates to members', async () => {
+  it('sends messages, broadcasts updates, and notifies unmuted recipients', async () => {
     const {socket, handlers} = createSocket();
     const socketIoServer = createSocketIoServer();
     service['io'] = socketIoServer.server as never;
-    const message = {id: 44, content: 'hello'};
+    const message = {
+      id: 44,
+      content: 'hello',
+      sender: {fullName: 'Ada Lovelace'},
+    };
     communicationService.sendMessage.mockResolvedValue(message);
     channelRepository.findById.mockResolvedValue({
       id: 20,
-      members: [{userId: 10}, {userId: 11}],
+      workspaceId: 7,
+      type: 'GROUP',
+      name: 'general',
+      members: [{userId: 10}, {userId: 11}, {userId: 12, mutedAt: 'now'}],
+    });
+    notificationService.create.mockResolvedValue({
+      id: 91,
+      type: 'communication-message',
     });
 
     service['registerHandlers'](socket as never);
@@ -221,11 +260,63 @@ describe('CommunicationSocketService (unit)', () => {
     expect(socketIoServer.server.to).toHaveBeenCalledWith(
       'communication:user:11',
     );
+    expect(socketIoServer.server.to).toHaveBeenCalledWith(
+      'communication:user:12',
+    );
     expect(socketIoServer.roomEmit).toHaveBeenCalledWith('channel:updated', {
       channelId: 20,
       message,
     });
+    expect(notificationService.create).toHaveBeenCalledTimes(1);
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 11,
+        workspaceId: 7,
+        type: 'communication-message',
+        title: 'Ada Lovelace in #general',
+        message: 'hello',
+        targetRoute: 'workspaces.edit.communication',
+      }),
+    );
+    expect(socketIoServer.roomEmit).toHaveBeenCalledWith(
+      'notification:created',
+      {id: 91, type: 'communication-message'},
+    );
     expect(callback).toHaveBeenCalledWith({ok: true, message});
+  });
+
+  it('keeps message sending successful when notification creation fails', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const {socket, handlers} = createSocket();
+    const socketIoServer = createSocketIoServer();
+    service['io'] = socketIoServer.server as never;
+    const message = {id: 44, content: ''};
+    communicationService.sendMessage.mockResolvedValue(message);
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 7,
+      type: 'DIRECT',
+      members: [{userId: 10}, {userId: 11}],
+    });
+    notificationService.create.mockRejectedValue(
+      new Error('notification down'),
+    );
+    service['registerHandlers'](socket as never);
+
+    const callback = vi.fn();
+    await handlers.get('message:send')?.(
+      {channelId: 20, attachmentIds: [90]} as never,
+      callback as never,
+    );
+
+    expect(callback).toHaveBeenCalledWith({ok: true, message});
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to create chat message notifications.',
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
   });
 
   it('returns socket message send errors through the callback', async () => {
@@ -305,8 +396,24 @@ describe('CommunicationSocketService (unit)', () => {
     );
   });
 
+  it('emits generic notifications to the user room', () => {
+    const socketIoServer = createSocketIoServer();
+    service['io'] = socketIoServer.server as never;
+    const payload = {id: 4, type: 'communication-message'};
+
+    service.emitNotification(12, payload);
+
+    expect(socketIoServer.server.to).toHaveBeenCalledWith(
+      'communication:user:12',
+    );
+    expect(socketIoServer.roomEmit).toHaveBeenCalledWith(
+      'notification:created',
+      payload,
+    );
+  });
+
   it('tracks presence counts and notifies related users on first connect and final disconnect', async () => {
-    const {socket, emit} = createSocket();
+    const {socket, handlers, emit} = createSocket();
     const socketIoServer = createSocketIoServer();
     service['io'] = socketIoServer.server as never;
     channelMemberRepository.find
@@ -338,6 +445,17 @@ describe('CommunicationSocketService (unit)', () => {
       isOnline: false,
       lastSeenAt: expect.any(String),
     });
+
+    channelMemberRepository.find
+      .mockResolvedValueOnce([{channelId: 22}])
+      .mockResolvedValueOnce([{userId: 10}])
+      .mockResolvedValueOnce([{channelId: 22}])
+      .mockResolvedValueOnce([{userId: 10}]);
+
+    await service['registerPresence'](socket as never);
+    handlers.get('disconnect')?.();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(service['onlineConnectionCounts'].has(10)).toBe(false);
   });
 
   it('skips related-user lookups when a user has no memberships', async () => {
