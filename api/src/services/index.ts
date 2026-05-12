@@ -1,3 +1,4 @@
+export * from './audit-event.service';
 export * from './ai-prediction.service';
 export * from './auth';
 export * from './github-integration';
