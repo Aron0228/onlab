@@ -37,6 +37,7 @@ type ExpertiseRecommendation = {
 
 type CreateIssueResponse = {
   queued: true;
+  jobId?: string;
 };
 
 type ApiServiceLike = {
@@ -196,8 +197,9 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
     )) as CreateIssueResponse;
 
     if (response.queued) {
+      const jobSuffix = response.jobId ? ` Sync job ${response.jobId}.` : '';
       this.flashMessages.success(
-        'Your issue has been submitted successfully. Please allow a short time for it to be synchronized with GitHub and appear in the issue list.',
+        `Your issue has been submitted successfully.${jobSuffix} Please allow a short time for it to be synchronized with GitHub and appear in the issue list.`,
         {
           title: 'Issue queued for synchronization',
         }
