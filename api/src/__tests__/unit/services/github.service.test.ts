@@ -227,18 +227,57 @@ describe('GithubService (unit)', () => {
     expect(githubRepositoryRepository.deleteCascade).not.toHaveBeenCalled();
   });
 
-  it('syncs the workspace linked to an installation id', async () => {
-    workspaceRepository.findOne.mockResolvedValue({id: 42});
+  it('syncs every workspace linked to an installation id', async () => {
+    workspaceRepository.find.mockResolvedValue([{id: 42}, {id: 43}]);
     const syncWorkspaceInstallationSpy = vi
       .spyOn(internals, 'syncWorkspaceInstallation')
       .mockResolvedValue(undefined);
 
     await service.syncInstallationForConnectedWorkspace(77);
 
-    expect(workspaceRepository.findOne).toHaveBeenCalledWith({
+    expect(workspaceRepository.find).toHaveBeenCalledWith({
       where: {githubInstallationId: '77'},
     });
     expect(syncWorkspaceInstallationSpy).toHaveBeenCalledWith(42, 77);
+    expect(syncWorkspaceInstallationSpy).toHaveBeenCalledWith(43, 77);
+    expect(syncWorkspaceInstallationSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates incoming installation repositories before saving', async () => {
+    githubRepositoryRepository.find.mockResolvedValue([]);
+
+    await internals.saveInstallationRepositories(7, 99, [
+      {
+        id: 1001,
+        name: 'api',
+        full_name: 'team/api',
+        private: true,
+        html_url: 'https://github.com/team/api',
+      },
+      {
+        id: 1001,
+        name: 'api',
+        full_name: 'team/api',
+        private: true,
+        html_url: 'https://github.com/team/api',
+      },
+    ]);
+
+    expect(githubRepositoryRepository.create).toHaveBeenCalledTimes(1);
+    expect(githubRepositoryRepository.create).toHaveBeenCalledWith({
+      workspaceId: 7,
+      githubRepoId: 1001,
+      name: 'api',
+      fullName: 'team/api',
+    });
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          repositoryCount: 1,
+          incomingRepositoryIds: [1001],
+        },
+      }),
+    );
   });
 
   it('enqueues label sync alongside issue sync when syncing a workspace installation', async () => {
