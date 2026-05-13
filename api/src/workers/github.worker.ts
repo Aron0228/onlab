@@ -300,6 +300,7 @@ async function processCreateIssueJob(
     (await issuePriorityService.predictIssuePriority({
       installationId,
       repositoryFullName: repository.fullName,
+      workspaceId: repository.workspaceId,
       title: job.data.title,
       description: job.data.description,
     }));
@@ -545,6 +546,7 @@ async function syncRepositoryIssues(
       const prediction = await issuePriorityService.predictIssuePriority({
         installationId,
         repositoryFullName: repository.fullName,
+        workspaceId: repository.workspaceId,
         title: githubIssue.title,
         description,
       });

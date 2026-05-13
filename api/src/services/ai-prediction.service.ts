@@ -4,6 +4,7 @@ import {
   AIPrediction,
   AIEstimationConfidence,
   AIPredictionFinding,
+  AIPredictionExpertiseRecommendation,
   AIPredictionReviewerSuggestion,
   AIPredictionSourceType,
   AIPredictionType,
@@ -18,6 +19,7 @@ export type AIPredictionWrite = {
   reason?: string | null;
   findings?: AIPredictionFinding[] | null;
   reviewerSuggestions?: AIPredictionReviewerSuggestion[] | null;
+  expertiseRecommendations?: AIPredictionExpertiseRecommendation[] | null;
   estimatedHours?: number | null;
   estimationConfidence?: AIEstimationConfidence | null;
 };
@@ -30,6 +32,7 @@ type NormalizedAIPredictionWrite = {
   reason?: string;
   findings?: AIPredictionFinding[];
   reviewerSuggestions?: AIPredictionReviewerSuggestion[];
+  expertiseRecommendations?: AIPredictionExpertiseRecommendation[];
   estimatedHours?: number;
   estimationConfidence?: AIEstimationConfidence;
 };
@@ -66,6 +69,7 @@ export class AIPredictionService {
       reason: prediction.reason,
       findings: prediction.findings,
       reviewerSuggestions: prediction.reviewerSuggestions,
+      expertiseRecommendations: prediction.expertiseRecommendations,
       estimatedHours: prediction.estimatedHours,
       estimationConfidence: prediction.estimationConfidence,
     });
@@ -130,6 +134,7 @@ export class AIPredictionService {
       reason: input.reason?.trim() || undefined,
       findings: input.findings ?? undefined,
       reviewerSuggestions: input.reviewerSuggestions ?? undefined,
+      expertiseRecommendations: input.expertiseRecommendations ?? undefined,
       estimatedHours:
         typeof input.estimatedHours === 'number' &&
         Number.isInteger(input.estimatedHours)
@@ -147,6 +152,7 @@ export class AIPredictionService {
       prediction.reason ||
       prediction.findings?.length ||
       prediction.reviewerSuggestions?.length ||
+      prediction.expertiseRecommendations?.length ||
       typeof prediction.estimatedHours === 'number' ||
       prediction.estimationConfidence,
     );

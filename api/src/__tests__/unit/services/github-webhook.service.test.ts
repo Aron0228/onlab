@@ -83,6 +83,7 @@ describe('GithubWebhookService (unit)', () => {
       findOne: vi.fn().mockResolvedValue({
         id: 99,
         fullName: 'team/api',
+        workspaceId: 4,
       }),
     };
     userRepository = {
@@ -206,8 +207,16 @@ describe('GithubWebhookService (unit)', () => {
         reason: 'The module is unusable.',
         estimatedHours: 8,
         estimationConfidence: 'medium',
+        expertiseRecommendations: undefined,
       },
     );
+    expect(issuePriorityService.predictIssuePriority).toHaveBeenCalledWith({
+      installationId: 123,
+      repositoryFullName: 'team/api',
+      workspaceId: 4,
+      title: 'Broken',
+      description: 'Updated body',
+    });
     expect(githubService.syncRepositoryLabels).toHaveBeenCalledWith(
       123,
       'team/api',

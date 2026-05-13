@@ -5,7 +5,16 @@ import {
   injectable,
   service,
 } from '@loopback/core';
-import {AIEstimationConfidence} from '../models';
+import {repository} from '@loopback/repository';
+import {
+  AIEstimationConfidence,
+  AIPredictionExpertiseRecommendation,
+  UserExpertiseAssocWithRelations,
+} from '../models';
+import {
+  ExpertiseRepository,
+  UserExpertiseAssocRepository,
+} from '../repositories';
 import {OllamaService} from './ollama.service';
 import type {GithubService} from './github-integration/github.service';
 
@@ -24,6 +33,7 @@ export type IssuePriorityPrediction = {
   reason: string;
   estimatedHours?: number | null;
   estimationConfidence?: AIEstimationConfidence | null;
+  expertiseRecommendations?: AIPredictionExpertiseRecommendation[];
 };
 
 type PredictionNoteKind = 'priority' | 'risk';
@@ -33,6 +43,7 @@ type PredictIssuePriorityInput = {
   description: string | null;
   installationId?: number | null;
   repositoryFullName?: string | null;
+  workspaceId?: number | null;
 };
 
 type IssuePriorityAiResponse =
@@ -48,12 +59,14 @@ type IssuePriorityAiResponse =
       reason?: string;
       estimated_hours?: number | null;
       estimation_confidence?: string | null;
+      expertise_recommendations?: unknown;
     }
   | {
       priority?: string;
       reason?: string;
       estimated_hours?: number | null;
       estimation_confidence?: string | null;
+      expertise_recommendations?: unknown;
     };
 
 type IssuePriorityToolName =
@@ -65,6 +78,34 @@ type IssuePriorityMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
 };
+
+type IssueExpertiseContext = {
+  catalog: Array<{
+    id: number;
+    name: string;
+    description?: string | null;
+    recommendedUsers: Array<{
+      userId: number;
+      username: string;
+      fullName?: string | null;
+    }>;
+  }>;
+  byKey: Map<
+    string,
+    {
+      id: number;
+      name: string;
+      description?: string | null;
+      recommendedUsers: Array<{
+        userId: number;
+        username: string;
+        fullName?: string | null;
+      }>;
+    }
+  >;
+};
+
+type IssueExpertiseCatalogItem = IssueExpertiseContext['catalog'][number];
 
 const AI_PRIORITY_NOTE_START = '<!-- onlab-ai-priority:start -->';
 const AI_PRIORITY_NOTE_END = '<!-- onlab-ai-priority:end -->';
@@ -170,7 +211,13 @@ Return ONLY valid JSON in this exact format:
   "priority": "<Unknown|Low|Medium|High|Very-High>",
   "reason": "<Reason for the priority classification>",
   "estimated_hours": <integer estimate for engineering fix effort>,
-  "estimation_confidence": "<low|medium|high>"
+  "estimation_confidence": "<low|medium|high>",
+  "expertise_recommendations": [
+    {
+      "expertise_name": "<one exact name from the workspace expertise catalog>",
+      "reason": "<why this expertise is relevant>"
+    }
+  ]
 }
 
 Estimate only the engineering implementation effort to fix the issue.
@@ -178,6 +225,9 @@ Use rough whole-hour estimates only.
 Do NOT use decimals.
 Good examples: 1, 2, 4, 8, 16, 24, 40.
 If the issue is too vague to estimate safely, use null or omit the field and set estimation_confidence to "low".
+
+When a workspace expertise catalog is provided, recommend only exact expertise names from that catalog.
+Return an empty expertise_recommendations array if no catalog expertise is clearly relevant.
 
 When tools are available, you may inspect the repository before answering.
 Use tools only when they materially improve the estimate.
@@ -217,6 +267,10 @@ export class IssuePriorityService {
     @service(OllamaService) private ollamaService: OllamaService,
     @inject.getter('services.GithubService', {optional: true})
     private githubServiceGetter: Getter<GithubService | undefined>,
+    @repository(ExpertiseRepository)
+    private expertiseRepository: ExpertiseRepository,
+    @repository(UserExpertiseAssocRepository)
+    private userExpertiseAssocRepository: UserExpertiseAssocRepository,
   ) {}
 
   public async predictIssuePriority({
@@ -224,12 +278,14 @@ export class IssuePriorityService {
     description,
     installationId,
     repositoryFullName,
+    workspaceId,
   }: PredictIssuePriorityInput): Promise<IssuePriorityPrediction> {
     const cleanDescription = this.sanitizeIssueDescription(description);
     const cacheKey = this.buildPredictionCacheKey({
       title,
       description: cleanDescription,
       repositoryFullName,
+      workspaceId,
     });
     const cachedPrediction = this.getCachedPrediction(cacheKey);
 
@@ -248,6 +304,7 @@ export class IssuePriorityService {
       cleanDescription,
       installationId,
       repositoryFullName,
+      workspaceId,
     })
       .then(prediction => {
         this.setCachedPrediction(cacheKey, prediction);
@@ -266,12 +323,15 @@ export class IssuePriorityService {
     cleanDescription,
     installationId,
     repositoryFullName,
+    workspaceId,
   }: {
     title: string;
     cleanDescription: string;
     installationId?: number | null;
     repositoryFullName?: string | null;
+    workspaceId?: number | null;
   }): Promise<IssuePriorityPrediction> {
+    const expertiseContext = await this.buildExpertiseContext(workspaceId);
     const messages: IssuePriorityMessage[] = [
       {
         role: 'system',
@@ -283,6 +343,7 @@ export class IssuePriorityService {
           repositoryFullName ? `Repository: ${repositoryFullName}` : null,
           `Issue title: ${title}`,
           `Issue description:\n${cleanDescription || '(empty)'}`,
+          this.buildExpertisePromptContext(expertiseContext),
         ]
           .filter(Boolean)
           .join('\n'),
@@ -305,7 +366,7 @@ export class IssuePriorityService {
           });
 
         if (isFinalResponse(response)) {
-          return this.normalizePrediction(response);
+          return this.normalizePrediction(response, expertiseContext);
         }
 
         if (!isToolCallResponse(response)) {
@@ -374,13 +435,16 @@ export class IssuePriorityService {
     title,
     description,
     repositoryFullName,
+    workspaceId,
   }: {
     title: string;
     description: string;
     repositoryFullName?: string | null;
+    workspaceId?: number | null;
   }): string {
     return JSON.stringify({
       repositoryFullName: repositoryFullName ?? null,
+      workspaceId: workspaceId ?? null,
       title: title.trim(),
       description: description.trim(),
     });
@@ -450,6 +514,9 @@ export class IssuePriorityService {
       estimationConfidence: normalizeEstimationConfidence(
         prediction.estimationConfidence,
       ),
+      expertiseRecommendations: normalizeExistingExpertiseRecommendations(
+        prediction.expertiseRecommendations,
+      ),
     };
   }
 
@@ -484,6 +551,9 @@ export class IssuePriorityService {
       prediction.estimatedHours
         ? `> Estimated effort: ${prediction.estimatedHours}h (${prediction.estimationConfidence ?? 'unknown'} confidence)`
         : null,
+      ...formatExpertiseRecommendationNoteLines(
+        prediction.expertiseRecommendations,
+      ),
       '> Written by `DevTeams`',
       AI_PRIORITY_NOTE_END,
     ].join('\n');
@@ -509,12 +579,16 @@ export class IssuePriorityService {
     return `Risk: ${priority}`;
   }
 
-  private normalizePrediction(response: {
-    priority?: string;
-    reason?: string;
-    estimated_hours?: number | null;
-    estimation_confidence?: string | null;
-  }): IssuePriorityPrediction {
+  private normalizePrediction(
+    response: {
+      priority?: string;
+      reason?: string;
+      estimated_hours?: number | null;
+      estimation_confidence?: string | null;
+      expertise_recommendations?: unknown;
+    },
+    expertiseContext?: IssueExpertiseContext | null,
+  ): IssuePriorityPrediction {
     const priority = normalizeIssuePriority(response.priority);
 
     return {
@@ -523,6 +597,10 @@ export class IssuePriorityService {
       estimatedHours: normalizeEstimatedHours(response.estimated_hours),
       estimationConfidence: normalizeEstimationConfidence(
         response.estimation_confidence,
+      ),
+      expertiseRecommendations: normalizeAiExpertiseRecommendations(
+        response.expertise_recommendations,
+        expertiseContext,
       ),
     };
   }
@@ -542,6 +620,74 @@ export class IssuePriorityService {
       estimatedHours: null,
       estimationConfidence: 'low',
     };
+  }
+
+  private async buildExpertiseContext(
+    workspaceId?: number | null,
+  ): Promise<IssueExpertiseContext | null> {
+    if (!workspaceId) {
+      return null;
+    }
+
+    const expertises = await this.expertiseRepository.find({
+      where: {workspaceId},
+      order: ['name ASC'],
+    });
+
+    const expertiseIds = expertises
+      .map(expertise => expertise.id)
+      .filter((id): id is number => typeof id === 'number');
+
+    if (!expertiseIds.length) {
+      return null;
+    }
+
+    const expertiseUsers = await this.userExpertiseAssocRepository.find({
+      where: {expertiseId: {inq: expertiseIds}},
+      include: ['user'],
+    });
+    const usersByExpertiseId = groupUsersByExpertiseId(expertiseUsers);
+    const catalog = expertises.map(expertise => ({
+      id: expertise.id,
+      name: expertise.name,
+      description: expertise.description ?? null,
+      recommendedUsers: usersByExpertiseId.get(expertise.id) ?? [],
+    }));
+
+    return {
+      catalog,
+      byKey: new Map(
+        catalog.map(item => [normalizeExpertiseKey(item.name), item]),
+      ),
+    };
+  }
+
+  private buildExpertisePromptContext(
+    expertiseContext: IssueExpertiseContext | null,
+  ): string | null {
+    if (!expertiseContext?.catalog.length) {
+      return null;
+    }
+
+    return [
+      'Workspace expertise catalog:',
+      ...expertiseContext.catalog.map(item =>
+        [
+          `- ${item.name}`,
+          item.description?.trim()
+            ? `description=${item.description.trim()}`
+            : null,
+          item.recommendedUsers.length
+            ? `people=${item.recommendedUsers
+                .map(user => user.fullName || user.username)
+                .join(', ')}`
+            : 'people=none',
+        ]
+          .filter(Boolean)
+          .join(' | '),
+      ),
+      'Use exact expertise names from this catalog in expertise_recommendations.',
+    ].join('\n');
   }
 
   private async buildInitialEvidenceMessage(context: {
@@ -799,6 +945,183 @@ function normalizeEstimationConfidence(
     default:
       return null;
   }
+}
+
+function normalizeExistingExpertiseRecommendations(
+  value: IssuePriorityPrediction['expertiseRecommendations'],
+): AIPredictionExpertiseRecommendation[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const recommendations = value
+    .map(recommendation => {
+      const expertiseId = recommendation.expertiseId;
+      const name = recommendation.name?.trim();
+
+      if (typeof expertiseId !== 'number' || !Number.isFinite(expertiseId)) {
+        return null;
+      }
+
+      if (!name) {
+        return null;
+      }
+
+      return {
+        expertiseId,
+        name,
+        reason:
+          recommendation.reason?.trim() ||
+          'Relevant workspace expertise for this issue.',
+        recommendedUsers: normalizeRecommendedUsers(
+          recommendation.recommendedUsers,
+        ),
+      };
+    })
+    .filter(
+      (recommendation): recommendation is AIPredictionExpertiseRecommendation =>
+        recommendation !== null,
+    );
+
+  return recommendations.length ? recommendations : undefined;
+}
+
+function normalizeAiExpertiseRecommendations(
+  value: unknown,
+  expertiseContext?: IssueExpertiseContext | null,
+): AIPredictionExpertiseRecommendation[] | undefined {
+  if (!Array.isArray(value) || !expertiseContext) {
+    return undefined;
+  }
+
+  const seenExpertiseIds = new Set<number>();
+  const recommendations: AIPredictionExpertiseRecommendation[] = [];
+
+  for (const item of value) {
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    const rawName = item.expertise_name ?? item.name;
+
+    if (typeof rawName !== 'string') {
+      continue;
+    }
+
+    const expertise = expertiseContext.byKey.get(
+      normalizeExpertiseKey(rawName),
+    );
+
+    if (!expertise || seenExpertiseIds.has(expertise.id)) {
+      continue;
+    }
+
+    seenExpertiseIds.add(expertise.id);
+    recommendations.push({
+      expertiseId: expertise.id,
+      name: expertise.name,
+      reason:
+        typeof item.reason === 'string' && item.reason.trim()
+          ? item.reason.trim()
+          : 'Relevant workspace expertise for this issue.',
+      recommendedUsers: expertise.recommendedUsers,
+    });
+  }
+
+  return recommendations.length ? recommendations : undefined;
+}
+
+function formatExpertiseRecommendationNoteLines(
+  recommendations: AIPredictionExpertiseRecommendation[] | undefined,
+): string[] {
+  if (!recommendations?.length) {
+    return [];
+  }
+
+  const expertiseSummary = recommendations
+    .map(recommendation => `${recommendation.name} (${recommendation.reason})`)
+    .join('; ');
+  const recommendedUsers = [
+    ...new Set(
+      recommendations.flatMap(recommendation =>
+        recommendation.recommendedUsers.map(
+          user => user.fullName || user.username,
+        ),
+      ),
+    ),
+  ];
+
+  return [
+    `> Relevant expertise: ${expertiseSummary}`,
+    recommendedUsers.length
+      ? `> Recommended people: ${recommendedUsers.join(', ')}`
+      : null,
+  ].filter((line): line is string => Boolean(line));
+}
+
+function groupUsersByExpertiseId(
+  associations: UserExpertiseAssocWithRelations[],
+): Map<number, IssueExpertiseCatalogItem['recommendedUsers']> {
+  const usersByExpertiseId = new Map<
+    number,
+    IssueExpertiseCatalogItem['recommendedUsers']
+  >();
+
+  for (const association of associations) {
+    const user = association.user;
+
+    if (!user?.id || !user.username?.trim()) {
+      continue;
+    }
+
+    const users = usersByExpertiseId.get(association.expertiseId) ?? [];
+    users.push({
+      userId: user.id,
+      username: user.username,
+      fullName: user.fullName ?? null,
+    });
+    usersByExpertiseId.set(association.expertiseId, users);
+  }
+
+  return usersByExpertiseId;
+}
+
+function normalizeRecommendedUsers(
+  value: AIPredictionExpertiseRecommendation['recommendedUsers'],
+): AIPredictionExpertiseRecommendation['recommendedUsers'] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const users: AIPredictionExpertiseRecommendation['recommendedUsers'] = [];
+
+  for (const user of value) {
+    if (typeof user.userId !== 'number' || !Number.isFinite(user.userId)) {
+      continue;
+    }
+
+    const username = user.username?.trim();
+
+    if (!username) {
+      continue;
+    }
+
+    users.push({
+      userId: user.userId,
+      username,
+      fullName: user.fullName?.trim() || null,
+    });
+  }
+
+  return users;
+}
+
+function normalizeExpertiseKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function clampNumber(

@@ -1,6 +1,6 @@
 import {BindingScope, injectable, service} from '@loopback/core';
 import {Count, DataObject, repository, Where} from '@loopback/repository';
-import {GithubIssue} from '../../models';
+import {AIPredictionExpertiseRecommendation, GithubIssue} from '../../models';
 import {
   GithubIssueRepository,
   GithubRepositoryRepository,
@@ -14,6 +14,7 @@ type IssuePredictionWrite = {
   reason: string;
   estimatedHours?: number | null;
   estimationConfidence?: 'low' | 'medium' | 'high' | null;
+  expertiseRecommendations?: AIPredictionExpertiseRecommendation[] | null;
 };
 
 type GithubIssueWrite = {
@@ -58,15 +59,9 @@ export class IssueService {
       const createdIssue = await this.githubIssueRepository.create(issue);
       await this.recordIssueAudit(createdIssue, 'github.issue.created');
       if (prediction) {
-        await this.aiPredictionService.syncPrediction({
-          sourceType: 'github-issue',
-          sourceId: createdIssue.id,
-          predictionType: 'issue-priority',
-          priority: prediction.priority,
-          reason: prediction.reason,
-          estimatedHours: prediction.estimatedHours,
-          estimationConfidence: prediction.estimationConfidence,
-        });
+        await this.aiPredictionService.syncPrediction(
+          buildAIPredictionWrite(createdIssue.id, prediction),
+        );
       }
       return;
     }
@@ -78,15 +73,9 @@ export class IssueService {
     );
 
     if (prediction) {
-      await this.aiPredictionService.syncPrediction({
-        sourceType: 'github-issue',
-        sourceId: existingIssue.id,
-        predictionType: 'issue-priority',
-        priority: prediction.priority,
-        reason: prediction.reason,
-        estimatedHours: prediction.estimatedHours,
-        estimationConfidence: prediction.estimationConfidence,
-      });
+      await this.aiPredictionService.syncPrediction(
+        buildAIPredictionWrite(existingIssue.id, prediction),
+      );
     }
   }
 
@@ -135,16 +124,9 @@ export class IssueService {
         );
       }
       await this.aiPredictionService.createPredictionsBulk(
-        createdIssues.map((issue, batchIndex) => ({
-          sourceType: 'github-issue',
-          sourceId: issue.id,
-          predictionType: 'issue-priority',
-          priority: batch[batchIndex].prediction.priority,
-          reason: batch[batchIndex].prediction.reason,
-          estimatedHours: batch[batchIndex].prediction.estimatedHours,
-          estimationConfidence:
-            batch[batchIndex].prediction.estimationConfidence,
-        })),
+        createdIssues.map((issue, batchIndex) =>
+          buildAIPredictionWrite(issue.id, batch[batchIndex].prediction),
+        ),
       );
     }
   }
@@ -191,6 +173,24 @@ export class IssueService {
       },
     });
   }
+}
+
+function buildAIPredictionWrite(
+  sourceId: number,
+  prediction: IssuePredictionWrite,
+) {
+  return {
+    sourceType: 'github-issue' as const,
+    sourceId,
+    predictionType: 'issue-priority' as const,
+    priority: prediction.priority,
+    reason: prediction.reason,
+    estimatedHours: prediction.estimatedHours,
+    estimationConfidence: prediction.estimationConfidence,
+    ...(prediction.expertiseRecommendations?.length
+      ? {expertiseRecommendations: prediction.expertiseRecommendations}
+      : {}),
+  };
 }
 
 async function createAllWithoutNewsFeedIfSupported<

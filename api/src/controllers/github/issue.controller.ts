@@ -219,6 +219,7 @@ export class GithubIssueController {
     return this.issuePriorityService.predictIssuePriority({
       installationId: repositoryContext.installationId,
       repositoryFullName: repositoryContext.repository.fullName,
+      workspaceId: repositoryContext.repository.workspaceId,
       title,
       description,
     });

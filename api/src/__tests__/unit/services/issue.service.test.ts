@@ -129,6 +129,14 @@ describe('IssueService (unit)', () => {
         reason: 'Critical workflow is blocked.',
         estimatedHours: 8,
         estimationConfidence: 'medium',
+        expertiseRecommendations: [
+          {
+            expertiseId: 4,
+            name: 'Backend',
+            reason: 'API workflow is affected.',
+            recommendedUsers: [],
+          },
+        ],
       },
     );
 
@@ -140,6 +148,14 @@ describe('IssueService (unit)', () => {
       reason: 'Critical workflow is blocked.',
       estimatedHours: 8,
       estimationConfidence: 'medium',
+      expertiseRecommendations: [
+        {
+          expertiseId: 4,
+          name: 'Backend',
+          reason: 'API workflow is affected.',
+          recommendedUsers: [],
+        },
+      ],
     });
   });
 

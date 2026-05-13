@@ -17,6 +17,16 @@ export default class AIPredictionModel extends Model {
     username: string;
     reason: string;
   }> | null;
+  @attr() declare expertiseRecommendations: Array<{
+    expertiseId: number;
+    name: string;
+    reason: string;
+    recommendedUsers: Array<{
+      userId: number;
+      username: string;
+      fullName?: string | null;
+    }>;
+  }> | null;
   @attr('number') declare estimatedHours: number | null;
   @attr('string')
   declare estimationConfidence: 'low' | 'medium' | 'high' | null;

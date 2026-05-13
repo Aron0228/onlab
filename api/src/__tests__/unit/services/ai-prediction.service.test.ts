@@ -39,6 +39,14 @@ describe('AIPredictionService (unit)', () => {
       estimationConfidence: 'medium',
       findings: [],
       reviewerSuggestions: [],
+      expertiseRecommendations: [
+        {
+          expertiseId: 3,
+          name: 'Backend',
+          reason: 'API behavior is affected.',
+          recommendedUsers: [],
+        },
+      ],
     });
 
     expect(aiPredictionRepository.create).toHaveBeenCalledWith({
@@ -51,6 +59,14 @@ describe('AIPredictionService (unit)', () => {
       estimationConfidence: 'medium',
       findings: [],
       reviewerSuggestions: [],
+      expertiseRecommendations: [
+        {
+          expertiseId: 3,
+          name: 'Backend',
+          reason: 'API behavior is affected.',
+          recommendedUsers: [],
+        },
+      ],
     });
   });
 
@@ -79,6 +95,7 @@ describe('AIPredictionService (unit)', () => {
           reason: 'Owns auth review.',
         },
       ],
+      expertiseRecommendations: undefined,
     });
 
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(5, {
@@ -116,6 +133,7 @@ describe('AIPredictionService (unit)', () => {
       estimationConfidence: null,
       findings: [],
       reviewerSuggestions: [],
+      expertiseRecommendations: undefined,
     });
 
     expect(aiPredictionRepository.updateById).toHaveBeenCalledWith(6, {
@@ -197,6 +215,7 @@ describe('AIPredictionService (unit)', () => {
         estimationConfidence: 'high',
         findings: undefined,
         reviewerSuggestions: [],
+        expertiseRecommendations: undefined,
       },
     ]);
   });

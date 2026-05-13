@@ -5,6 +5,7 @@ import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
 import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
+import { or } from 'ember-truth-helpers';
 import type GithubRepositoryModel from 'client/models/github-repository';
 import type { WorkspacesEditIssuesNewRouteModel } from 'client/routes/workspaces/edit/issues/new';
 import UiButton from 'client/components/ui/button';
@@ -20,6 +21,18 @@ type AnalyzeIssueResponse = {
   reason: string;
   estimatedHours?: number | null;
   estimationConfidence?: 'low' | 'medium' | 'high' | null;
+  expertiseRecommendations?: ExpertiseRecommendation[] | null;
+};
+
+type ExpertiseRecommendation = {
+  expertiseId: number;
+  name: string;
+  reason: string;
+  recommendedUsers: Array<{
+    userId: number;
+    username: string;
+    fullName?: string | null;
+  }>;
 };
 
 type CreateIssueResponse = {
@@ -141,6 +154,10 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
       : '';
 
     return `${this.analysisResult.estimatedHours}h${confidenceLabel}`;
+  }
+
+  get expertiseRecommendations(): ExpertiseRecommendation[] {
+    return this.analysisResult?.expertiseRecommendations ?? [];
   }
 
   analyzeIssueTask = task(async () => {
@@ -357,6 +374,32 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
                     Estimated effort:
                     {{this.estimatedHoursLabel}}
                   </p>
+                {{/if}}
+                {{#if this.expertiseRecommendations.length}}
+                  <div class="layout-vertical --gap-sm">
+                    <span class="issue-edit-section__label">
+                      Relevant expertise
+                    </span>
+                    {{#each this.expertiseRecommendations as |expertise|}}
+                      <div class="layout-vertical --gap-xs">
+                        <strong>{{expertise.name}}</strong>
+                        <p class="issue-edit-analysis__content margin-zero">
+                          {{expertise.reason}}
+                        </p>
+                        {{#if expertise.recommendedUsers.length}}
+                          <span class="font-size-text-sm">
+                            Suggested people:
+                            {{#each expertise.recommendedUsers as |user index|}}
+                              {{if index ", "}}{{or
+                                user.fullName
+                                user.username
+                              }}
+                            {{/each}}
+                          </span>
+                        {{/if}}
+                      </div>
+                    {{/each}}
+                  </div>
                 {{/if}}
               </:default>
             </UiContainer>

@@ -38,4 +38,10 @@ export default class GithubIssueModel extends Model {
   get estimationConfidence(): 'low' | 'medium' | 'high' | null {
     return this.aiPrediction?.estimationConfidence ?? null;
   }
+
+  get expertiseRecommendations():
+    | AIPredictionModel['expertiseRecommendations']
+    | null {
+    return this.aiPrediction?.expertiseRecommendations ?? null;
+  }
 }

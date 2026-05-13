@@ -131,6 +131,7 @@ describe('GithubIssueController (unit)', () => {
     expect(priorityService.predictIssuePriority).toHaveBeenCalledWith({
       installationId: 11,
       repositoryFullName: 'team/api',
+      workspaceId: 9,
       title: 'Broken sign-in',
       description: 'Users cannot log in',
     });
