@@ -69,6 +69,25 @@ describe('GithubPullRequestController (unit)', () => {
     });
   });
 
+  it('keeps requested reviewer includes while scoping pull request detail queries', async () => {
+    const pullRequest = new GithubPullRequest({id: 5, repositoryId: 8});
+    pullRequestRepository.find.mockResolvedValue([pullRequest]);
+
+    await expect(
+      controller.find({id: 7} as never, {
+        include: ['aiPrediction', 'reviewers'],
+        where: {id: 5},
+      }),
+    ).resolves.toEqual([pullRequest]);
+
+    expect(pullRequestRepository.find).toHaveBeenCalledWith({
+      include: ['aiPrediction', 'reviewers'],
+      where: {
+        and: [{id: 5}, {repositoryId: {inq: [8]}}],
+      },
+    });
+  });
+
   it('deletes pull requests through PullRequestService after admin check', async () => {
     pullRequestRepository.findById.mockResolvedValue(
       new GithubPullRequest({id: 5, repositoryId: 8}),

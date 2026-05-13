@@ -38,7 +38,7 @@ export default class WorkspacesEditPullRequestsEditRoute extends ProtectedRoute 
 
     const [pullRequest] = await this.store.query('github-pull-request', {
       filter: {
-        include: ['aiPrediction'],
+        include: ['aiPrediction', 'reviewers'],
         where: {
           id: Number(params.pull_request_id),
         },

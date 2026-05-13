@@ -1,5 +1,6 @@
-import Model, { attr, belongsTo } from '@warp-drive/legacy/model';
+import Model, { attr, belongsTo, hasMany } from '@warp-drive/legacy/model';
 import type AIPredictionModel from './ai-prediction';
+import type GithubPullRequestReviewerModel from './github-pull-request-reviewer';
 import type GithubRepositoryModel from './github-repository';
 
 export default class GithubPullRequestModel extends Model {
@@ -8,6 +9,12 @@ export default class GithubPullRequestModel extends Model {
 
   @belongsTo('ai-prediction', { async: false, inverse: null })
   declare aiPrediction: AIPredictionModel | null;
+
+  @hasMany('github-pull-request-reviewer', {
+    async: false,
+    inverse: 'pullRequest',
+  })
+  declare reviewers: GithubPullRequestReviewerModel[];
 
   @attr('number') declare repositoryId: number;
   @attr('number') declare githubPrNumber: number;

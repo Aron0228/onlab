@@ -5,6 +5,8 @@ import { modifier } from 'ember-modifier';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { WorkspacesEditPullRequestsEditRouteModel } from 'client/routes/workspaces/edit/pull-requests/edit';
+import type GithubPullRequestReviewerModel from 'client/models/github-pull-request-reviewer';
+import type { PullRequestReviewerStatus } from 'client/models/github-pull-request-reviewer';
 import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
 import UiButton from 'client/components/ui/button';
@@ -149,6 +151,28 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     return `https://github.com/${repositoryFullName}/pull/${this.pullRequest.githubPrNumber}`;
   }
 
+  get reviewers(): GithubPullRequestReviewerModel[] {
+    return [...(this.pullRequest.reviewers ?? [])].sort(
+      (firstReviewer, secondReviewer) =>
+        this.reviewerStatusRank(firstReviewer.status) -
+          this.reviewerStatusRank(secondReviewer.status) ||
+        firstReviewer.githubLogin.localeCompare(secondReviewer.githubLogin)
+    );
+  }
+
+  get hasReviewers(): boolean {
+    return this.reviewers.length > 0;
+  }
+
+  get pendingReviewerCount(): number {
+    return this.reviewers.filter((reviewer) => reviewer.status === 'pending')
+      .length;
+  }
+
+  get progressedReviewerCount(): number {
+    return this.reviewers.length - this.pendingReviewerCount;
+  }
+
   get closeRoute(): string {
     return this.args.closeRoute ?? 'workspaces.edit.pull-requests';
   }
@@ -170,6 +194,88 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     }
 
     globalThis.open?.(this.githubPullRequestUrl, '_blank', 'noopener');
+  }
+
+  reviewerStatusLabel = (
+    status: PullRequestReviewerStatus | null | undefined
+  ): string => {
+    switch (status) {
+      case 'approved':
+        return 'Approved';
+      case 'changes_requested':
+        return 'Changes requested';
+      case 'commented':
+        return 'Commented';
+      case 'dismissed':
+        return 'Dismissed';
+      default:
+        return 'Pending';
+    }
+  };
+
+  reviewerStatusSelector = (
+    status: PullRequestReviewerStatus | null | undefined
+  ): string => {
+    switch (status) {
+      case 'approved':
+        return '--approved';
+      case 'changes_requested':
+        return '--changes-requested';
+      case 'commented':
+        return '--commented';
+      case 'dismissed':
+        return '--dismissed';
+      default:
+        return '--pending';
+    }
+  };
+
+  reviewerStatusIcon = (
+    status: PullRequestReviewerStatus | null | undefined
+  ): string => {
+    switch (status) {
+      case 'approved':
+        return 'circle-check';
+      case 'changes_requested':
+        return 'circle-x';
+      case 'commented':
+        return 'message-circle';
+      case 'dismissed':
+        return 'circle-minus';
+      default:
+        return 'clock';
+    }
+  };
+
+  reviewerActivityLabel = (
+    reviewer: GithubPullRequestReviewerModel
+  ): string => {
+    if (reviewer.reviewedAt) {
+      return `Reviewed ${formatDateTime(reviewer.reviewedAt)}`;
+    }
+
+    if (reviewer.lastNotifiedAt) {
+      return `Reminded ${formatDateTime(reviewer.lastNotifiedAt)}`;
+    }
+
+    return 'Awaiting review';
+  };
+
+  private reviewerStatusRank(status: PullRequestReviewerStatus): number {
+    switch (status) {
+      case 'changes_requested':
+        return 0;
+      case 'approved':
+        return 1;
+      case 'commented':
+        return 2;
+      case 'pending':
+        return 3;
+      case 'dismissed':
+        return 4;
+      default:
+        return 5;
+    }
   }
 
   <template>
@@ -268,6 +374,85 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
           ></div>
         </div>
 
+        <UiContainer @bordered={{true}} class="pull-request-reviewers-section">
+          <:header>
+            <div class="layout-horizontal --gap-sm --wrap">
+              <div class="layout-horizontal --gap-sm">
+                <UiIcon @name="users" @variant="primary" />
+                <h3 class="margin-zero">Reviewers</h3>
+              </div>
+
+              {{#if this.hasReviewers}}
+                <span class="pull-request-reviewers-summary">
+                  {{this.progressedReviewerCount}}
+                  responded ·
+                  {{this.pendingReviewerCount}}
+                  pending
+                </span>
+              {{/if}}
+            </div>
+          </:header>
+          <:default>
+            {{#if this.hasReviewers}}
+              <div class="pull-request-reviewers-list layout-vertical --gap-sm">
+                {{#each this.reviewers as |reviewer|}}
+                  <div class="pull-request-reviewer-row">
+                    <div class="layout-horizontal --gap-sm">
+                      <span class="pull-request-reviewer-avatar">
+                        {{reviewerInitials reviewer.githubLogin}}
+                      </span>
+                      <div class="layout-vertical --gap-xs">
+                        <span class="font-weight-medium">
+                          @{{reviewer.githubLogin}}
+                        </span>
+                        <span
+                          class="font-size-text-sm font-color-text-secondary"
+                        >
+                          {{#if reviewer.userId}}
+                            Linked user #{{reviewer.userId}}
+                          {{else}}
+                            GitHub reviewer
+                          {{/if}}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="layout-vertical --gap-xs">
+                      <span
+                        class="pull-request-reviewer-status
+                          {{this.reviewerStatusSelector reviewer.status}}"
+                      >
+                        <UiIcon
+                          @name={{this.reviewerStatusIcon reviewer.status}}
+                          @size="sm"
+                        />
+                        {{this.reviewerStatusLabel reviewer.status}}
+                      </span>
+                      <span
+                        class="pull-request-reviewer-activity font-size-text-sm"
+                      >
+                        {{this.reviewerActivityLabel reviewer}}
+                      </span>
+                    </div>
+                  </div>
+                {{/each}}
+              </div>
+            {{else}}
+              <div
+                class="pull-request-reviewers-empty layout-vertical --gap-xs"
+              >
+                <span class="font-weight-medium">
+                  No reviewers have been requested yet.
+                </span>
+                <span class="font-color-text-secondary">
+                  Reviewer assignments will appear here after GitHub sync or AI
+                  reviewer suggestions run.
+                </span>
+              </div>
+            {{/if}}
+          </:default>
+        </UiContainer>
+
         <div class="pull-request-edit-section layout-vertical --gap-md">
           <span class="pull-request-edit-section__label">DETAILS</span>
 
@@ -319,4 +504,17 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function reviewerInitials(login: string): string {
+  return login.trim().slice(0, 2).toUpperCase() || '?';
+}
+
+function formatDateTime(value: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(value);
 }
