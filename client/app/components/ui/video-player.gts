@@ -37,7 +37,9 @@ export default class UiVideoPlayer extends Component<Signature> {
         preload="metadata"
         aria-label={{@label}}
         {{this.setupPlayer @src @type}}
-      ></video>
+      >
+        <track kind="captions" />
+      </video>
     </div>
   </template>
 }
