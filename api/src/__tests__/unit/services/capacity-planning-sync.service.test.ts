@@ -210,6 +210,140 @@ describe('CapacityPlanningSyncService (unit)', () => {
     );
   });
 
+  it('ignores GitHub assignee changes when the assignee identity is missing', async () => {
+    await service.syncGithubIssueAssigneeChange({
+      action: 'assigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {login: '   '},
+    });
+
+    expect(githubRepositoryRepository.findById).not.toHaveBeenCalled();
+    expect(githubIssueRepository.findOne).not.toHaveBeenCalled();
+    expect(issueAssignmentRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('skips incoming GitHub assignee sync when the issue is not stored locally', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue(null);
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'assigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Skipping GitHub assignee sync because the issue is not stored locally.',
+      {
+        repositoryId: 4,
+        githubIssueId: 22,
+        githubIssueNumber: 27,
+      },
+    );
+    expect(workspaceRepository.findById).not.toHaveBeenCalled();
+    expect(issueAssignmentRepository.create).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('falls back to login matching and the latest plan when importing GitHub assignments', async () => {
+    capacityPlanRepository.findOne = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({id: 9, workspaceId: 3});
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue({
+      id: 11,
+      repositoryId: 4,
+      githubId: 22,
+      githubIssueNumber: 27,
+    });
+    userRepository.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({id: 6, githubId: 222, username: 'fallback-user'});
+    issueAssignmentRepository.create.mockResolvedValue({id: 20});
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'assigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 222, login: 'fallback-user'},
+    });
+
+    expect(userRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: {githubId: 222},
+    });
+    expect(userRepository.findOne).toHaveBeenNthCalledWith(2, {
+      where: {username: 'fallback-user'},
+    });
+    expect(capacityPlanRepository.findOne).toHaveBeenNthCalledWith(2, {
+      where: {workspaceId: 3},
+      order: ['start DESC'],
+    });
+    expect(issueAssignmentRepository.create).toHaveBeenCalledWith({
+      capacityPlanId: 9,
+      issueId: 11,
+      userId: 6,
+      assignedHours: 0,
+    });
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 6,
+        action: 'capacity-planning.assignment.imported',
+        resourceId: '20',
+      }),
+    );
+  });
+
+  it('does not import duplicate GitHub assignments into the active plan', async () => {
+    capacityPlanRepository.findOne = vi.fn().mockResolvedValue({
+      id: 8,
+      workspaceId: 3,
+    });
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue({
+      id: 11,
+      repositoryId: 4,
+      githubId: 22,
+      githubIssueNumber: 27,
+    });
+    issueAssignmentRepository.findOne.mockResolvedValue({
+      id: 19,
+      capacityPlanId: 8,
+      issueId: 11,
+      userId: 5,
+    });
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'assigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(issueAssignmentRepository.create).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
+  });
+
   it('removes GitHub unassignments from the current capacity plan', async () => {
     capacityPlanRepository.findOne = vi.fn().mockResolvedValue({
       id: 8,
@@ -252,6 +386,36 @@ describe('CapacityPlanningSyncService (unit)', () => {
         source: 'github',
       }),
     );
+  });
+
+  it('does not audit GitHub unassignments when no local assignment exists', async () => {
+    capacityPlanRepository.findOne = vi.fn().mockResolvedValue({
+      id: 8,
+      workspaceId: 3,
+    });
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue({
+      id: 11,
+      repositoryId: 4,
+      githubId: 22,
+      githubIssueNumber: 27,
+    });
+    issueAssignmentRepository.findOne.mockResolvedValue(null);
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'unassigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(issueAssignmentRepository.deleteById).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
   });
 
   it('skips incoming GitHub assignee sync when workspace sync is disabled', async () => {
@@ -306,6 +470,36 @@ describe('CapacityPlanningSyncService (unit)', () => {
       assignee: {id: 999, login: 'unknown'},
     });
 
+    expect(issueAssignmentRepository.create).not.toHaveBeenCalled();
+    expect(issueAssignmentRepository.deleteById).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
+  });
+
+  it('skips incoming GitHub assignee sync when GitHub id is unmapped and no login is available', async () => {
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue({
+      id: 11,
+      repositoryId: 4,
+      githubId: 22,
+      githubIssueNumber: 27,
+    });
+    userRepository.findOne.mockResolvedValue(null);
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'assigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 999},
+    });
+
+    expect(userRepository.findOne).toHaveBeenCalledWith({
+      where: {githubId: 999},
+    });
     expect(issueAssignmentRepository.create).not.toHaveBeenCalled();
     expect(issueAssignmentRepository.deleteById).not.toHaveBeenCalled();
     expect(auditEventService.record).not.toHaveBeenCalled();
