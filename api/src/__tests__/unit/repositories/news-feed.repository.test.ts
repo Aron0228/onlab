@@ -205,6 +205,44 @@ describe('News feed repositories (unit)', () => {
     expect(entries.map(entry => entry.id)).toEqual([11]);
   });
 
+  it('falls back to workspace entries when user expertises belong to another workspace', async () => {
+    const userExpertiseAssocRepositoryGetter = vi.fn().mockResolvedValue({
+      find: vi.fn().mockResolvedValue([
+        {
+          expertiseId: 4,
+          expertise: {id: 4, workspaceId: 99},
+        },
+      ]),
+    });
+    const repository = new NewsFeedEntryRepository(
+      dataSource as never,
+      async () => ({}) as never,
+      userExpertiseAssocRepositoryGetter as never,
+    );
+    const fallbackEntries = [
+      new NewsFeedEntry({
+        id: 21,
+        workspaceId: 9,
+        sourceType: 'github-issue',
+        sourceId: 41,
+        eventAction: 'created',
+        title: 'Workspace item',
+        summary: 'Workspace item',
+        sourcePriority: 'medium',
+        happenedAt: '2026-04-16T09:00:00.000Z',
+      }),
+    ];
+    const findSpy = vi
+      .spyOn(repository, 'find')
+      .mockResolvedValue(fallbackEntries);
+
+    await expect(repository.findPersonalizedFeed(9, 6)).resolves.toEqual(
+      fallbackEntries,
+    );
+
+    expect(findSpy).toHaveBeenCalledWith({where: {workspaceId: 9}});
+  });
+
   it('registers news feed entry expertise association relations', () => {
     const repository = new NewsFeedEntryExpertiseAssocRepository(
       dataSource as never,
