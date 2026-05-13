@@ -169,6 +169,8 @@ describe('Workspace RBAC security contract (unit)', () => {
     };
     const controller = new FileController(
       fileRepository as never,
+      {find: vi.fn().mockResolvedValue([])} as never,
+      {findOne: vi.fn()} as never,
       authorization as never,
       {record: vi.fn()} as never,
     );

@@ -9,6 +9,7 @@ export const WORKSPACE_PERMISSION = {
   AI_SETTINGS_MANAGE: 'ai.settings.manage',
   CAPACITY_PLAN_MANAGE: 'capacity-plan.manage',
   COMMUNICATION_VIEW: 'communication.view',
+  COMMUNICATION_MANAGE: 'communication.manage',
 } as const;
 
 export type WorkspacePermission =

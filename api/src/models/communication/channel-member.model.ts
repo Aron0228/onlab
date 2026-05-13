@@ -2,6 +2,8 @@ import {belongsTo, Entity, model, property} from '@loopback/repository';
 import {User} from '../auth';
 import {Channel} from './channel.model';
 
+export type ChannelMemberRole = 'ADMIN' | 'MEMBER';
+
 @model({
   settings: {
     forceId: false,
@@ -31,6 +33,13 @@ export class ChannelMember extends Entity {
 
   @property({type: 'date', postgresql: {columnName: 'muted_at'}})
   mutedAt?: string | null;
+
+  @property({
+    type: 'string',
+    jsonSchema: {enum: ['ADMIN', 'MEMBER']},
+    postgresql: {columnName: 'role'},
+  })
+  role?: ChannelMemberRole;
 
   @property({type: 'date', postgresql: {columnName: 'created_at'}})
   createdAt?: string;

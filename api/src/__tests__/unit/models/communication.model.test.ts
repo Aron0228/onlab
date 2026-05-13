@@ -69,6 +69,7 @@ describe('Communication models (unit)', () => {
       userId: 11,
       lastReadAt: '2026-04-27T10:00:00.000Z',
       mutedAt: '2026-04-27T11:00:00.000Z',
+      role: 'ADMIN',
       createdAt: '2026-04-27T08:00:00.000Z',
     });
 
@@ -87,6 +88,7 @@ describe('Communication models (unit)', () => {
       userId: 11,
       lastReadAt: '2026-04-27T10:00:00.000Z',
       mutedAt: '2026-04-27T11:00:00.000Z',
+      role: 'ADMIN',
       createdAt: '2026-04-27T08:00:00.000Z',
     });
     expect(member.channel?.name).toBe('general');
