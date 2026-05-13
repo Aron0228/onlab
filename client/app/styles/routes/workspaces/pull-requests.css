@@ -223,6 +223,16 @@
   .pull-request-empty-state {
     text-align: left;
   }
+
+  .pull-request-list-pagination-loader {
+    display: grid;
+    place-items: center;
+    padding: var(--space-md);
+  }
+
+  .pull-request-list-sentinel {
+    min-height: 1px;
+  }
 }
 
 .route-workspaces-edit-pull-requests-edit {
