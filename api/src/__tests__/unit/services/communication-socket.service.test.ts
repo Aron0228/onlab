@@ -63,11 +63,11 @@ describe('CommunicationSocketService (unit)', () => {
   let communicationService: {
     assertChannelMember: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
+    createMessageNotifications: ReturnType<typeof vi.fn>;
   };
   let userRepository: {findById: ReturnType<typeof vi.fn>};
   let channelRepository: {findById: ReturnType<typeof vi.fn>};
   let channelMemberRepository: {find: ReturnType<typeof vi.fn>};
-  let notificationService: {create: ReturnType<typeof vi.fn>};
   let service: CommunicationSocketService;
 
   beforeEach(() => {
@@ -76,11 +76,11 @@ describe('CommunicationSocketService (unit)', () => {
     communicationService = {
       assertChannelMember: vi.fn(),
       sendMessage: vi.fn(),
+      createMessageNotifications: vi.fn(),
     };
     userRepository = {findById: vi.fn()};
     channelRepository = {findById: vi.fn()};
     channelMemberRepository = {find: vi.fn()};
-    notificationService = {create: vi.fn()};
 
     service = new CommunicationSocketService(
       jwtTokenService as never,
@@ -88,7 +88,6 @@ describe('CommunicationSocketService (unit)', () => {
       userRepository as never,
       channelRepository as never,
       channelMemberRepository as never,
-      notificationService as never,
     );
   });
 
@@ -222,10 +221,9 @@ describe('CommunicationSocketService (unit)', () => {
       name: 'general',
       members: [{userId: 10}, {userId: 11}, {userId: 12, mutedAt: 'now'}],
     });
-    notificationService.create.mockResolvedValue({
-      id: 91,
-      type: 'communication-message',
-    });
+    communicationService.createMessageNotifications.mockResolvedValue([
+      {id: 91, userId: 11, type: 'communication-message'},
+    ]);
 
     service['registerHandlers'](socket as never);
     const callback = vi.fn();
@@ -267,20 +265,15 @@ describe('CommunicationSocketService (unit)', () => {
       channelId: 20,
       message,
     });
-    expect(notificationService.create).toHaveBeenCalledTimes(1);
-    expect(notificationService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 11,
-        workspaceId: 7,
-        type: 'communication-message',
-        title: 'Ada Lovelace in #general',
-        message: 'hello',
-        targetRoute: 'workspaces.edit.communication',
-      }),
+    expect(
+      communicationService.createMessageNotifications,
+    ).toHaveBeenCalledWith(20, message, 10);
+    expect(socketIoServer.server.to).toHaveBeenCalledWith(
+      'communication:user:11',
     );
     expect(socketIoServer.roomEmit).toHaveBeenCalledWith(
       'notification:created',
-      {id: 91, type: 'communication-message'},
+      {id: 91, userId: 11, type: 'communication-message'},
     );
     expect(callback).toHaveBeenCalledWith({ok: true, message});
   });
@@ -300,7 +293,7 @@ describe('CommunicationSocketService (unit)', () => {
       type: 'DIRECT',
       members: [{userId: 10}, {userId: 11}],
     });
-    notificationService.create.mockRejectedValue(
+    communicationService.createMessageNotifications.mockRejectedValue(
       new Error('notification down'),
     );
     service['registerHandlers'](socket as never);

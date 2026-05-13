@@ -1,16 +1,18 @@
 import {HttpErrors} from '@loopback/rest';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {CommunicationService} from '../../../services';
+import {WORKSPACE_PERMISSION, WORKSPACE_ROLE} from '../../../constants';
+import {Message} from '../../../models';
+import {CommunicationService} from '../../../services/communication.service';
 
 describe('CommunicationService (unit)', () => {
   let channelRepository: Record<string, ReturnType<typeof vi.fn>>;
   let channelMemberRepository: Record<string, ReturnType<typeof vi.fn>>;
   let messageRepository: Record<string, ReturnType<typeof vi.fn>>;
   let messageAttachmentRepository: Record<string, ReturnType<typeof vi.fn>>;
-  let workspaceMemberRepository: Record<string, ReturnType<typeof vi.fn>>;
-  let workspaceRepository: Record<string, ReturnType<typeof vi.fn>>;
   let fileRepository: Record<string, ReturnType<typeof vi.fn>>;
   let auditEventService: Record<string, ReturnType<typeof vi.fn>>;
+  let workspaceAuthorizationService: Record<string, ReturnType<typeof vi.fn>>;
+  let notificationService: Record<string, ReturnType<typeof vi.fn>>;
   let service: CommunicationService;
 
   beforeEach(() => {
@@ -38,17 +40,19 @@ describe('CommunicationService (unit)', () => {
     messageAttachmentRepository = {
       create: vi.fn(),
     };
-    workspaceMemberRepository = {
-      findOne: vi.fn().mockResolvedValue({id: 1}),
-    };
-    workspaceRepository = {
-      findById: vi.fn().mockResolvedValue({id: 3, ownerId: 99}),
-    };
     fileRepository = {
       findById: vi.fn(),
     };
     auditEventService = {
       record: vi.fn().mockResolvedValue(undefined),
+    };
+    workspaceAuthorizationService = {
+      assertPermission: vi.fn().mockResolvedValue(WORKSPACE_ROLE.MEMBER),
+      assertWorkspaceMember: vi.fn().mockResolvedValue(WORKSPACE_ROLE.MEMBER),
+      getWorkspaceRole: vi.fn().mockResolvedValue(WORKSPACE_ROLE.MEMBER),
+    };
+    notificationService = {
+      create: vi.fn(),
     };
 
     service = new CommunicationService(
@@ -56,10 +60,10 @@ describe('CommunicationService (unit)', () => {
       channelMemberRepository as never,
       messageRepository as never,
       messageAttachmentRepository as never,
-      workspaceMemberRepository as never,
-      workspaceRepository as never,
       fileRepository as never,
       auditEventService as never,
+      workspaceAuthorizationService as never,
+      notificationService as never,
     );
   });
 
@@ -72,9 +76,11 @@ describe('CommunicationService (unit)', () => {
 
     await expect(service.listChannels(3, 10)).resolves.toEqual([{id: 7}]);
 
-    expect(workspaceMemberRepository.findOne).toHaveBeenCalledWith({
-      where: {workspaceId: 3, userId: 10},
-    });
+    expect(workspaceAuthorizationService.assertPermission).toHaveBeenCalledWith(
+      3,
+      10,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
     expect(channelRepository.find).toHaveBeenCalledWith({
       where: {workspaceId: 3, id: {inq: [4, 7]}},
       include: [
@@ -115,7 +121,17 @@ describe('CommunicationService (unit)', () => {
       type: 'GROUP',
       name: 'general',
     });
+    expect(workspaceAuthorizationService.assertPermission).toHaveBeenCalledWith(
+      3,
+      10,
+      WORKSPACE_PERMISSION.COMMUNICATION_MANAGE,
+    );
     expect(channelMemberRepository.create).toHaveBeenCalledTimes(3);
+    expect(channelMemberRepository.create).toHaveBeenCalledWith({
+      channelId: 20,
+      userId: 10,
+      role: 'ADMIN',
+    });
     expect(auditEventService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 10,
@@ -218,15 +234,15 @@ describe('CommunicationService (unit)', () => {
   });
 
   it('adds members after validating requester and workspace membership', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(
+      WORKSPACE_ROLE.ADMIN,
+    );
     channelRepository.findById.mockResolvedValue({
       id: 20,
       workspaceId: 3,
       type: 'GROUP',
     });
-    channelMemberRepository.findOne
-      .mockResolvedValueOnce({id: 1, channelId: 20, userId: 10})
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null);
+    channelMemberRepository.findOne.mockResolvedValue(null);
     channelMemberRepository.create.mockResolvedValue({
       id: 2,
       channelId: 20,
@@ -250,14 +266,12 @@ describe('CommunicationService (unit)', () => {
   });
 
   it('renames group channels and returns the updated channel', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(
+      WORKSPACE_ROLE.ADMIN,
+    );
     channelRepository.findById
       .mockResolvedValueOnce({id: 20, workspaceId: 3, type: 'GROUP'})
       .mockResolvedValueOnce({id: 20, type: 'GROUP', name: 'product'});
-    channelMemberRepository.findOne.mockResolvedValue({
-      id: 1,
-      channelId: 20,
-      userId: 10,
-    });
 
     await expect(
       service.updateGroupChannel(20, 10, {name: ' product '}),
@@ -321,15 +335,13 @@ describe('CommunicationService (unit)', () => {
   });
 
   it('deletes group channels when requested by a member', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(
+      WORKSPACE_ROLE.ADMIN,
+    );
     channelRepository.findById.mockResolvedValue({
       id: 20,
       workspaceId: 3,
       type: 'GROUP',
-    });
-    channelMemberRepository.findOne.mockResolvedValue({
-      id: 1,
-      channelId: 20,
-      userId: 10,
     });
 
     await expect(service.deleteGroupChannel(20, 10)).resolves.toBeUndefined();
@@ -417,19 +429,171 @@ describe('CommunicationService (unit)', () => {
     });
   });
 
+  it('creates message notifications for unmuted recipients', async () => {
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'GROUP',
+      name: 'general',
+      members: [{userId: 10}, {userId: 11}, {userId: 12, mutedAt: 'now'}],
+    });
+    notificationService.create.mockResolvedValue({
+      id: 91,
+      userId: 11,
+      type: 'communication-message',
+    });
+
+    await expect(
+      service.createMessageNotifications(
+        20,
+        Object.assign(
+          new Message({
+            id: 44,
+            channelId: 20,
+            senderId: 10,
+            content: ' hello ',
+          }),
+          {sender: {fullName: 'Ada Lovelace'}},
+        ),
+        10,
+      ),
+    ).resolves.toEqual([{id: 91, userId: 11, type: 'communication-message'}]);
+
+    expect(notificationService.create).toHaveBeenCalledTimes(1);
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 11,
+        workspaceId: 3,
+        type: 'communication-message',
+        title: 'Ada Lovelace in #general',
+        message: 'hello',
+        targetRoute: 'workspaces.edit.communication',
+        payload: expect.objectContaining({
+          workspaceId: 3,
+          channelId: 20,
+          messageId: 44,
+          senderId: 10,
+          channelType: 'GROUP',
+          channelName: 'general',
+        }),
+      }),
+    );
+  });
+
+  it('uses attachment text for direct-message notifications without content', async () => {
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'DIRECT',
+      members: [{userId: 10}, {userId: 11}],
+    });
+    notificationService.create.mockResolvedValue({
+      id: 91,
+      userId: 11,
+      type: 'communication-message',
+    });
+
+    await service.createMessageNotifications(
+      20,
+      Object.assign(
+        new Message({
+          id: 44,
+          channelId: 20,
+          senderId: 10,
+        }),
+        {sender: {username: 'ada'}},
+      ),
+      10,
+    );
+
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'ada',
+        message: 'Sent an attachment.',
+      }),
+    );
+  });
+
   it('rejects users outside the workspace', async () => {
-    workspaceMemberRepository.findOne.mockResolvedValue(null);
+    workspaceAuthorizationService.assertPermission.mockRejectedValue(
+      new HttpErrors.Forbidden('Nope'),
+    );
 
     await expect(service.listChannels(3, 10)).rejects.toBeInstanceOf(
       HttpErrors.Forbidden,
     );
   });
 
-  it('treats the workspace owner as a workspace member', async () => {
-    workspaceRepository.findById.mockResolvedValue({id: 3, ownerId: 10});
+  it('uses workspace authorization for owner access', async () => {
+    workspaceAuthorizationService.assertPermission.mockResolvedValue(
+      WORKSPACE_ROLE.OWNER,
+    );
     channelMemberRepository.find.mockResolvedValue([]);
 
     await expect(service.listChannels(3, 10)).resolves.toEqual([]);
-    expect(workspaceMemberRepository.findOne).not.toHaveBeenCalled();
+    expect(workspaceAuthorizationService.assertPermission).toHaveBeenCalledWith(
+      3,
+      10,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
+  });
+
+  it('allows channel admins to manage group channel settings', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(
+      WORKSPACE_ROLE.MEMBER,
+    );
+    channelRepository.findById
+      .mockResolvedValueOnce({id: 20, workspaceId: 3, type: 'GROUP'})
+      .mockResolvedValueOnce({id: 20, type: 'GROUP', name: 'product'});
+    channelMemberRepository.findOne.mockResolvedValue({
+      id: 1,
+      channelId: 20,
+      userId: 10,
+      role: 'ADMIN',
+    });
+
+    await expect(
+      service.updateGroupChannel(20, 10, {name: ' product '}),
+    ).resolves.toEqual({id: 20, type: 'GROUP', name: 'product'});
+  });
+
+  it('rejects regular channel members from managing group channel settings', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(
+      WORKSPACE_ROLE.MEMBER,
+    );
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'GROUP',
+    });
+    channelMemberRepository.findOne.mockResolvedValue({
+      id: 1,
+      channelId: 20,
+      userId: 10,
+      role: 'MEMBER',
+    });
+
+    await expect(
+      service.updateGroupChannel(20, 10, {name: 'product'}),
+    ).rejects.toBeInstanceOf(HttpErrors.Forbidden);
+  });
+
+  it('rejects stale channel admins outside the workspace from managing settings', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(null);
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'GROUP',
+    });
+    channelMemberRepository.findOne.mockResolvedValue({
+      id: 1,
+      channelId: 20,
+      userId: 10,
+      role: 'ADMIN',
+    });
+
+    await expect(
+      service.updateGroupChannel(20, 10, {name: 'product'}),
+    ).rejects.toBeInstanceOf(HttpErrors.Forbidden);
   });
 });

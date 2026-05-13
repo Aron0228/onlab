@@ -17,6 +17,7 @@ describe('CommunicationController (unit)', () => {
       updateChannelMute: vi.fn(),
       listMessages: vi.fn(),
       sendMessage: vi.fn(),
+      createMessageNotifications: vi.fn(),
     };
 
     return {
@@ -155,5 +156,8 @@ describe('CommunicationController (unit)', () => {
       content: 'hello',
       attachmentIds: [90],
     });
+    expect(
+      communicationService.createMessageNotifications,
+    ).toHaveBeenCalledWith(20, {id: 6}, 10);
   });
 });

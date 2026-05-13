@@ -9,7 +9,6 @@ import {
 } from '../repositories';
 import {JwtTokenService} from './auth';
 import {CommunicationService} from './communication.service';
-import {NotificationService} from './notification.service';
 
 interface SocketUser {
   id: number;
@@ -39,8 +38,6 @@ export class CommunicationSocketService {
     @repository(ChannelRepository) private channelRepository: ChannelRepository,
     @repository(ChannelMemberRepository)
     private channelMemberRepository: ChannelMemberRepository,
-    @service(NotificationService)
-    private notificationService: NotificationService,
   ) {}
 
   attach(httpServer: HttpServer): Server {
@@ -131,7 +128,16 @@ export class CommunicationSocketService {
           }
 
           try {
-            await this.notifyMessageRecipients(channel, message, user.id);
+            const notifications =
+              await this.communicationService.createMessageNotifications(
+                payload.channelId,
+                message,
+                user.id,
+              );
+
+            for (const notification of notifications) {
+              this.emitNotification(notification.userId, notification);
+            }
           } catch (error) {
             console.error(
               'Failed to create chat message notifications.',
@@ -232,54 +238,6 @@ export class CommunicationSocketService {
       this.io
         ?.to(this.userRoom(relatedUserId))
         .emit('presence:updated', payload);
-    }
-  }
-
-  private async notifyMessageRecipients(
-    channel: {
-      id: number;
-      workspaceId: number;
-      type: string;
-      name?: string;
-      members?: Array<{userId: number; mutedAt?: string | null}>;
-    },
-    message: {
-      id: number;
-      content?: string;
-      sender?: {fullName?: string; username?: string};
-    },
-    senderId: number,
-  ): Promise<void> {
-    const senderName =
-      message.sender?.fullName ?? message.sender?.username ?? 'Someone';
-    const channelLabel =
-      channel.type === 'GROUP' ? `#${channel.name ?? 'channel'}` : senderName;
-    const preview = message.content?.trim() || 'Sent an attachment.';
-
-    for (const member of channel.members ?? []) {
-      if (member.userId === senderId || member.mutedAt) continue;
-
-      const notification = await this.notificationService.create({
-        userId: member.userId,
-        workspaceId: channel.workspaceId,
-        type: 'communication-message',
-        title:
-          channel.type === 'GROUP'
-            ? `${senderName} in ${channelLabel}`
-            : senderName,
-        message: preview,
-        targetRoute: 'workspaces.edit.communication',
-        payload: {
-          workspaceId: channel.workspaceId,
-          channelId: channel.id,
-          messageId: message.id,
-          senderId,
-          channelType: channel.type,
-          channelName: channel.name,
-        },
-      });
-
-      this.emitNotification(member.userId, notification);
     }
   }
 

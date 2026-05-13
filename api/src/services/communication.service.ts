@@ -1,17 +1,24 @@
 import {injectable, BindingScope, service} from '@loopback/core';
 import {Filter, repository} from '@loopback/repository';
 import {HttpErrors} from '@loopback/rest';
-import {Channel, ChannelMember, Message, MessageAttachment} from '../models';
+import {WORKSPACE_PERMISSION, WORKSPACE_ROLE} from '../constants';
+import {
+  Channel,
+  ChannelMember,
+  Message,
+  MessageAttachment,
+  Notification,
+} from '../models';
 import {
   ChannelMemberRepository,
   ChannelRepository,
   FileRepository,
   MessageAttachmentRepository,
   MessageRepository,
-  WorkspaceMemberRepository,
-  WorkspaceRepository,
 } from '../repositories';
 import {AuditEventService} from './audit-event.service';
+import {NotificationService} from './notification.service';
+import {WorkspaceAuthorizationService} from './workspace-authorization.service';
 
 export interface CreateGroupChannelData {
   workspaceId: number;
@@ -45,18 +52,22 @@ export class CommunicationService {
     private messageRepository: MessageRepository,
     @repository(MessageAttachmentRepository)
     private messageAttachmentRepository: MessageAttachmentRepository,
-    @repository(WorkspaceMemberRepository)
-    private workspaceMemberRepository: WorkspaceMemberRepository,
-    @repository(WorkspaceRepository)
-    private workspaceRepository: WorkspaceRepository,
     @repository(FileRepository)
     private fileRepository: FileRepository,
     @service(AuditEventService)
     private auditEventService: AuditEventService,
+    @service(WorkspaceAuthorizationService)
+    private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @service(NotificationService)
+    private notificationService: NotificationService,
   ) {}
 
   async listChannels(workspaceId: number, userId: number): Promise<Channel[]> {
-    await this.assertWorkspaceMember(workspaceId, userId);
+    await this.workspaceAuthorizationService.assertPermission(
+      workspaceId,
+      userId,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
 
     const memberships = await this.channelMemberRepository.find({
       where: {userId},
@@ -88,7 +99,11 @@ export class CommunicationService {
     data: CreateGroupChannelData,
     creatorId: number,
   ): Promise<Channel> {
-    await this.assertWorkspaceMember(data.workspaceId, creatorId);
+    await this.workspaceAuthorizationService.assertPermission(
+      data.workspaceId,
+      creatorId,
+      WORKSPACE_PERMISSION.COMMUNICATION_MANAGE,
+    );
 
     const channel = await this.channelRepository.create({
       workspaceId: data.workspaceId,
@@ -99,8 +114,15 @@ export class CommunicationService {
 
     const memberIds = new Set([creatorId, ...(data.memberIds ?? [])]);
     for (const memberId of memberIds) {
-      await this.assertWorkspaceMember(data.workspaceId, memberId);
-      await this.createMemberIfMissing(channel.id, memberId);
+      await this.workspaceAuthorizationService.assertWorkspaceMember(
+        data.workspaceId,
+        memberId,
+      );
+      await this.createMemberIfMissing(
+        channel.id,
+        memberId,
+        memberId === creatorId ? 'ADMIN' : 'MEMBER',
+      );
     }
 
     await this.auditEventService.record({
@@ -128,8 +150,16 @@ export class CommunicationService {
       );
     }
 
-    await this.assertWorkspaceMember(workspaceId, userId);
-    await this.assertWorkspaceMember(workspaceId, participantId);
+    await this.workspaceAuthorizationService.assertPermission(
+      workspaceId,
+      userId,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
+    await this.workspaceAuthorizationService.assertPermission(
+      workspaceId,
+      participantId,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
 
     const directKey = this.buildDirectKey(workspaceId, userId, participantId);
     const existing = await this.channelRepository.findOne({
@@ -160,9 +190,12 @@ export class CommunicationService {
     requesterId: number,
   ): Promise<ChannelMember> {
     const channel = await this.channelRepository.findById(channelId);
-    await this.assertChannelMember(channelId, requesterId);
     this.assertGroupChannel(channel);
-    await this.assertWorkspaceMember(channel.workspaceId, userId);
+    await this.assertCanManageGroupChannel(channel, requesterId);
+    await this.workspaceAuthorizationService.assertWorkspaceMember(
+      channel.workspaceId,
+      userId,
+    );
 
     const existing = await this.channelMemberRepository.findOne({
       where: {channelId, userId},
@@ -189,8 +222,8 @@ export class CommunicationService {
     data: UpdateGroupChannelData,
   ): Promise<Channel> {
     const channel = await this.channelRepository.findById(channelId);
-    await this.assertChannelMember(channelId, requesterId);
     this.assertGroupChannel(channel);
+    await this.assertCanManageGroupChannel(channel, requesterId);
 
     const name = data.name.trim();
     if (!name) {
@@ -262,8 +295,8 @@ export class CommunicationService {
     requesterId: number,
   ): Promise<void> {
     const channel = await this.channelRepository.findById(channelId);
-    await this.assertChannelMember(channelId, requesterId);
     this.assertGroupChannel(channel);
+    await this.assertCanManageGroupChannel(channel, requesterId);
 
     await this.channelRepository.deleteById(channelId);
     await this.auditEventService.record({
@@ -363,6 +396,50 @@ export class CommunicationService {
     });
   }
 
+  async createMessageNotifications(
+    channelId: number,
+    message: Message & {sender?: {fullName?: string; username?: string}},
+    senderId: number,
+  ): Promise<Notification[]> {
+    const channel = await this.channelRepository.findById(channelId, {
+      include: [{relation: 'members'}],
+    });
+    const senderName =
+      message.sender?.fullName ?? message.sender?.username ?? 'Someone';
+    const channelLabel =
+      channel.type === 'GROUP' ? `#${channel.name ?? 'channel'}` : senderName;
+    const preview = message.content?.trim() || 'Sent an attachment.';
+    const notifications: Notification[] = [];
+
+    for (const member of channel.members ?? []) {
+      if (member.userId === senderId || member.mutedAt) continue;
+
+      notifications.push(
+        await this.notificationService.create({
+          userId: member.userId,
+          workspaceId: channel.workspaceId,
+          type: 'communication-message',
+          title:
+            channel.type === 'GROUP'
+              ? `${senderName} in ${channelLabel}`
+              : senderName,
+          message: preview,
+          targetRoute: 'workspaces.edit.communication',
+          payload: {
+            workspaceId: channel.workspaceId,
+            channelId: channel.id,
+            messageId: message.id,
+            senderId,
+            channelType: channel.type,
+            channelName: channel.name,
+          },
+        }),
+      );
+    }
+
+    return notifications;
+  }
+
   async assertChannelMember(channelId: number, userId: number): Promise<void> {
     const membership = await this.channelMemberRepository.findOne({
       where: {channelId, userId},
@@ -370,22 +447,6 @@ export class CommunicationService {
 
     if (!membership) {
       throw new HttpErrors.Forbidden('You are not a member of this channel.');
-    }
-  }
-
-  private async assertWorkspaceMember(
-    workspaceId: number,
-    userId: number,
-  ): Promise<void> {
-    const workspace = await this.workspaceRepository.findById(workspaceId);
-    if (workspace.ownerId === userId) return;
-
-    const membership = await this.workspaceMemberRepository.findOne({
-      where: {workspaceId, userId},
-    });
-
-    if (!membership) {
-      throw new HttpErrors.Forbidden('You are not a member of this workspace.');
     }
   }
 
@@ -402,6 +463,7 @@ export class CommunicationService {
   private async createMemberIfMissing(
     channelId: number,
     userId: number,
+    role: 'ADMIN' | 'MEMBER' = 'MEMBER',
   ): Promise<ChannelMember> {
     const existing = await this.channelMemberRepository.findOne({
       where: {channelId, userId},
@@ -409,7 +471,7 @@ export class CommunicationService {
 
     if (existing) return existing;
 
-    return this.channelMemberRepository.create({channelId, userId});
+    return this.channelMemberRepository.create({channelId, userId, role});
   }
 
   private assertGroupChannel(channel: Channel): void {
@@ -418,6 +480,38 @@ export class CommunicationService {
         'This action is only available for group channels.',
       );
     }
+  }
+
+  private async assertCanManageGroupChannel(
+    channel: Channel,
+    userId: number,
+  ): Promise<void> {
+    const workspaceRole =
+      await this.workspaceAuthorizationService.getWorkspaceRole(
+        channel.workspaceId,
+        userId,
+      );
+
+    if (!workspaceRole) {
+      throw new HttpErrors.Forbidden('You cannot manage this channel.');
+    }
+
+    if (
+      workspaceRole === WORKSPACE_ROLE.OWNER ||
+      workspaceRole === WORKSPACE_ROLE.ADMIN
+    ) {
+      return;
+    }
+
+    const membership = await this.channelMemberRepository.findOne({
+      where: {channelId: channel.id, userId},
+    });
+
+    if (membership?.role === 'ADMIN') {
+      return;
+    }
+
+    throw new HttpErrors.Forbidden('You cannot manage this channel.');
   }
 }
 

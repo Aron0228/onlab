@@ -8,16 +8,25 @@ import {
   Request,
   Response,
   RestBindings,
+  HttpErrors,
 } from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
 import {File, FileRelations} from '../../models';
-import {FileRepository} from '../../repositories';
+import {
+  ChannelMemberRepository,
+  FileRepository,
+  MessageAttachmentRepository,
+} from '../../repositories';
 import {AuditEventService, WorkspaceAuthorizationService} from '../../services';
 
 export class FileController {
   constructor(
     @repository(FileRepository)
     private fileRepository: FileRepository,
+    @repository(MessageAttachmentRepository)
+    private messageAttachmentRepository: MessageAttachmentRepository,
+    @repository(ChannelMemberRepository)
+    private channelMemberRepository: ChannelMemberRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
     @inject('services.AuditEventService')
@@ -195,6 +204,31 @@ export class FileController {
       file.workspaceId,
       userId,
     );
+
+    const attachments = await this.messageAttachmentRepository.find({
+      where: {fileId: file.id},
+      include: [{relation: 'message'}],
+    });
+
+    if (attachments.length === 0) {
+      return;
+    }
+
+    const channelIds = attachments
+      .map(attachment => attachment.message?.channelId)
+      .filter((channelId): channelId is number => channelId != null);
+
+    if (channelIds.length === 0) {
+      throw new HttpErrors.Forbidden('You do not have access to this file.');
+    }
+
+    const membership = await this.channelMemberRepository.findOne({
+      where: {userId, channelId: {inq: channelIds}},
+    });
+
+    if (!membership) {
+      throw new HttpErrors.Forbidden('You do not have access to this file.');
+    }
   }
 
   private isUploadedFile(value: unknown): value is File {

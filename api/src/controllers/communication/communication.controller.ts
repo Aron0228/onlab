@@ -160,11 +160,19 @@ export class CommunicationController {
     @inject(SecurityBindings.USER) user: UserProfile,
     @requestBody() body: SendMessageRequest,
   ): Promise<Message> {
-    return this.communicationService.sendMessage({
+    const message = await this.communicationService.sendMessage({
       channelId,
       senderId: Number(user.id),
       content: body.content,
       attachmentIds: body.attachmentIds,
     });
+
+    await this.communicationService.createMessageNotifications(
+      channelId,
+      message,
+      Number(user.id),
+    );
+
+    return message;
   }
 }

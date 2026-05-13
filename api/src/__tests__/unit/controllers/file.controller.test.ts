@@ -13,6 +13,12 @@ describe('FileController (unit)', () => {
     preview: ReturnType<typeof vi.fn>;
     stream: ReturnType<typeof vi.fn>;
   };
+  let messageAttachmentRepository: {
+    find: ReturnType<typeof vi.fn>;
+  };
+  let channelMemberRepository: {
+    findOne: ReturnType<typeof vi.fn>;
+  };
   let authorization: {
     getAuthenticatedUserId: ReturnType<typeof vi.fn>;
     accessibleWorkspaceIds: ReturnType<typeof vi.fn>;
@@ -31,6 +37,12 @@ describe('FileController (unit)', () => {
       preview: vi.fn(),
       stream: vi.fn(),
     };
+    messageAttachmentRepository = {
+      find: vi.fn().mockResolvedValue([]),
+    };
+    channelMemberRepository = {
+      findOne: vi.fn().mockResolvedValue({id: 12}),
+    };
     authorization = {
       getAuthenticatedUserId: vi.fn().mockReturnValue(7),
       accessibleWorkspaceIds: vi.fn().mockResolvedValue([11]),
@@ -41,6 +53,8 @@ describe('FileController (unit)', () => {
     };
     controller = new FileController(
       repository as never,
+      messageAttachmentRepository as never,
+      channelMemberRepository as never,
       authorization as never,
       auditEventService as never,
     );
@@ -125,5 +139,53 @@ describe('FileController (unit)', () => {
         },
       }),
     );
+  });
+
+  it('requires channel membership for message attachment files', async () => {
+    const response = {status: vi.fn()};
+    repository.findById.mockResolvedValue(
+      new File({
+        id: 31,
+        workspaceId: 11,
+        originalName: 'mockup.png',
+        mimeType: 'image/png',
+        size: 2048,
+        path: '/uploads/mockup.png',
+      }),
+    );
+    messageAttachmentRepository.find.mockResolvedValue([
+      {id: 4, fileId: 31, message: {id: 55, channelId: 20}},
+    ]);
+    repository.preview.mockResolvedValue(response);
+
+    await expect(
+      controller.preview({id: 7} as never, 31, response as never),
+    ).resolves.toEqual(response);
+
+    expect(channelMemberRepository.findOne).toHaveBeenCalledWith({
+      where: {userId: 7, channelId: {inq: [20]}},
+    });
+  });
+
+  it('rejects message attachment files for users outside the channel', async () => {
+    const response = {status: vi.fn()};
+    repository.findById.mockResolvedValue(
+      new File({
+        id: 31,
+        workspaceId: 11,
+        originalName: 'mockup.png',
+        mimeType: 'image/png',
+        size: 2048,
+        path: '/uploads/mockup.png',
+      }),
+    );
+    messageAttachmentRepository.find.mockResolvedValue([
+      {id: 4, fileId: 31, message: {id: 55, channelId: 20}},
+    ]);
+    channelMemberRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      controller.download({id: 7} as never, 31, response as never),
+    ).rejects.toThrow('You do not have access to this file.');
   });
 });
