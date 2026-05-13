@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {HttpErrors} from '@loopback/rest';
 
 import {NewsFeedEntryController} from '../../../controllers';
 import {NewsFeedEntry} from '../../../models';
@@ -91,6 +92,34 @@ describe('NewsFeedEntryController (unit)', () => {
 
     expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(3, 9);
     expect(repository.findPersonalizedFeed).toHaveBeenCalledWith(3, 9);
+  });
+
+  it('derives the feed user from the authenticated session', async () => {
+    authorization.getAuthenticatedUserId.mockReturnValueOnce(42);
+    repository.findPersonalizedFeed.mockResolvedValue([entry]);
+
+    await expect(controller.feed({id: 42} as never, 3)).resolves.toEqual([
+      entry,
+    ]);
+
+    expect(authorization.getAuthenticatedUserId).toHaveBeenCalledWith({
+      id: 42,
+    });
+    expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(3, 42);
+    expect(repository.findPersonalizedFeed).toHaveBeenCalledWith(3, 42);
+    expect(repository.findPersonalizedFeed).not.toHaveBeenCalledWith(3, 9);
+  });
+
+  it('does not load personalized feed entries for non-members', async () => {
+    authorization.assertWorkspaceMember.mockRejectedValueOnce(
+      new HttpErrors.Forbidden('You are not a member of this workspace.'),
+    );
+
+    await expect(controller.feed({id: 9} as never, 3)).rejects.toBeInstanceOf(
+      HttpErrors.Forbidden,
+    );
+
+    expect(repository.findPersonalizedFeed).not.toHaveBeenCalled();
   });
 
   it('requires workspace membership before returning a single entry', async () => {
