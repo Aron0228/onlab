@@ -11,6 +11,7 @@ describe('FileController (unit)', () => {
     upload: ReturnType<typeof vi.fn>;
     download: ReturnType<typeof vi.fn>;
     preview: ReturnType<typeof vi.fn>;
+    stream: ReturnType<typeof vi.fn>;
   };
   let authorization: {
     getAuthenticatedUserId: ReturnType<typeof vi.fn>;
@@ -28,6 +29,7 @@ describe('FileController (unit)', () => {
       upload: vi.fn(),
       download: vi.fn(),
       preview: vi.fn(),
+      stream: vi.fn(),
     };
     authorization = {
       getAuthenticatedUserId: vi.fn().mockReturnValue(7),
@@ -89,6 +91,7 @@ describe('FileController (unit)', () => {
     );
     repository.download.mockResolvedValue(response);
     repository.preview.mockResolvedValue(response);
+    repository.stream.mockResolvedValue(response);
 
     await expect(
       controller.upload({id: 7} as never, request as never, response as never),
@@ -99,11 +102,15 @@ describe('FileController (unit)', () => {
     await expect(
       controller.preview({id: 7} as never, 31, response as never),
     ).resolves.toEqual(response);
+    await expect(
+      controller.stream({id: 7} as never, 31, response as never),
+    ).resolves.toEqual(response);
 
     expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(11, 7);
     expect(repository.upload).toHaveBeenCalledWith(request, response);
     expect(repository.download).toHaveBeenCalledWith(31, response);
     expect(repository.preview).toHaveBeenCalledWith(31, response);
+    expect(repository.stream).toHaveBeenCalledWith(31, response);
     expect(auditEventService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 7,

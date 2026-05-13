@@ -306,6 +306,35 @@
   object-fit: cover;
 }
 
+.communication-video-attachment {
+  width: min(42rem, 100%);
+  min-width: 16rem;
+}
+
+.communication-video-attachment__meta {
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.communication-message.--own .communication-video-attachment__meta {
+  color: color-mix(in srgb, var(--text-on-primary) 78%, transparent);
+}
+
+.communication-video-attachment__download {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  color: inherit;
+}
+
+.communication-video-attachment__download:hover {
+  background: color-mix(in srgb, currentcolor 14%, transparent);
+}
+
 .communication-time-divider {
   display: flex;
   align-items: center;

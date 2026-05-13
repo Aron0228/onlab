@@ -1,0 +1,31 @@
+.ui-video-player {
+  width: min(42rem, 100%);
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000;
+}
+
+.ui-video-player .video-js {
+  width: 100%;
+  color: var(--text-on-primary);
+  background-color: #000;
+}
+
+.ui-video-player .vjs-control-bar,
+.ui-video-player .vjs-big-play-button {
+  background-color: color-mix(in srgb, black 72%, transparent);
+}
+
+.ui-video-player .vjs-big-play-button {
+  border-color: color-mix(in srgb, white 78%, transparent);
+  border-radius: 8px;
+}
+
+.ui-video-player .vjs-slider {
+  background-color: color-mix(in srgb, white 26%, transparent);
+}
+
+.ui-video-player .vjs-play-progress,
+.ui-video-player .vjs-volume-level {
+  background-color: var(--color-primary-500);
+}

@@ -151,6 +151,20 @@ export class FileController {
     return this.fileRepository.preview(id, response);
   }
 
+  @get('/files/{id}/stream')
+  @authenticate('jwt-query')
+  async stream(
+    @inject(SecurityBindings.USER)
+    userProfile: UserProfile,
+    @param.path.number('id') id: number,
+    @inject(RestBindings.Http.RESPONSE) response: Response,
+  ) {
+    const file = await this.fileRepository.findById(id);
+    await this.assertCanAccessFile(userProfile, file);
+
+    return this.fileRepository.stream(id, response);
+  }
+
   private async scopeFileFilter(
     userProfile: UserProfile,
     filter: Filter<File> | undefined,

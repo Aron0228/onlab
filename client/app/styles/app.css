@@ -14,6 +14,7 @@
 @import url('ui/avatar.css');
 @import url('ui/aria-tab.css');
 @import url('ui/loading-spinner.css');
+@import url('ui/video-player.css');
 
 @import url('routes/login.css');
 @import url('routes/access-denied.css');
