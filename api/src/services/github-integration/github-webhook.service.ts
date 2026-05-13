@@ -320,6 +320,7 @@ export class GithubWebhookService {
     const prediction = await this.issuePriorityService.predictIssuePriority({
       installationId: payload.installation?.id ?? null,
       repositoryFullName: repository.fullName,
+      workspaceId: repository.workspaceId,
       title: payload.issue.title,
       description: cleanedDescription,
     });
@@ -342,6 +343,7 @@ export class GithubWebhookService {
         reason: prediction.reason,
         estimatedHours: prediction.estimatedHours,
         estimationConfidence: prediction.estimationConfidence,
+        expertiseRecommendations: prediction.expertiseRecommendations,
       },
     );
 

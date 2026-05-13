@@ -11,6 +11,12 @@ describe('IssuePriorityService (unit)', () => {
     listRepositoryDirectory: ReturnType<typeof vi.fn>;
     getRepositoryFileContents: ReturnType<typeof vi.fn>;
   };
+  let expertiseRepository: {
+    find: ReturnType<typeof vi.fn>;
+  };
+  let userExpertiseAssocRepository: {
+    find: ReturnType<typeof vi.fn>;
+  };
   let service: IssuePriorityService;
 
   beforeEach(() => {
@@ -34,11 +40,14 @@ describe('IssuePriorityService (unit)', () => {
       ]),
       getRepositoryFileContents: vi.fn().mockResolvedValue('{}'),
     };
+    expertiseRepository = {
+      find: vi.fn().mockResolvedValue([]),
+    };
+    userExpertiseAssocRepository = {
+      find: vi.fn().mockResolvedValue([]),
+    };
 
-    service = new IssuePriorityService(
-      ollamaService as never,
-      (async () => githubService as never) as never,
-    );
+    service = createService();
   });
 
   afterEach(() => {
@@ -51,6 +60,17 @@ describe('IssuePriorityService (unit)', () => {
 
     process.env.ISSUE_PRIORITY_CACHE_TTL_MS = originalCacheTtl;
   });
+
+  function createService(
+    githubServiceGetter = (async () => githubService as never) as never,
+  ): IssuePriorityService {
+    return new IssuePriorityService(
+      ollamaService as never,
+      githubServiceGetter,
+      expertiseRepository as never,
+      userExpertiseAssocRepository as never,
+    );
+  }
 
   it('normalizes the model response into a valid prediction', async () => {
     ollamaService.chatJson.mockResolvedValue({
@@ -95,6 +115,87 @@ describe('IssuePriorityService (unit)', () => {
         reason: 'Nope',
       }),
     ).toBeNull();
+  });
+
+  it('attaches workspace expertise recommendations from the catalog', async () => {
+    expertiseRepository.find.mockResolvedValue([
+      {
+        id: 7,
+        name: 'Backend',
+        description: 'LoopBack services and API integrations',
+      },
+    ]);
+    userExpertiseAssocRepository.find.mockResolvedValue([
+      {
+        expertiseId: 7,
+        userId: 13,
+        user: {
+          id: 13,
+          username: 'api-owner',
+          fullName: 'API Owner',
+        },
+      },
+    ]);
+    ollamaService.chatJson.mockResolvedValue({
+      type: 'final',
+      priority: 'High',
+      reason: 'The API module is blocked.',
+      estimated_hours: 6,
+      estimation_confidence: 'high',
+      expertise_recommendations: [
+        {
+          expertise_name: 'Backend',
+          reason: 'The issue affects backend API behavior.',
+        },
+        {
+          expertise_name: 'Unknown catalog entry',
+          reason: 'Should be ignored.',
+        },
+      ],
+    });
+
+    await expect(
+      service.predictIssuePriority({
+        workspaceId: 4,
+        title: 'API cannot save issues',
+        description: 'The issue creation endpoint fails with a 500 error.',
+      }),
+    ).resolves.toEqual({
+      priority: 'High',
+      reason: 'The API module is blocked.',
+      estimatedHours: 6,
+      estimationConfidence: 'high',
+      expertiseRecommendations: [
+        {
+          expertiseId: 7,
+          name: 'Backend',
+          reason: 'The issue affects backend API behavior.',
+          recommendedUsers: [
+            {
+              userId: 13,
+              username: 'api-owner',
+              fullName: 'API Owner',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(expertiseRepository.find).toHaveBeenCalledWith({
+      where: {workspaceId: 4},
+      order: ['name ASC'],
+    });
+    expect(userExpertiseAssocRepository.find).toHaveBeenCalledWith({
+      where: {expertiseId: {inq: [7]}},
+      include: ['user'],
+    });
+    expect(ollamaService.chatJson.mock.calls[0][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: expect.stringContaining('Workspace expertise catalog'),
+        }),
+      ]),
+    );
   });
 
   it('removes the previous AI note before appending a new one', () => {
@@ -166,10 +267,7 @@ describe('IssuePriorityService (unit)', () => {
 
   it('skips prediction cache when the cache ttl is disabled', async () => {
     process.env.ISSUE_PRIORITY_CACHE_TTL_MS = '0';
-    service = new IssuePriorityService(
-      ollamaService as never,
-      (async () => githubService as never) as never,
-    );
+    service = createService();
     ollamaService.chatJson.mockResolvedValue({
       type: 'final',
       priority: 'Medium',
@@ -193,10 +291,7 @@ describe('IssuePriorityService (unit)', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-30T08:00:00Z'));
     process.env.ISSUE_PRIORITY_CACHE_TTL_MS = '1';
-    service = new IssuePriorityService(
-      ollamaService as never,
-      (async () => githubService as never) as never,
-    );
+    service = createService();
     ollamaService.chatJson
       .mockResolvedValueOnce({
         type: 'final',
@@ -533,8 +628,7 @@ describe('IssuePriorityService (unit)', () => {
   });
 
   it('continues when GitHub service is not bound', async () => {
-    const serviceWithoutGithub = new IssuePriorityService(
-      ollamaService as never,
+    const serviceWithoutGithub = createService(
       (async () => undefined) as never,
     );
     ollamaService.chatJson

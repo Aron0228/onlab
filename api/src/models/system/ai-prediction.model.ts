@@ -26,6 +26,17 @@ export type AIPredictionReviewerSuggestion = {
   reason: string;
 };
 
+export type AIPredictionExpertiseRecommendation = {
+  expertiseId: number;
+  name: string;
+  reason: string;
+  recommendedUsers: Array<{
+    userId: number;
+    username: string;
+    fullName?: string | null;
+  }>;
+};
+
 export const AI_ESTIMATION_CONFIDENCE_VALUES = [
   'low',
   'medium',
@@ -100,6 +111,13 @@ export class AIPrediction extends Entity {
     postgresql: {columnName: 'reviewer_suggestions', dataType: 'jsonb'},
   })
   reviewerSuggestions?: AIPredictionReviewerSuggestion[];
+
+  @property({
+    type: 'array',
+    itemType: 'object',
+    postgresql: {columnName: 'expertise_recommendations', dataType: 'jsonb'},
+  })
+  expertiseRecommendations?: AIPredictionExpertiseRecommendation[];
 
   @property({
     type: 'number',

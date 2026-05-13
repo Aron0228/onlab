@@ -87,10 +87,39 @@ describe('AIPredictionRepository (integration)', () => {
         predictionType: 'issue-priority',
         priority: 'High',
         reason: 'Core workflow is blocked.',
+        expertiseRecommendations: [
+          {
+            expertiseId: 3,
+            name: 'Backend',
+            reason: 'The issue affects API behavior.',
+            recommendedUsers: [
+              {
+                userId: 7,
+                username: 'api-owner',
+                fullName: 'API Owner',
+              },
+            ],
+          },
+        ],
       }),
     );
 
     expect(await aiPredictionRepository.count()).toEqual({count: 1});
+    const [prediction] = await aiPredictionRepository.find();
+    expect(prediction.expertiseRecommendations).toEqual([
+      {
+        expertiseId: 3,
+        name: 'Backend',
+        reason: 'The issue affects API behavior.',
+        recommendedUsers: [
+          {
+            userId: 7,
+            username: 'api-owner',
+            fullName: 'API Owner',
+          },
+        ],
+      },
+    ]);
   });
 
   it('registers AI prediction inclusion resolvers for issues and pull requests', async () => {

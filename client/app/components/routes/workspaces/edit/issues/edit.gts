@@ -1,6 +1,7 @@
 import Component from '@glimmer/component';
 import { LinkTo } from '@ember/routing';
 import { modifier } from 'ember-modifier';
+import { or } from 'ember-truth-helpers';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { WorkspacesEditIssuesEditRouteModel } from 'client/routes/workspaces/edit/issues/edit';
@@ -113,6 +114,10 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
     return `${this.issue.estimatedHours}h${confidenceLabel}`;
   }
 
+  get expertiseRecommendations() {
+    return this.issue.expertiseRecommendations ?? [];
+  }
+
   get closeRoute(): string {
     return this.args.closeRoute ?? 'workspaces.edit.issues';
   }
@@ -187,6 +192,29 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
             <p class="issue-edit-analysis__content margin-zero">
               {{this.priorityReason}}
             </p>
+            {{#if this.expertiseRecommendations.length}}
+              <div class="layout-vertical --gap-sm">
+                <span class="issue-edit-section__label">
+                  Relevant expertise
+                </span>
+                {{#each this.expertiseRecommendations as |expertise|}}
+                  <div class="layout-vertical --gap-xs">
+                    <strong>{{expertise.name}}</strong>
+                    <p class="issue-edit-analysis__content margin-zero">
+                      {{expertise.reason}}
+                    </p>
+                    {{#if expertise.recommendedUsers.length}}
+                      <span class="font-size-text-sm">
+                        Suggested people:
+                        {{#each expertise.recommendedUsers as |user index|}}
+                          {{if index ", "}}{{or user.fullName user.username}}
+                        {{/each}}
+                      </span>
+                    {{/if}}
+                  </div>
+                {{/each}}
+              </div>
+            {{/if}}
           </:default>
         </UiContainer>
 

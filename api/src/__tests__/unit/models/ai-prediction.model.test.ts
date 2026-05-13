@@ -32,6 +32,20 @@ describe('AI prediction models (unit)', () => {
       reason: 'Critical workflow is blocked.',
       estimatedHours: 8,
       estimationConfidence: 'medium',
+      expertiseRecommendations: [
+        {
+          expertiseId: 4,
+          name: 'Backend',
+          reason: 'API workflow is affected.',
+          recommendedUsers: [
+            {
+              userId: 9,
+              username: 'api-owner',
+              fullName: 'API Owner',
+            },
+          ],
+        },
+      ],
     });
 
     expect(model.sourceType).toBe('github-issue');
@@ -41,6 +55,20 @@ describe('AI prediction models (unit)', () => {
     expect(model.reason).toBe('Critical workflow is blocked.');
     expect(model.estimatedHours).toBe(8);
     expect(model.estimationConfidence).toBe('medium');
+    expect(model.expertiseRecommendations).toEqual([
+      {
+        expertiseId: 4,
+        name: 'Backend',
+        reason: 'API workflow is affected.',
+        recommendedUsers: [
+          {
+            userId: 9,
+            username: 'api-owner',
+            fullName: 'API Owner',
+          },
+        ],
+      },
+    ]);
   });
 
   it('lets GitHub issue and pull request models inherit from AI predictable', () => {
