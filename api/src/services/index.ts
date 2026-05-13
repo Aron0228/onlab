@@ -16,3 +16,4 @@ export * from './pr-review-reminder-scheduler.service';
 export * from './pull-request-review-reminder.service';
 export * from './redis.service';
 export * from './workspace-authorization.service';
+export * from './workspace.service';

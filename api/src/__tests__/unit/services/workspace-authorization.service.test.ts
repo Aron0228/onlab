@@ -81,6 +81,21 @@ describe('WorkspaceAuthorizationService (unit)', () => {
     );
   });
 
+  it('denies access to soft-deleted workspaces', async () => {
+    const {service, workspaceRepository, workspaceMemberRepository} =
+      createService();
+    workspaceRepository.findById.mockResolvedValue({
+      id: 3,
+      ownerId: 7,
+      deletedAt: new Date(),
+    });
+
+    await expect(
+      service.checkPermission(3, 7, WORKSPACE_PERMISSION.WORKSPACE_VIEW),
+    ).resolves.toMatchObject({allowed: false, role: null});
+    expect(workspaceMemberRepository.findOne).not.toHaveBeenCalled();
+  });
+
   it('merges workspace access into filters', async () => {
     const {service, workspaceMemberRepository} = createService();
     workspaceMemberRepository.find.mockResolvedValue([
@@ -92,7 +107,12 @@ describe('WorkspaceAuthorizationService (unit)', () => {
       service.mergeWorkspaceAccessFilter({where: {name: 'API'}}, 7),
     ).resolves.toEqual({
       where: {
-        and: [{name: 'API'}, {or: [{ownerId: 7}, {id: {inq: [3, 4]}}]}],
+        and: [
+          {name: 'API'},
+          {
+            and: [{deletedAt: null}, {or: [{ownerId: 7}, {id: {inq: [3, 4]}}]}],
+          },
+        ],
       },
     });
   });
