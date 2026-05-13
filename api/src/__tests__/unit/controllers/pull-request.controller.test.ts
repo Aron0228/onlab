@@ -59,10 +59,20 @@ describe('GithubPullRequestController (unit)', () => {
     pullRequestRepository.find.mockResolvedValue([pullRequest]);
 
     await expect(
-      controller.find({id: 7} as never, {where: {status: 'open'}}),
+      controller.find({id: 7} as never, {
+        include: ['aiPrediction'],
+        limit: 25,
+        skip: 50,
+        order: ['id DESC'],
+        where: {status: 'open'},
+      }),
     ).resolves.toEqual([pullRequest]);
 
     expect(pullRequestRepository.find).toHaveBeenCalledWith({
+      include: ['aiPrediction'],
+      limit: 25,
+      skip: 50,
+      order: ['id DESC'],
       where: {
         and: [{status: 'open'}, {repositoryId: {inq: [8]}}],
       },

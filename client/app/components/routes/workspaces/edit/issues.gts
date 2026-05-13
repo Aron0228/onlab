@@ -6,13 +6,17 @@ import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
-import { task as trackedTask } from 'reactiveweb/ember-concurrency';
+import { modifier } from 'ember-modifier';
 import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';
 import type GithubIssueModel from 'client/models/github-issue';
+import loadMoreWhenVisible from 'client/modifiers/load-more-when-visible';
+import mergeRecordsById from 'client/utils/merge-records-by-id';
 import UiIcon from 'client/components/ui/icon';
 import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
+
+const ISSUE_PAGE_SIZE = 25;
 
 type RouterLike = {
   transitionTo(route: string): void;
@@ -43,30 +47,51 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
   @service declare router: RouterLike;
 
   @tracked activeFilters: string[] = [];
+  @tracked workspaceIssues: GithubIssueModel[] = [];
+  @tracked issueOffset = 0;
+  @tracked hasMoreIssues = true;
+  @tracked hasLoadedInitialIssues = false;
+  private paginationScopeKey: string | null = null;
 
-  fetchWorkspaceIssuesTask = task(async () => {
-    const repositoryIds = this.args.model.repositories.map((repo) => repo.id);
+  loadIssuesPageTask = task(async () => {
+    if (!this.hasMoreIssues) {
+      return;
+    }
+
+    const repositoryIds = this.repositoryIds;
+
+    if (!repositoryIds.length) {
+      this.hasMoreIssues = false;
+      this.hasLoadedInitialIssues = true;
+      return;
+    }
 
     const issues = await this.store.query('github-issue', {
       filter: {
         include: ['aiPrediction'],
+        limit: ISSUE_PAGE_SIZE,
+        skip: this.issueOffset,
+        order: ['id DESC'],
         where: {
           repositoryId: { inq: repositoryIds },
         },
       },
     });
 
-    return issues;
+    this.issueOffset += issues.length;
+    this.hasMoreIssues = issues.length === ISSUE_PAGE_SIZE;
+    this.hasLoadedInitialIssues = true;
+    this.workspaceIssues = mergeRecordsById(this.workspaceIssues, issues);
   });
 
-  lastWorkspaceIssues = trackedTask(
-    this,
-    this.fetchWorkspaceIssuesTask,
-    () => []
-  );
+  get repositoryIds(): Array<string | number> {
+    return this.args.model.repositories.flatMap((repo) =>
+      repo.id == null ? [] : [repo.id]
+    );
+  }
 
-  get workspaceIssues(): GithubIssueModel[] {
-    return (this.lastWorkspaceIssues.value as GithubIssueModel[]) ?? [];
+  get repositoryScopeKey(): string {
+    return this.repositoryIds.join(',');
   }
 
   get filters() {
@@ -154,6 +179,31 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     return this.activeFilters.includes(selector);
   };
 
+  get canLoadMore(): boolean {
+    return this.hasMoreIssues && !this.loadIssuesPageTask.isRunning;
+  }
+
+  get showInitialLoading(): boolean {
+    return !this.hasLoadedInitialIssues && this.loadIssuesPageTask.isRunning;
+  }
+
+  get showNextPageLoading(): boolean {
+    return this.hasLoadedInitialIssues && this.loadIssuesPageTask.isRunning;
+  }
+
+  initializePagination = modifier((_element, [scopeKey]: [string]) => {
+    if (this.paginationScopeKey === scopeKey) {
+      return;
+    }
+
+    this.paginationScopeKey = scopeKey;
+
+    queueMicrotask(() => {
+      this.resetPagination();
+      this.loadNextPage();
+    });
+  });
+
   @action
   toggleFilter(selector: string): void {
     if (this.activeFilters.includes(selector)) {
@@ -171,9 +221,30 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     this.router.transitionTo('workspaces.edit.issues.new');
   }
 
+  @action
+  loadNextPage(): void {
+    if (!this.canLoadMore) {
+      return;
+    }
+
+    this.loadIssuesPageTask.perform().catch((error: unknown) => {
+      console.error('Failed to load issues page', error);
+    });
+  }
+
+  private resetPagination(): void {
+    this.workspaceIssues = [];
+    this.issueOffset = 0;
+    this.hasMoreIssues = true;
+    this.hasLoadedInitialIssues = false;
+  }
+
   <template>
-    <div class="route-workspaces-edit-issues layout-vertical --gap-md">
-      {{#if this.lastWorkspaceIssues.isRunning}}
+    <div
+      class="route-workspaces-edit-issues layout-vertical --gap-md"
+      {{this.initializePagination this.repositoryScopeKey}}
+    >
+      {{#if this.showInitialLoading}}
         <UiLoadingSpinner @backdrop={{true}} />
       {{/if}}
 
@@ -277,6 +348,18 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
             </:default>
           </UiContainer>
         {{/unless}}
+
+        {{#if this.showNextPageLoading}}
+          <div class="issue-list-pagination-loader">
+            <UiLoadingSpinner />
+          </div>
+        {{/if}}
+
+        <div
+          class="issue-list-sentinel"
+          aria-hidden="true"
+          {{loadMoreWhenVisible this.loadNextPage enabled=this.canLoadMore}}
+        ></div>
       </div>
     </div>
   </template>

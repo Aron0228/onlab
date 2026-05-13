@@ -6,15 +6,18 @@ import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { inject as service } from '@ember/service';
 import { task } from 'ember-concurrency';
-import { task as trackedTask } from 'reactiveweb/ember-concurrency';
+import { modifier } from 'ember-modifier';
 import type { WorkspacesEditPullRequestsRouteModel } from 'client/routes/workspaces/edit/pull-requests';
 import type GithubPullRequestModel from 'client/models/github-pull-request';
+import loadMoreWhenVisible from 'client/modifiers/load-more-when-visible';
+import mergeRecordsById from 'client/utils/merge-records-by-id';
 import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 
 const AI_PRIORITY_NOTE_START = '<!-- onlab-ai-priority:start -->';
 const AI_PRIORITY_NOTE_END = '<!-- onlab-ai-priority:end -->';
+const PULL_REQUEST_PAGE_SIZE = 25;
 
 type StoreLike = {
   query(
@@ -40,32 +43,54 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
   @service declare store: StoreLike;
 
   @tracked activeFilters: string[] = [];
+  @tracked workspacePullRequests: GithubPullRequestModel[] = [];
+  @tracked pullRequestOffset = 0;
+  @tracked hasMorePullRequests = true;
+  @tracked hasLoadedInitialPullRequests = false;
+  private paginationScopeKey: string | null = null;
 
-  fetchWorkspacePullRequestsTask = task(async () => {
-    const repositoryIds = this.args.model.repositories.map((repo) => repo.id);
+  loadPullRequestsPageTask = task(async () => {
+    if (!this.hasMorePullRequests) {
+      return;
+    }
 
-    const pullRequests = this.store.query('github-pull-request', {
+    const repositoryIds = this.repositoryIds;
+
+    if (!repositoryIds.length) {
+      this.hasMorePullRequests = false;
+      this.hasLoadedInitialPullRequests = true;
+      return;
+    }
+
+    const pullRequests = await this.store.query('github-pull-request', {
       filter: {
         include: ['aiPrediction'],
+        limit: PULL_REQUEST_PAGE_SIZE,
+        skip: this.pullRequestOffset,
+        order: ['id DESC'],
         where: {
           repositoryId: { inq: repositoryIds },
         },
       },
     });
 
-    return pullRequests;
+    this.pullRequestOffset += pullRequests.length;
+    this.hasMorePullRequests = pullRequests.length === PULL_REQUEST_PAGE_SIZE;
+    this.hasLoadedInitialPullRequests = true;
+    this.workspacePullRequests = mergeRecordsById(
+      this.workspacePullRequests,
+      pullRequests
+    );
   });
 
-  lastWorkspacePullRequests = trackedTask(
-    this,
-    this.fetchWorkspacePullRequestsTask,
-    () => []
-  );
-
-  get workspacePullRequests(): GithubPullRequestModel[] {
-    return (
-      (this.lastWorkspacePullRequests.value as GithubPullRequestModel[]) ?? []
+  get repositoryIds(): Array<string | number> {
+    return this.args.model.repositories.flatMap((repo) =>
+      repo.id == null ? [] : [repo.id]
     );
+  }
+
+  get repositoryScopeKey(): string {
+    return this.repositoryIds.join(',');
   }
 
   get filters() {
@@ -234,6 +259,37 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
     return this.activeFilters.includes(selector);
   };
 
+  get canLoadMore(): boolean {
+    return this.hasMorePullRequests && !this.loadPullRequestsPageTask.isRunning;
+  }
+
+  get showInitialLoading(): boolean {
+    return (
+      !this.hasLoadedInitialPullRequests &&
+      this.loadPullRequestsPageTask.isRunning
+    );
+  }
+
+  get showNextPageLoading(): boolean {
+    return (
+      this.hasLoadedInitialPullRequests &&
+      this.loadPullRequestsPageTask.isRunning
+    );
+  }
+
+  initializePagination = modifier((_element, [scopeKey]: [string]) => {
+    if (this.paginationScopeKey === scopeKey) {
+      return;
+    }
+
+    this.paginationScopeKey = scopeKey;
+
+    queueMicrotask(() => {
+      this.resetPagination();
+      this.loadNextPage();
+    });
+  });
+
   @action
   toggleFilter(selector: string): void {
     if (this.activeFilters.includes(selector)) {
@@ -246,9 +302,30 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
     this.activeFilters = [...this.activeFilters, selector];
   }
 
+  @action
+  loadNextPage(): void {
+    if (!this.canLoadMore) {
+      return;
+    }
+
+    this.loadPullRequestsPageTask.perform().catch((error: unknown) => {
+      console.error('Failed to load pull requests page', error);
+    });
+  }
+
+  private resetPagination(): void {
+    this.workspacePullRequests = [];
+    this.pullRequestOffset = 0;
+    this.hasMorePullRequests = true;
+    this.hasLoadedInitialPullRequests = false;
+  }
+
   <template>
-    <div class="route-workspaces-edit-pull-requests layout-vertical --gap-md">
-      {{#if this.lastWorkspacePullRequests.isRunning}}
+    <div
+      class="route-workspaces-edit-pull-requests layout-vertical --gap-md"
+      {{this.initializePagination this.repositoryScopeKey}}
+    >
+      {{#if this.showInitialLoading}}
         <UiLoadingSpinner @backdrop={{true}} />
       {{/if}}
 
@@ -406,6 +483,18 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
             </:default>
           </UiContainer>
         {{/unless}}
+
+        {{#if this.showNextPageLoading}}
+          <div class="pull-request-list-pagination-loader">
+            <UiLoadingSpinner />
+          </div>
+        {{/if}}
+
+        <div
+          class="pull-request-list-sentinel"
+          aria-hidden="true"
+          {{loadMoreWhenVisible this.loadNextPage enabled=this.canLoadMore}}
+        ></div>
       </div>
     </div>
   </template>

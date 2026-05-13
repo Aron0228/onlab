@@ -152,6 +152,16 @@
     .issue-card .ui-container__header {
       padding-bottom: 0;
     }
+
+    .issue-list-pagination-loader {
+      display: grid;
+      place-items: center;
+      padding: var(--space-md);
+    }
+
+    .issue-list-sentinel {
+      min-height: 1px;
+    }
   }
 }
 
