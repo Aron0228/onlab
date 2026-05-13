@@ -269,18 +269,20 @@ export class GithubService {
     installationId: number,
   ): Promise<void> {
     const workspaceRepository = await this.workspaceRepositoryGetter();
-    const workspace = await workspaceRepository.findOne({
+    const workspaces = await workspaceRepository.find({
       where: {githubInstallationId: installationId.toString()},
     });
 
-    if (!workspace) {
+    if (!workspaces.length) {
       console.warn('No workspace connected to GitHub installation', {
         installationId,
       });
       return;
     }
 
-    await this.syncWorkspaceInstallation(workspace.id, installationId);
+    for (const workspace of workspaces) {
+      await this.syncWorkspaceInstallation(workspace.id, installationId);
+    }
   }
 
   public async disconnectInstallation(installationId: number): Promise<void> {
@@ -498,11 +500,13 @@ export class GithubService {
         repository,
       ]),
     );
-    const incomingGithubRepoIds = new Set(
-      repositories.map(repository => repository.id),
+    const uniqueRepositoriesByGithubId = new Map(
+      repositories.map(repository => [repository.id, repository]),
     );
+    const uniqueRepositories = [...uniqueRepositoriesByGithubId.values()];
+    const incomingGithubRepoIds = new Set(uniqueRepositoriesByGithubId.keys());
 
-    for (const repository of repositories) {
+    for (const repository of uniqueRepositories) {
       const existingRepository = existingByGithubRepoId.get(repository.id);
 
       if (!existingRepository) {
@@ -541,7 +545,7 @@ export class GithubService {
       resourceId: String(installationId),
       source: 'github',
       payload: {
-        repositoryCount: repositories.length,
+        repositoryCount: uniqueRepositories.length,
         incomingRepositoryIds: [...incomingGithubRepoIds],
       },
     });

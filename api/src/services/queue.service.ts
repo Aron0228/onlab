@@ -86,19 +86,27 @@ export class QueueService {
 
   public async enqueueGithubIssuesSync(
     data: SyncGithubIssuesJobData,
-    options: Pick<JobsOptions, 'delay'> = {},
+    options: Pick<JobsOptions, 'delay' | 'jobId'> = {},
   ) {
     return this.getGithubIssuesQueue().add(SYNC_GITHUB_ISSUES_JOB_NAME, data, {
       delay: options.delay,
+      jobId:
+        options.jobId ??
+        buildWorkspaceInstallationJobId(SYNC_GITHUB_ISSUES_JOB_NAME, data),
+      removeOnComplete: true,
     });
   }
 
   public async enqueueGithubLabelsSync(
     data: SyncGithubIssuesJobData,
-    options: Pick<JobsOptions, 'delay'> = {},
+    options: Pick<JobsOptions, 'delay' | 'jobId'> = {},
   ) {
     return this.getGithubIssuesQueue().add(SYNC_GITHUB_LABELS_JOB_NAME, data, {
       delay: options.delay,
+      jobId:
+        options.jobId ??
+        buildWorkspaceInstallationJobId(SYNC_GITHUB_LABELS_JOB_NAME, data),
+      removeOnComplete: true,
     });
   }
 
@@ -158,4 +166,11 @@ export class QueueService {
 
 function shouldBypassQueueInTests(): boolean {
   return process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
+}
+
+function buildWorkspaceInstallationJobId(
+  jobName: string,
+  data: SyncGithubIssuesJobData,
+): string {
+  return `${jobName}:${data.workspaceId}:${data.installationId}`;
 }

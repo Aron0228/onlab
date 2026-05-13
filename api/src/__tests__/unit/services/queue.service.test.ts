@@ -127,12 +127,20 @@ describe('QueueService (unit)', () => {
       [
         SYNC_GITHUB_ISSUES_JOB_NAME,
         {installationId: 1, workspaceId: 2},
-        {delay: 10},
+        {
+          delay: 10,
+          jobId: `${SYNC_GITHUB_ISSUES_JOB_NAME}:2:1`,
+          removeOnComplete: true,
+        },
       ],
       [
         SYNC_GITHUB_LABELS_JOB_NAME,
         {installationId: 1, workspaceId: 2},
-        {delay: 11},
+        {
+          delay: 11,
+          jobId: `${SYNC_GITHUB_LABELS_JOB_NAME}:2:1`,
+          removeOnComplete: true,
+        },
       ],
       [
         CREATE_GITHUB_ISSUE_JOB_NAME,
