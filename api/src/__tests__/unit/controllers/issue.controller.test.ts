@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {HttpErrors} from '@loopback/rest';
 
 import {GithubIssueController} from '../../../controllers/github/issue.controller';
 import {GithubIssue} from '../../../models';
@@ -64,7 +65,9 @@ describe('GithubIssueController (unit)', () => {
       ),
     };
     queueService = {
-      enqueueGithubIssueCreation: vi.fn().mockResolvedValue(undefined),
+      enqueueGithubIssueCreation: vi.fn().mockResolvedValue({
+        id: 'create-issue:4:broken-sign-in',
+      }),
     };
     authorization = {
       getAuthenticatedUserId: vi.fn().mockReturnValue(7),
@@ -137,6 +140,22 @@ describe('GithubIssueController (unit)', () => {
     });
   });
 
+  it('rejects priority analysis before calling AI when the user cannot access the repository workspace', async () => {
+    authorization.assertWorkspaceMember.mockRejectedValueOnce(
+      new HttpErrors.Forbidden('You are not a member of this workspace.'),
+    );
+
+    await expect(
+      controller.analyzePriority({id: 7} as never, {
+        repositoryId: 4,
+        title: 'Broken sign-in',
+        description: 'Users cannot log in',
+      }),
+    ).rejects.toBeInstanceOf(HttpErrors.Forbidden);
+
+    expect(priorityService.predictIssuePriority).not.toHaveBeenCalled();
+  });
+
   it('queues issue creation with the already analyzed prediction', async () => {
     const prediction: IssuePriorityPrediction = {
       priority: 'High',
@@ -152,7 +171,10 @@ describe('GithubIssueController (unit)', () => {
         description: 'Users cannot log in',
         prediction,
       }),
-    ).resolves.toEqual({queued: true});
+    ).resolves.toEqual({
+      queued: true,
+      jobId: 'create-issue:4:broken-sign-in',
+    });
 
     expect(priorityService.normalizePredictionInput).toHaveBeenCalledWith(
       prediction,
@@ -163,5 +185,22 @@ describe('GithubIssueController (unit)', () => {
       description: 'Users cannot log in',
       prediction,
     });
+  });
+
+  it('does not queue issue creation when the user cannot access the repository workspace', async () => {
+    authorization.assertWorkspaceMember.mockRejectedValueOnce(
+      new HttpErrors.Forbidden('You are not a member of this workspace.'),
+    );
+
+    await expect(
+      controller.createWithPriority({id: 7} as never, {
+        repositoryId: 4,
+        title: 'Broken sign-in',
+        description: 'Users cannot log in',
+      }),
+    ).rejects.toBeInstanceOf(HttpErrors.Forbidden);
+
+    expect(priorityService.normalizePredictionInput).not.toHaveBeenCalled();
+    expect(queueService.enqueueGithubIssueCreation).not.toHaveBeenCalled();
   });
 });

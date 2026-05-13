@@ -238,6 +238,7 @@ export class GithubIssueController {
     },
   ): Promise<{
     queued: true;
+    jobId?: string;
   }> {
     const {title, description} = this.validateDraft(body);
     await this.getRepositoryContext(userProfile, body.repositoryId);
@@ -245,7 +246,7 @@ export class GithubIssueController {
       body.prediction,
     );
 
-    await this.queueService.enqueueGithubIssueCreation({
+    const job = await this.queueService.enqueueGithubIssueCreation({
       repositoryId: body.repositoryId,
       title,
       description,
@@ -254,6 +255,7 @@ export class GithubIssueController {
 
     return {
       queued: true,
+      jobId: job?.id ? String(job.id) : undefined,
     };
   }
 
