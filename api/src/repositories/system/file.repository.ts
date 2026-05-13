@@ -108,6 +108,55 @@ export class FileRepository extends DefaultCrudRepository<
     return response;
   }
 
+  public async stream(id: typeof File.prototype.id, response: Response) {
+    const file = await this.findById(id);
+
+    if (!file) {
+      throw new HttpErrors.NotFound('File not found!');
+    }
+
+    const absolutePath = path.resolve(file.path);
+    const stat = fs.statSync(absolutePath);
+    const range = response.req?.headers.range;
+
+    if (!range) {
+      response.writeHead(200, {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': stat.size,
+        'Content-Type': file.mimeType,
+      });
+      fs.createReadStream(absolutePath).pipe(response);
+
+      return response;
+    }
+
+    const byteRange = parseByteRange(range, stat.size);
+
+    if (!byteRange) {
+      response.writeHead(416, {
+        'Accept-Ranges': 'bytes',
+        'Content-Range': `bytes */${stat.size}`,
+      });
+      response.end();
+
+      return response;
+    }
+
+    const {start, end} = byteRange;
+    const chunkSize = end - start + 1;
+
+    response.writeHead(206, {
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunkSize,
+      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Content-Type': file.mimeType,
+    });
+
+    fs.createReadStream(absolutePath, {start, end}).pipe(response);
+
+    return response;
+  }
+
   public async download(id: typeof File.prototype.id, response: Response) {
     const file = await this.findById(id);
     if (!file) {
@@ -120,4 +169,52 @@ export class FileRepository extends DefaultCrudRepository<
 
     return response;
   }
+}
+
+function parseByteRange(
+  rangeHeader: string,
+  fileSize: number,
+): {start: number; end: number} | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+
+  if (!match) {
+    return null;
+  }
+
+  const [, startPart, endPart] = match;
+
+  if (!startPart && !endPart) {
+    return null;
+  }
+
+  if (!startPart) {
+    const suffixLength = Number.parseInt(endPart, 10);
+
+    if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+      return null;
+    }
+
+    return {
+      start: Math.max(fileSize - suffixLength, 0),
+      end: fileSize - 1,
+    };
+  }
+
+  const start = Number.parseInt(startPart, 10);
+  const end = endPart ? Number.parseInt(endPart, 10) : fileSize - 1;
+
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    start < 0 ||
+    start >= fileSize ||
+    end < start
+  ) {
+    return null;
+  }
+
+  return {
+    start,
+    end: Math.min(end, fileSize - 1),
+  };
 }

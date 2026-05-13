@@ -240,6 +240,97 @@ describe('FileRepository upload and preview (unit)', () => {
     );
   });
 
+  it('streams whole files with range support headers', async () => {
+    const pipe = vi.fn();
+    fsMock.statSync.mockReturnValue({size: 120});
+    fsMock.createReadStream.mockReturnValue({pipe});
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 93,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {}},
+      writeHead: vi.fn(),
+    };
+
+    await expect(repository.stream(93, response as never)).resolves.toBe(
+      response,
+    );
+
+    expect(response.writeHead).toHaveBeenCalledWith(200, {
+      'Accept-Ranges': 'bytes',
+      'Content-Length': 120,
+      'Content-Type': 'video/mp4',
+    });
+    expect(fsMock.createReadStream).toHaveBeenCalledWith(
+      expect.stringContaining('uploads/feature-demo.mp4'),
+    );
+    expect(pipe).toHaveBeenCalledWith(response);
+  });
+
+  it('streams requested byte ranges with partial content headers', async () => {
+    const pipe = vi.fn();
+    fsMock.statSync.mockReturnValue({size: 120});
+    fsMock.createReadStream.mockReturnValue({pipe});
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 94,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {range: 'bytes=20-29'}},
+      writeHead: vi.fn(),
+    };
+
+    await expect(repository.stream(94, response as never)).resolves.toBe(
+      response,
+    );
+
+    expect(response.writeHead).toHaveBeenCalledWith(206, {
+      'Accept-Ranges': 'bytes',
+      'Content-Length': 10,
+      'Content-Range': 'bytes 20-29/120',
+      'Content-Type': 'video/mp4',
+    });
+    expect(fsMock.createReadStream).toHaveBeenCalledWith(
+      expect.stringContaining('uploads/feature-demo.mp4'),
+      {start: 20, end: 29},
+    );
+  });
+
+  it('rejects invalid stream ranges with a 416 response', async () => {
+    fsMock.statSync.mockReturnValue({size: 120});
+    fsMock.createReadStream.mockClear();
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 95,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {range: 'bytes=200-250'}},
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    };
+
+    await expect(repository.stream(95, response as never)).resolves.toBe(
+      response,
+    );
+
+    expect(response.writeHead).toHaveBeenCalledWith(416, {
+      'Accept-Ranges': 'bytes',
+      'Content-Range': 'bytes */120',
+    });
+    expect(response.end).toHaveBeenCalled();
+    expect(fsMock.createReadStream).not.toHaveBeenCalled();
+  });
+
   it('downloads files with their stored filename and content type', async () => {
     vi.spyOn(repository, 'findById').mockResolvedValue({
       id: 92,
