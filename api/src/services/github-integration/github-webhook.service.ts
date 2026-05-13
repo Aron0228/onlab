@@ -8,6 +8,7 @@ import {
   GithubReviewerIdentity,
   PullRequestReviewerService,
 } from './pull-request-reviewer.service';
+import {CapacityPlanningSyncService} from '../capacity-planning-sync.service';
 import {IssuePriorityService} from '../issue-priority.service';
 import {QueueService} from '../queue.service';
 
@@ -50,6 +51,10 @@ export type GithubWebhookPayload = {
     state: string;
     pull_request?: unknown;
   };
+  assignee?: {
+    id?: number;
+    login?: string;
+  } | null;
   review?: {
     state?: string;
     user?: GithubReviewerIdentity | null;
@@ -76,6 +81,8 @@ export class GithubWebhookService {
     @service(PullRequestService) private pullRequestService: PullRequestService,
     @service(PullRequestReviewerService)
     private pullRequestReviewerService: PullRequestReviewerService,
+    @service(CapacityPlanningSyncService)
+    private capacityPlanningSyncService: CapacityPlanningSyncService,
     @repository(GithubRepositoryRepository)
     private githubRepositoryRepository: GithubRepositoryRepository,
     @repository(UserRepository)
@@ -125,6 +132,8 @@ export class GithubWebhookService {
         break;
       case 'assigned':
       case 'unassigned':
+        await this.syncIssueAssignee(payload);
+        break;
       case 'labeled':
       case 'unlabeled':
         break;
@@ -365,7 +374,13 @@ export class GithubWebhookService {
   private isAppAuthoredIssueEvent(payload: GithubWebhookPayload): boolean {
     const action = payload.action;
 
-    if (action !== 'opened' && action !== 'edited' && action !== 'reopened') {
+    if (
+      action !== 'opened' &&
+      action !== 'edited' &&
+      action !== 'reopened' &&
+      action !== 'assigned' &&
+      action !== 'unassigned'
+    ) {
       return false;
     }
 
@@ -442,6 +457,28 @@ export class GithubWebhookService {
       pullRequestNumber,
       reviewer,
       status,
+    });
+  }
+
+  private async syncIssueAssignee(
+    payload: GithubWebhookPayload,
+  ): Promise<void> {
+    const repository = await this.resolveRepository(payload);
+
+    if (
+      !repository ||
+      !payload.issue ||
+      (payload.action !== 'assigned' && payload.action !== 'unassigned')
+    ) {
+      return;
+    }
+
+    await this.capacityPlanningSyncService.syncGithubIssueAssigneeChange({
+      action: payload.action,
+      repositoryId: repository.id,
+      githubIssueId: payload.issue.id,
+      githubIssueNumber: payload.issue.number,
+      assignee: payload.assignee,
     });
   }
 

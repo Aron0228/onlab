@@ -29,6 +29,9 @@ describe('GithubWebhookService (unit)', () => {
     syncRequestedReviewers: ReturnType<typeof vi.fn>;
     markProgress: ReturnType<typeof vi.fn>;
   };
+  let capacityPlanningSyncService: {
+    syncGithubIssueAssigneeChange: ReturnType<typeof vi.fn>;
+  };
   let githubRepositoryRepository: {
     findOne: ReturnType<typeof vi.fn>;
   };
@@ -79,6 +82,9 @@ describe('GithubWebhookService (unit)', () => {
       syncRequestedReviewers: vi.fn().mockResolvedValue(undefined),
       markProgress: vi.fn().mockResolvedValue(undefined),
     };
+    capacityPlanningSyncService = {
+      syncGithubIssueAssigneeChange: vi.fn().mockResolvedValue(undefined),
+    };
     githubRepositoryRepository = {
       findOne: vi.fn().mockResolvedValue({
         id: 99,
@@ -96,6 +102,7 @@ describe('GithubWebhookService (unit)', () => {
       issueService as never,
       pullRequestService as never,
       pullRequestReviewerService as never,
+      capacityPlanningSyncService as never,
       githubRepositoryRepository as never,
       userRepository as never,
     );
@@ -337,6 +344,177 @@ describe('GithubWebhookService (unit)', () => {
     expect(issueService.upsertIssue).not.toHaveBeenCalled();
     expect(issuePriorityService.predictIssuePriority).not.toHaveBeenCalled();
     expect(githubService.applyPriorityPredictionToIssue).not.toHaveBeenCalled();
+  });
+
+  it('syncs GitHub issue assignee changes into capacity planning', async () => {
+    await service.handleWebhook('issues', {
+      action: 'assigned',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(
+      capacityPlanningSyncService.syncGithubIssueAssigneeChange,
+    ).toHaveBeenCalledWith({
+      action: 'assigned',
+      repositoryId: 99,
+      githubIssueId: 11,
+      githubIssueNumber: 101,
+      assignee: {id: 111, login: 'octocat'},
+    });
+    expect(issuePriorityService.predictIssuePriority).not.toHaveBeenCalled();
+    expect(issueService.upsertIssue).not.toHaveBeenCalled();
+  });
+
+  it('syncs GitHub issue unassignments into capacity planning', async () => {
+    await service.handleWebhook('issues', {
+      action: 'unassigned',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(
+      capacityPlanningSyncService.syncGithubIssueAssigneeChange,
+    ).toHaveBeenCalledWith({
+      action: 'unassigned',
+      repositoryId: 99,
+      githubIssueId: 11,
+      githubIssueNumber: 101,
+      assignee: {id: 111, login: 'octocat'},
+    });
+    expect(issuePriorityService.predictIssuePriority).not.toHaveBeenCalled();
+    expect(issueService.upsertIssue).not.toHaveBeenCalled();
+  });
+
+  it('ignores issue assignee changes when repository identity is missing', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await service.handleWebhook('issues', {
+      action: 'assigned',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'GitHub webhook payload missing repository full name',
+      {action: 'assigned'},
+    );
+    expect(
+      capacityPlanningSyncService.syncGithubIssueAssigneeChange,
+    ).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('ignores issue assignee changes when the repository is not synced', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    githubRepositoryRepository.findOne.mockResolvedValueOnce(null);
+
+    await service.handleWebhook('issues', {
+      action: 'assigned',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      repository: {
+        owner: {login: 'team'},
+        name: 'unknown',
+        full_name: 'team/unknown',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'No synced GitHub repository found for webhook payload',
+      {
+        fullName: 'team/unknown',
+        action: 'assigned',
+      },
+    );
+    expect(
+      capacityPlanningSyncService.syncGithubIssueAssigneeChange,
+    ).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('ignores GitHub issue assignee changes authored by the app bot', async () => {
+    await service.handleWebhook('issues', {
+      action: 'unassigned',
+      sender: {
+        login: 'devteams-demo[bot]',
+        type: 'Bot',
+      },
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+      assignee: {id: 111, login: 'octocat'},
+    });
+
+    expect(
+      capacityPlanningSyncService.syncGithubIssueAssigneeChange,
+    ).not.toHaveBeenCalled();
   });
 
   it('upserts pull requests on pull request updates', async () => {
