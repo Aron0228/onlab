@@ -3,6 +3,9 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 const fsMock = vi.hoisted(() => ({
   createReadStream: vi.fn(),
+  promises: {
+    stat: vi.fn(),
+  },
   statSync: vi.fn(),
   unlink: vi.fn(),
 }));
@@ -22,6 +25,11 @@ vi.mock('multer', () => ({
 import {File} from '../../../models';
 import {FileRepository} from '../../../repositories';
 
+type MockReadStream = {
+  on: ReturnType<typeof vi.fn>;
+  pipe: ReturnType<typeof vi.fn>;
+};
+
 describe('FileRepository upload and preview (unit)', () => {
   let repository: FileRepository;
   let uploadMiddleware: ReturnType<typeof vi.fn>;
@@ -32,8 +40,9 @@ describe('FileRepository upload and preview (unit)', () => {
       array: vi.fn(() => uploadMiddleware),
     });
     fsMock.statSync.mockReturnValue({size: 4096});
+    fsMock.promises.stat.mockResolvedValue({size: 4096});
     fsMock.unlink.mockImplementation((_path, callback) => callback());
-    fsMock.createReadStream.mockReturnValue({pipe: vi.fn()});
+    fsMock.createReadStream.mockReturnValue({on: vi.fn(), pipe: vi.fn()});
 
     repository = new FileRepository(
       new juggler.DataSource({name: 'db', connector: 'memory'}) as never,
@@ -242,8 +251,8 @@ describe('FileRepository upload and preview (unit)', () => {
 
   it('streams whole files with range support headers', async () => {
     const pipe = vi.fn();
-    fsMock.statSync.mockReturnValue({size: 120});
-    fsMock.createReadStream.mockReturnValue({pipe});
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    fsMock.createReadStream.mockReturnValue({on: vi.fn(), pipe});
     vi.spyOn(repository, 'findById').mockResolvedValue({
       id: 93,
       originalName: 'feature-demo.mp4',
@@ -273,8 +282,8 @@ describe('FileRepository upload and preview (unit)', () => {
 
   it('streams requested byte ranges with partial content headers', async () => {
     const pipe = vi.fn();
-    fsMock.statSync.mockReturnValue({size: 120});
-    fsMock.createReadStream.mockReturnValue({pipe});
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    fsMock.createReadStream.mockReturnValue({on: vi.fn(), pipe});
     vi.spyOn(repository, 'findById').mockResolvedValue({
       id: 94,
       originalName: 'feature-demo.mp4',
@@ -304,7 +313,7 @@ describe('FileRepository upload and preview (unit)', () => {
   });
 
   it('rejects invalid stream ranges with a 416 response', async () => {
-    fsMock.statSync.mockReturnValue({size: 120});
+    fsMock.promises.stat.mockResolvedValue({size: 120});
     fsMock.createReadStream.mockClear();
     vi.spyOn(repository, 'findById').mockResolvedValue({
       id: 95,
@@ -329,6 +338,152 @@ describe('FileRepository upload and preview (unit)', () => {
     });
     expect(response.end).toHaveBeenCalled();
     expect(fsMock.createReadStream).not.toHaveBeenCalled();
+  });
+
+  it('supports suffix byte ranges for stream requests', async () => {
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    fsMock.createReadStream.mockReturnValue({on: vi.fn(), pipe: vi.fn()});
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 96,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {range: 'bytes=-20'}},
+      writeHead: vi.fn(),
+    };
+
+    await repository.stream(96, response as never);
+
+    expect(response.writeHead).toHaveBeenCalledWith(
+      206,
+      expect.objectContaining({
+        'Content-Length': 20,
+        'Content-Range': 'bytes 100-119/120',
+      }),
+    );
+    expect(fsMock.createReadStream).toHaveBeenCalledWith(
+      expect.stringContaining('uploads/feature-demo.mp4'),
+      {start: 100, end: 119},
+    );
+  });
+
+  it('clamps stream range ends to the file size', async () => {
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    fsMock.createReadStream.mockReturnValue({on: vi.fn(), pipe: vi.fn()});
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 97,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {range: 'bytes=110-200'}},
+      writeHead: vi.fn(),
+    };
+
+    await repository.stream(97, response as never);
+
+    expect(response.writeHead).toHaveBeenCalledWith(
+      206,
+      expect.objectContaining({
+        'Content-Length': 10,
+        'Content-Range': 'bytes 110-119/120',
+      }),
+    );
+  });
+
+  it('rejects malformed stream ranges', async () => {
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 98,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {range: 'items=0-20'}},
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    };
+
+    await repository.stream(98, response as never);
+
+    expect(response.writeHead).toHaveBeenCalledWith(416, {
+      'Accept-Ranges': 'bytes',
+      'Content-Range': 'bytes */120',
+    });
+  });
+
+  it('ends the response when stream errors before headers are sent', async () => {
+    const stream = {} as MockReadStream;
+    const on = vi.fn((event: string, callback: (error: Error) => void) => {
+      if (event === 'error') {
+        callback(new Error('read failed'));
+      }
+
+      return stream;
+    });
+    stream.on = on;
+    stream.pipe = vi.fn();
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    fsMock.createReadStream.mockReturnValue(stream);
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 99,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {}},
+      headersSent: false,
+      writeHead: vi.fn(),
+      status: vi.fn().mockReturnThis(),
+      end: vi.fn(),
+    };
+
+    await repository.stream(99, response as never);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.end).toHaveBeenCalled();
+  });
+
+  it('destroys the response when stream errors after headers are sent', async () => {
+    const error = new Error('read failed');
+    const stream = {} as MockReadStream;
+    const on = vi.fn((event: string, callback: (error: Error) => void) => {
+      if (event === 'error') {
+        callback(error);
+      }
+
+      return stream;
+    });
+    stream.on = on;
+    stream.pipe = vi.fn();
+    fsMock.promises.stat.mockResolvedValue({size: 120});
+    fsMock.createReadStream.mockReturnValue(stream);
+    vi.spyOn(repository, 'findById').mockResolvedValue({
+      id: 100,
+      originalName: 'feature-demo.mp4',
+      mimeType: 'video/mp4',
+      size: 120,
+      path: 'uploads/feature-demo.mp4',
+    } as never);
+    const response = {
+      req: {headers: {}},
+      headersSent: true,
+      writeHead: vi.fn(),
+      destroy: vi.fn(),
+    };
+
+    await repository.stream(100, response as never);
+
+    expect(response.destroy).toHaveBeenCalledWith(error);
   });
 
   it('downloads files with their stored filename and content type', async () => {

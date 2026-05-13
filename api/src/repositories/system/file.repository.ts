@@ -11,6 +11,7 @@ import {registerInclusionResolvers} from '../../utils';
 import {WorkspaceRepository} from './workspace.repository';
 import fs from 'fs';
 import multer from 'multer';
+import {ReadStream} from 'fs';
 import path from 'path';
 import util from 'util';
 
@@ -116,7 +117,7 @@ export class FileRepository extends DefaultCrudRepository<
     }
 
     const absolutePath = path.resolve(file.path);
-    const stat = fs.statSync(absolutePath);
+    const stat = await fs.promises.stat(absolutePath);
     const range = response.req?.headers.range;
 
     if (!range) {
@@ -125,7 +126,7 @@ export class FileRepository extends DefaultCrudRepository<
         'Content-Length': stat.size,
         'Content-Type': file.mimeType,
       });
-      fs.createReadStream(absolutePath).pipe(response);
+      pipeFileStream(response, fs.createReadStream(absolutePath));
 
       return response;
     }
@@ -152,7 +153,7 @@ export class FileRepository extends DefaultCrudRepository<
       'Content-Type': file.mimeType,
     });
 
-    fs.createReadStream(absolutePath, {start, end}).pipe(response);
+    pipeFileStream(response, fs.createReadStream(absolutePath, {start, end}));
 
     return response;
   }
@@ -169,6 +170,19 @@ export class FileRepository extends DefaultCrudRepository<
 
     return response;
   }
+}
+
+function pipeFileStream(response: Response, stream: ReadStream): void {
+  stream.on('error', error => {
+    if (!response.headersSent) {
+      response.status(500).end();
+      return;
+    }
+
+    response.destroy(error);
+  });
+
+  stream.pipe(response);
 }
 
 function parseByteRange(
