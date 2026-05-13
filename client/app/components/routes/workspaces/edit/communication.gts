@@ -14,6 +14,7 @@ import UiContainer from 'client/components/ui/container';
 import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiInput from 'client/components/ui/input';
+import UiVideoPlayer from 'client/components/ui/video-player';
 import type {
   CommunicationAttachment,
   CommunicationChannel,
@@ -811,8 +812,28 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     return url.toString();
   };
 
+  fileStreamUrl = (attachment: CommunicationAttachment): string => {
+    const token = this.session.data.authenticated?.token;
+    const url = new URL(
+      `/files/${attachment.fileId}/stream`,
+      import.meta.env.VITE_API_URL as string
+    );
+
+    if (token) url.searchParams.set('token', token);
+
+    return url.toString();
+  };
+
   isImageAttachment = (attachment: CommunicationAttachment): boolean => {
     return attachment.file?.mimeType.startsWith('image/') ?? false;
+  };
+
+  isVideoAttachment = (attachment: CommunicationAttachment): boolean => {
+    return isStreamableVideoMimeType(attachment.file?.mimeType);
+  };
+
+  videoAttachmentMimeType = (attachment: CommunicationAttachment): string => {
+    return attachment.file?.mimeType ?? 'video/mp4';
   };
 
   messageHasText = (message: CommunicationMessage): boolean => {
@@ -823,7 +844,11 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     return (
       !this.messageHasText(message) &&
       message.attachments.length > 0 &&
-      message.attachments.every(this.isImageAttachment)
+      message.attachments.every(
+        (attachment) =>
+          this.isImageAttachment(attachment) ||
+          this.isVideoAttachment(attachment)
+      )
     );
   };
 
@@ -1396,6 +1421,33 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
                                 {{on "load" this.onAttachmentImageLoad}}
                               />
                             </button>
+                          {{else if (this.isVideoAttachment attachment)}}
+                            <div
+                              class="communication-video-attachment layout-vertical --gap-xs"
+                            >
+                              <UiVideoPlayer
+                                @src={{this.fileStreamUrl attachment}}
+                                @type={{this.videoAttachmentMimeType
+                                  attachment
+                                }}
+                                @label={{attachment.file.originalName}}
+                              />
+                              <div
+                                class="communication-video-attachment__meta layout-horizontal --gap-sm"
+                              >
+                                <UiIcon @name="player-play" @size="sm" />
+                                <span
+                                  class="communication-attachment__copy"
+                                >{{attachment.file.originalName}}</span>
+                                <a
+                                  class="communication-video-attachment__download margin-left-auto"
+                                  href={{this.fileDownloadUrl attachment}}
+                                  aria-label="Download video"
+                                >
+                                  <UiIcon @name="download" @size="sm" />
+                                </a>
+                              </div>
+                            </div>
                           {{else}}
                             <a
                               class="communication-attachment layout-horizontal --gap-sm"
@@ -1734,4 +1786,10 @@ function asResourceIdentifierArray(
 
 function isJsonApiDocument(value: unknown): value is JsonApiDocument {
   return value !== null && typeof value === 'object' && 'data' in value;
+}
+
+function isStreamableVideoMimeType(value?: string): boolean {
+  return (
+    value === 'video/mp4' || value === 'video/webm' || value === 'video/ogg'
+  );
 }
