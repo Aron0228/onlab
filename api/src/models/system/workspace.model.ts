@@ -103,6 +103,12 @@ export class Workspace extends Entity {
   })
   reviewerSuggestionSync?: boolean;
 
+  @property({
+    type: 'date',
+    postgresql: {columnName: 'deleted_at'},
+  })
+  deletedAt?: Date;
+
   @hasMany(() => File, {keyTo: 'workspaceId'})
   files?: File[];
 

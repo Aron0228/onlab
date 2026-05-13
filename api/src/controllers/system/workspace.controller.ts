@@ -8,7 +8,11 @@ import {SecurityBindings, UserProfile} from '@loopback/security';
 import {WORKSPACE_PERMISSION} from '../../constants';
 import {Workspace, WorkspaceRelations} from '../../models';
 import {WorkspaceRepository} from '../../repositories';
-import {AuditEventService, WorkspaceAuthorizationService} from '../../services';
+import {
+  AuditEventService,
+  WorkspaceAuthorizationService,
+  WorkspaceService,
+} from '../../services';
 import {WORKSPACE_AUTHORIZER} from '../../authorization/workspace-authorizer.provider';
 
 const OWNER_ONLY_WORKSPACE_FIELDS = new Set<keyof Workspace>([
@@ -31,6 +35,8 @@ export class WorkspaceController {
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
     @inject('services.AuditEventService')
     private auditEventService: AuditEventService,
+    @inject('services.WorkspaceService')
+    private workspaceService: WorkspaceService,
   ) {}
 
   @get('/workspaces')
@@ -220,17 +226,15 @@ export class WorkspaceController {
     @inject(SecurityBindings.USER)
     userProfile: UserProfile,
     @param.path.number('id') id: number,
+    @param.query.string('confirmationName') confirmationName?: string,
   ): Promise<void> {
-    await this.workspaceRepository.deleteById(id);
-
     const userId =
       this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
-    await this.auditEventService.record({
-      actorUserId: userId,
+
+    await this.workspaceService.softDeleteWorkspace({
       workspaceId: id,
-      action: 'workspace.deleted',
-      resourceType: 'workspace',
-      resourceId: String(id),
+      actorUserId: userId,
+      confirmationName,
     });
   }
 

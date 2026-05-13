@@ -27,6 +27,7 @@ import type WorkspaceModel from 'client/models/workspace';
 import type {
   ApiServiceLike,
   FlashMessagesServiceLike,
+  RouterServiceLike,
 } from 'client/types/services';
 import { task } from 'ember-concurrency';
 import { task as trackedTask } from 'reactiveweb/ember-concurrency';
@@ -116,6 +117,10 @@ type SessionServiceLike = {
   };
 };
 
+type LastWorkspaceServiceLike = {
+  clear(): void;
+};
+
 export interface RoutesWorkspacesEditSettingsSignature {
   Args: {
     model: WorkspaceModel;
@@ -129,6 +134,8 @@ export interface RoutesWorkspacesEditSettingsSignature {
 export default class RoutesWorkspacesEditSettings extends Component<RoutesWorkspacesEditSettingsSignature> {
   @service declare store: StoreLike;
   @service declare api: ApiWithFilesServiceLike;
+  @service declare lastWorkspace: LastWorkspaceServiceLike;
+  @service declare router: RouterServiceLike;
   @service declare session: SessionServiceLike;
   @service declare flashMessages: FlashMessagesServiceLike;
 
@@ -160,6 +167,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   @tracked roleUpdateInFlightId: string | null = null;
   @tracked memberRemovalInFlightId: string | null = null;
   @tracked removedWorkspaceMemberIds: number[] = [];
+  @tracked workspaceDeleteConfirmation = '';
 
   readonly pageSize = 4;
   readonly memberRoleOptions: RoleOption[] = [
@@ -536,6 +544,28 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     );
   });
 
+  deleteWorkspaceTask = task(async () => {
+    const workspaceId = Number(this.args.model.id);
+    const workspaceName = this.args.model.name;
+
+    if (!workspaceId || !this.canDeleteWorkspace) {
+      throw new Error('Type the workspace name to confirm deletion.');
+    }
+
+    await this.api.request(`/workspaces/${workspaceId}`, {
+      method: 'DELETE',
+      params: {
+        confirmationName: workspaceName,
+      },
+    });
+
+    this.lastWorkspace.clear();
+    this.flashMessages.success?.(`${workspaceName} was deleted.`, {
+      title: 'Workspace deleted',
+    });
+    this.router.transitionTo('workspaces.index');
+  });
+
   updateMemberRoleTask = task(
     async (member: TeamMemberCard, option: DropdownOption | null) => {
       const roleOption = this.asRoleOption(option);
@@ -670,6 +700,10 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
   get canAddExpertise(): boolean {
     return this.expertiseName.trim().length > 0;
+  }
+
+  get canDeleteWorkspace(): boolean {
+    return this.workspaceDeleteConfirmation.trim() === this.args.model.name;
   }
 
   get expertiseOptions(): DropdownOption[] {
@@ -856,6 +890,23 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   @action
   updateInvitationEmail(value: string): void {
     this.invitationEmail = value;
+  }
+
+  @action
+  updateWorkspaceDeleteConfirmation(value: string): void {
+    this.workspaceDeleteConfirmation = value;
+  }
+
+  @action
+  deleteWorkspace(): void {
+    this.deleteWorkspaceTask.perform().catch((error: unknown) => {
+      this.flashMessages.danger(
+        error instanceof Error ? error.message : 'Failed to delete workspace.',
+        {
+          title: 'Workspace deletion failed',
+        }
+      );
+    });
   }
 
   @action
@@ -1112,6 +1163,42 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                           (not this.hasWorkspaceChanges)
                         }}
                       />
+                    </div>
+
+                    <div class="settings-danger-zone">
+                      <div class="layout-vertical --gap-xs">
+                        <div class="layout-horizontal --gap-sm">
+                          <UiIcon @name="alert-triangle" @variant="error" />
+                          <h3 class="margin-zero">Danger Zone</h3>
+                        </div>
+                        <span class="font-color-text-secondary">
+                          Deleting a workspace hides it from the app and
+                          disconnects GitHub sync. Files and audit history are
+                          retained as tombstoned records.
+                        </span>
+                      </div>
+
+                      <UiFormGroup
+                        @label="Type {{@model.name}} to confirm"
+                        @trailingText="Only the workspace owner can delete this workspace."
+                      >
+                        <UiInput
+                          @value={{this.workspaceDeleteConfirmation}}
+                          @onInput={{this.updateWorkspaceDeleteConfirmation}}
+                          @placeholder={{@model.name}}
+                        />
+                      </UiFormGroup>
+
+                      <div class="settings-actions-row">
+                        <UiButton
+                          @text="Delete workspace"
+                          @hierarchy="secondary"
+                          @iconLeft="trash"
+                          @onClick={{this.deleteWorkspace}}
+                          @loading={{this.deleteWorkspaceTask.isRunning}}
+                          @disabled={{not this.canDeleteWorkspace}}
+                        />
+                      </div>
                     </div>
                   </div>
                 </:default>

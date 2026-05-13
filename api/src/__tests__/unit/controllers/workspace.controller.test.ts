@@ -25,15 +25,20 @@ describe('WorkspaceController (unit)', () => {
     const auditEventService = {
       record: vi.fn().mockResolvedValue(undefined),
     };
+    const workspaceService = {
+      softDeleteWorkspace: vi.fn().mockResolvedValue(undefined),
+    };
 
     return {
       repository,
       authorization,
       auditEventService,
+      workspaceService,
       controller: new WorkspaceController(
         repository as never,
         authorization as never,
         auditEventService as never,
+        workspaceService as never,
       ),
     };
   };
@@ -101,10 +106,10 @@ describe('WorkspaceController (unit)', () => {
     );
   });
 
-  it('audits workspace replacement and deletion', async () => {
-    const {controller, repository, auditEventService} = createController();
+  it('audits workspace replacement and soft deletion', async () => {
+    const {controller, repository, auditEventService, workspaceService} =
+      createController();
     repository.replaceById.mockResolvedValue(undefined);
-    repository.deleteById.mockResolvedValue(undefined);
 
     await expect(
       controller.replaceById({id: 7} as never, 11, {
@@ -112,7 +117,7 @@ describe('WorkspaceController (unit)', () => {
       }),
     ).resolves.toBeUndefined();
     await expect(
-      controller.deleteById({id: 7} as never, 11),
+      controller.deleteById({id: 7} as never, 11, 'Demo'),
     ).resolves.toBeUndefined();
 
     expect(auditEventService.record).toHaveBeenCalledWith(
@@ -121,11 +126,10 @@ describe('WorkspaceController (unit)', () => {
         resourceId: '11',
       }),
     );
-    expect(auditEventService.record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'workspace.deleted',
-        resourceId: '11',
-      }),
-    );
+    expect(workspaceService.softDeleteWorkspace).toHaveBeenCalledWith({
+      workspaceId: 11,
+      actorUserId: 7,
+      confirmationName: 'Demo',
+    });
   });
 });

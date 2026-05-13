@@ -132,6 +132,10 @@ export class WorkspaceAuthorizationService {
   ): Promise<WorkspaceRole | null> {
     const workspace = await this.workspaceRepository.findById(workspaceId);
 
+    if (workspace.deletedAt) {
+      return null;
+    }
+
     if (workspace.ownerId === userId) {
       return WORKSPACE_ROLE.OWNER;
     }
@@ -159,7 +163,12 @@ export class WorkspaceAuthorizationService {
       .filter((workspaceId): workspaceId is number => workspaceId != null);
 
     return {
-      or: [{ownerId: userId}, {id: {inq: workspaceIds}}],
+      and: [
+        {deletedAt: null as never},
+        {
+          or: [{ownerId: userId}, {id: {inq: workspaceIds}}],
+        },
+      ],
     };
   }
 

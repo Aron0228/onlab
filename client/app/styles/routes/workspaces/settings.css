@@ -160,6 +160,15 @@
     justify-content: flex-end;
   }
 
+  .settings-danger-zone {
+    display: grid;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    border: 1px solid color-mix(in srgb, var(--color-error) 42%, transparent);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-error-bg) 14%, transparent);
+  }
+
   .settings-members-summary {
     display: flex;
     gap: var(--space-md);

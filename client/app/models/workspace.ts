@@ -34,4 +34,5 @@ export default class WorkspaceModel extends Model {
   @attr('boolean') declare capacityPlanningSync: boolean;
   @attr('boolean') declare prRiskPredictionSync: boolean;
   @attr('boolean') declare reviewerSuggestionSync: boolean;
+  @attr('date') declare deletedAt: Date | null;
 }
