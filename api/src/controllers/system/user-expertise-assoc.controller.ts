@@ -9,7 +9,10 @@ import {
 } from '../../repositories';
 import {del, get, param, patch, post, put, requestBody} from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
-import {WorkspaceAuthorizationService} from '../../services';
+import {
+  ExpertiseCatalogService,
+  WorkspaceAuthorizationService,
+} from '../../services';
 
 @authenticate('jwt-header')
 export class UserExpertiseAssocController {
@@ -20,6 +23,8 @@ export class UserExpertiseAssocController {
     private expertiseRepository: ExpertiseRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @inject('services.ExpertiseCatalogService')
+    private expertiseCatalogService: ExpertiseCatalogService,
   ) {}
 
   @get('/userExpertiseAssocs')
@@ -95,7 +100,7 @@ export class UserExpertiseAssocController {
   ): Promise<UserExpertiseAssoc> {
     await this.assertCanManageAssoc(userProfile, Number(data.expertiseId));
 
-    return this.userExpertiseAssocRepository.create(data);
+    return this.expertiseCatalogService.assignExpertise(data);
   }
 
   @patch('/userExpertiseAssocs/{id}')
@@ -117,8 +122,11 @@ export class UserExpertiseAssocController {
   ): Promise<void> {
     const assoc = await this.userExpertiseAssocRepository.findById(id);
     await this.assertCanManageAssoc(userProfile, assoc.expertiseId);
+    if (data.expertiseId !== undefined) {
+      await this.assertCanManageAssoc(userProfile, Number(data.expertiseId));
+    }
 
-    return this.userExpertiseAssocRepository.updateById(id, data);
+    return this.expertiseCatalogService.updateAssignment(id, data);
   }
 
   @put('/userExpertiseAssocs/{id}')
@@ -140,8 +148,9 @@ export class UserExpertiseAssocController {
   ): Promise<void> {
     const assoc = await this.userExpertiseAssocRepository.findById(id);
     await this.assertCanManageAssoc(userProfile, assoc.expertiseId);
+    await this.assertCanManageAssoc(userProfile, Number(data.expertiseId));
 
-    return this.userExpertiseAssocRepository.replaceById(id, data);
+    return this.expertiseCatalogService.updateAssignment(id, data);
   }
 
   @del('/userExpertiseAssocs/{id}')
@@ -153,7 +162,7 @@ export class UserExpertiseAssocController {
     const assoc = await this.userExpertiseAssocRepository.findById(id);
     await this.assertCanManageAssoc(userProfile, assoc.expertiseId);
 
-    return this.userExpertiseAssocRepository.deleteById(id);
+    return this.expertiseCatalogService.removeAssignment(id);
   }
 
   private async scopeAssocFilter(

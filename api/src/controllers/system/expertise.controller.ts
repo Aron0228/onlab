@@ -6,7 +6,10 @@ import {del, get, param, patch, post, put, requestBody} from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
 import {Expertise, ExpertiseRelations} from '../../models';
 import {ExpertiseRepository} from '../../repositories';
-import {WorkspaceAuthorizationService} from '../../services';
+import {
+  ExpertiseCatalogService,
+  WorkspaceAuthorizationService,
+} from '../../services';
 
 @authenticate('jwt-header')
 export class ExpertiseController {
@@ -15,6 +18,8 @@ export class ExpertiseController {
     private expertiseRepository: ExpertiseRepository,
     @service(WorkspaceAuthorizationService)
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
+    @service(ExpertiseCatalogService)
+    private expertiseCatalogService: ExpertiseCatalogService,
   ) {}
 
   @get('/expertises')
@@ -88,7 +93,7 @@ export class ExpertiseController {
   ): Promise<Expertise> {
     await this.assertCanManageExpertise(userProfile, data.workspaceId);
 
-    return this.expertiseRepository.create(data);
+    return this.expertiseCatalogService.createExpertise(data);
   }
 
   @patch('/expertises/{id}')
@@ -111,7 +116,7 @@ export class ExpertiseController {
     const expertise = await this.expertiseRepository.findById(id);
     await this.assertCanManageExpertise(userProfile, expertise.workspaceId);
 
-    return this.expertiseRepository.updateById(id, data);
+    return this.expertiseCatalogService.updateExpertise(id, data);
   }
 
   @put('/expertises/{id}')
@@ -134,7 +139,7 @@ export class ExpertiseController {
     const expertise = await this.expertiseRepository.findById(id);
     await this.assertCanManageExpertise(userProfile, expertise.workspaceId);
 
-    return this.expertiseRepository.replaceById(id, data);
+    return this.expertiseCatalogService.replaceExpertise(id, data);
   }
 
   @del('/expertises/{id}')

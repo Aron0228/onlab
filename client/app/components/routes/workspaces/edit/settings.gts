@@ -2,6 +2,7 @@ import Component from '@glimmer/component';
 import { fn } from '@ember/helper';
 import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
+import { on } from '@ember/modifier';
 import { inject as service } from '@ember/service';
 import { eq, not, or } from 'ember-truth-helpers';
 import UiAlert from 'client/components/ui/alert';
@@ -49,7 +50,11 @@ type TeamMembersPage = {
   members: WorkspaceMemberModel[];
 };
 
-type ExpertiseByUserId = Record<number, ExpertiseModel[]>;
+type AssignedExpertise = {
+  associationId: number;
+  expertise: ExpertiseModel;
+};
+type ExpertiseByUserId = Record<number, AssignedExpertise[]>;
 type RoleOption = { id: 'ADMIN' | 'MEMBER'; name: string };
 
 type StoreLike = {
@@ -358,11 +363,21 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       const userId = Number(association.userId);
       const existing = expertiseByUserId[userId] ?? [];
 
-      if (existing.some((item) => item.id === expertise.id)) {
+      if (
+        existing.some(
+          (item) => Number(item.expertise.id) === Number(expertise.id)
+        )
+      ) {
         return;
       }
 
-      expertiseByUserId[userId] = [...existing, expertise];
+      expertiseByUserId[userId] = [
+        ...existing,
+        {
+          associationId: Number(association.id),
+          expertise,
+        },
+      ];
     });
 
     this.expertiseByUserId = expertiseByUserId;
@@ -370,7 +385,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
   createExpertiseTask = task(async () => {
     const workspaceId = Number(this.args.model.id);
-    const name = this.expertiseName.trim();
+    const name = this.normalizeExpertiseName(this.expertiseName);
     const description = this.expertiseDescription.trim();
 
     if (!workspaceId || !name) {
@@ -379,20 +394,14 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
     this.expertisePanelError = null;
 
-    const existingExpertises = Array.from(
-      await this.store.query('expertise', {
-        filter: {
-          where: {
-            workspaceId,
-            name,
-          },
-          limit: 1,
-        },
-      })
+    const existingExpertise = this.workspaceExpertises.find(
+      (expertise) =>
+        this.normalizeExpertiseName(expertise.name).toLocaleLowerCase() ===
+        name.toLocaleLowerCase()
     );
 
     const expertise =
-      existingExpertises[0] ??
+      existingExpertise ??
       (await this.store.saveRecord(
         this.store.createRecord('expertise', {
           name,
@@ -407,7 +416,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     this.expertiseDescription = '';
 
     this.flashMessages.success?.(`${expertise.name} is available to assign.`, {
-      title: existingExpertises[0]
+      title: existingExpertise
         ? 'Expertise already exists'
         : 'Expertise created',
     });
@@ -426,11 +435,15 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
     const currentExpertises = this.expertiseForUser(userId);
 
-    if (currentExpertises.some((item) => Number(item.id) === expertiseId)) {
+    if (
+      currentExpertises.some(
+        (item) => Number(item.expertise.id) === expertiseId
+      )
+    ) {
       throw new Error(`${member.user.fullName} already has this expertise.`);
     }
 
-    await this.store.saveRecord(
+    const association = await this.store.saveRecord(
       this.store.createRecord('user-expertise-assoc', {
         userId,
         expertiseId,
@@ -439,7 +452,13 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
     this.expertiseByUserId = {
       ...this.expertiseByUserId,
-      [userId]: [...currentExpertises, expertise],
+      [userId]: [
+        ...currentExpertises,
+        {
+          associationId: Number(association.id),
+          expertise,
+        },
+      ],
     };
     this.selectedExpertiseIdByUserId = {
       ...this.selectedExpertiseIdByUserId,
@@ -453,6 +472,34 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       }
     );
   });
+
+  removeExpertiseTask = task(
+    async (member: TeamMemberCard, assignedExpertise: AssignedExpertise) => {
+      const userId = Number(member.user.id);
+
+      await this.api.request(
+        `/userExpertiseAssocs/${assignedExpertise.associationId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      const currentExpertises = this.expertiseForUser(userId);
+      this.expertiseByUserId = {
+        ...this.expertiseByUserId,
+        [userId]: currentExpertises.filter(
+          (item) => item.associationId !== assignedExpertise.associationId
+        ),
+      };
+
+      this.flashMessages.success?.(
+        `${assignedExpertise.expertise.name} removed from ${member.user.fullName}.`,
+        {
+          title: 'Expertise removed',
+        }
+      );
+    }
+  );
 
   removeWorkspaceMemberTask = task(async (member: TeamMemberCard) => {
     const workspaceMemberId = Number(member.workspaceMember?.id);
@@ -577,7 +624,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     return cards;
   }
 
-  get selectedUserExpertises(): ExpertiseModel[] {
+  get selectedUserExpertises(): AssignedExpertise[] {
     const userId = Number(this.expertisePanelUser?.user.id ?? 0);
 
     return this.expertiseForUser(userId);
@@ -659,7 +706,7 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     }
   };
 
-  expertiseForUser = (userId: number): ExpertiseModel[] => {
+  expertiseForUser = (userId: number): AssignedExpertise[] => {
     return this.expertiseByUserId[userId] ?? [];
   };
 
@@ -719,13 +766,24 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
   }
 
   mergeWorkspaceExpertise(expertise: ExpertiseModel): void {
-    if (this.workspaceExpertises.some((item) => item.id === expertise.id)) {
+    if (
+      this.workspaceExpertises.some(
+        (item) =>
+          item.id === expertise.id ||
+          this.normalizeExpertiseName(item.name).toLocaleLowerCase() ===
+            this.normalizeExpertiseName(expertise.name).toLocaleLowerCase()
+      )
+    ) {
       return;
     }
 
     this.workspaceExpertises = [...this.workspaceExpertises, expertise].sort(
       (a, b) => a.name.localeCompare(b.name)
     );
+  }
+
+  normalizeExpertiseName(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
   }
 
   async uploadAvatar(workspaceId: number, file: File): Promise<{ id: number }> {
@@ -852,6 +910,30 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
       this.expertisePanelError =
         error instanceof Error ? error.message : 'Failed to assign expertise.';
     });
+  }
+
+  @action
+  removeExpertise(
+    member: TeamMemberCard,
+    assignedExpertise: AssignedExpertise
+  ): void {
+    this.removeExpertiseTask
+      .perform(member, assignedExpertise)
+      .catch((error: unknown) => {
+        this.expertisePanelError =
+          error instanceof Error
+            ? error.message
+            : 'Failed to remove expertise.';
+      });
+  }
+
+  @action
+  removeSelectedUserExpertise(assignedExpertise: AssignedExpertise): void {
+    if (!this.expertisePanelUser) {
+      return;
+    }
+
+    this.removeExpertise(this.expertisePanelUser, assignedExpertise);
   }
 
   @action
@@ -1309,7 +1391,22 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                                     as |expertise|
                                   }}
                                     <span class="settings-expertise-chip">
-                                      {{expertise.name}}
+                                      {{expertise.expertise.name}}
+                                      <button
+                                        type="button"
+                                        class="settings-expertise-chip__remove"
+                                        {{on
+                                          "click"
+                                          (fn
+                                            this.removeExpertise
+                                            member
+                                            expertise
+                                          )
+                                        }}
+                                        aria-label="Remove {{expertise.expertise.name}} from {{member.user.fullName}}"
+                                      >
+                                        <UiIcon @name="x" />
+                                      </button>
                                     </span>
                                   {{else}}
                                     <span
@@ -1497,7 +1594,18 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
                   <div class="settings-member-card__chips">
                     {{#each this.selectedUserExpertises as |expertise|}}
                       <span class="settings-expertise-chip --panel">
-                        {{expertise.name}}
+                        {{expertise.expertise.name}}
+                        <button
+                          type="button"
+                          class="settings-expertise-chip__remove"
+                          {{on
+                            "click"
+                            (fn this.removeSelectedUserExpertise expertise)
+                          }}
+                          aria-label="Remove {{expertise.expertise.name}}"
+                        >
+                          <UiIcon @name="x" />
+                        </button>
                       </span>
                     {{else}}
                       <span class="font-color-text-secondary font-size-text-sm">

@@ -341,6 +341,7 @@
   .settings-expertise-chip {
     display: inline-flex;
     align-items: center;
+    gap: var(--space-xs);
     min-height: 2.4rem;
     padding: 0.35rem 0.9rem;
     border-radius: var(--radius-sm);
@@ -353,6 +354,25 @@
 
     &.--panel {
       background: color-mix(in srgb, var(--bg-surface) 88%, white 12%);
+    }
+  }
+
+  .settings-expertise-chip__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+
+    &:hover {
+      background: var(--bg-app);
+      color: var(--text-primary);
     }
   }
 

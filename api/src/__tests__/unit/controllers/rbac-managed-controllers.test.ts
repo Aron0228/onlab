@@ -41,10 +41,16 @@ describe('RBAC-managed explicit controllers (unit)', () => {
       replaceById: vi.fn().mockResolvedValue(undefined),
       deleteById: vi.fn().mockResolvedValue(undefined),
     };
+    const expertiseCatalogService = {
+      createExpertise: vi.fn().mockResolvedValue(expertise),
+      updateExpertise: vi.fn().mockResolvedValue(undefined),
+      replaceExpertise: vi.fn().mockResolvedValue(undefined),
+    };
     const authorization = createAuthorization();
     const controller = new ExpertiseController(
       repository as never,
       authorization as never,
+      expertiseCatalogService as never,
     );
 
     await expect(
@@ -88,6 +94,19 @@ describe('RBAC-managed explicit controllers (unit)', () => {
     expect(repository.count).toHaveBeenCalledWith({
       and: [{name: 'Frontend'}, {workspaceId: {inq: [3]}}],
     });
+    expect(expertiseCatalogService.createExpertise).toHaveBeenCalledWith({
+      workspaceId: 3,
+      name: 'Frontend',
+      description: 'UI work',
+    });
+    expect(expertiseCatalogService.updateExpertise).toHaveBeenCalledWith(12, {
+      description: 'Design systems',
+    });
+    expect(expertiseCatalogService.replaceExpertise).toHaveBeenCalledWith(12, {
+      workspaceId: 3,
+      name: 'Frontend',
+      description: 'Design systems',
+    });
     expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(3, 7);
     expect(authorization.assertWorkspaceAdminOrOwner).toHaveBeenCalledWith(
       3,
@@ -113,6 +132,11 @@ describe('RBAC-managed explicit controllers (unit)', () => {
       replaceById: vi.fn().mockResolvedValue(undefined),
       deleteById: vi.fn().mockResolvedValue(undefined),
     };
+    const expertiseCatalogService = {
+      assignExpertise: vi.fn().mockResolvedValue(assoc),
+      updateAssignment: vi.fn().mockResolvedValue(undefined),
+      removeAssignment: vi.fn().mockResolvedValue(undefined),
+    };
     const expertiseRepository = {
       find: vi
         .fn()
@@ -126,6 +150,7 @@ describe('RBAC-managed explicit controllers (unit)', () => {
       assocRepository as never,
       expertiseRepository as never,
       authorization as never,
+      expertiseCatalogService as never,
     );
 
     await expect(
@@ -158,6 +183,18 @@ describe('RBAC-managed explicit controllers (unit)', () => {
         and: [{userId: 9}, {expertiseId: {inq: [12]}}],
       },
     });
+    expect(expertiseCatalogService.assignExpertise).toHaveBeenCalledWith({
+      userId: 9,
+      expertiseId: 12,
+    });
+    expect(expertiseCatalogService.updateAssignment).toHaveBeenCalledWith(14, {
+      userId: 10,
+    });
+    expect(expertiseCatalogService.updateAssignment).toHaveBeenCalledWith(14, {
+      userId: 10,
+      expertiseId: 12,
+    });
+    expect(expertiseCatalogService.removeAssignment).toHaveBeenCalledWith(14);
     expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(3, 7);
     expect(authorization.assertWorkspaceAdminOrOwner).toHaveBeenCalledWith(
       3,
