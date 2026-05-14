@@ -1,4 +1,4 @@
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type WorkspaceModel from 'client/models/workspace';
 import type WorkspaceMemberModel from 'client/models/workspace-member';
 import type UserModel from 'client/models/user';

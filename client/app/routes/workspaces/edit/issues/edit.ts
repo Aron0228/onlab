@@ -1,4 +1,4 @@
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type GithubIssueModel from 'client/models/github-issue';
 import ProtectedRoute from 'client/routes/protected';
 import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';

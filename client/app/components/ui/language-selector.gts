@@ -1,5 +1,5 @@
 import Component from '@glimmer/component';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { action } from '@ember/object';
 import UiDropdown from 'client/components/ui/dropdown';
 import { t } from 'ember-intl';

@@ -6,7 +6,7 @@ import { guidFor } from '@ember/object/internals';
 import { on } from '@ember/modifier';
 import { modifier } from 'ember-modifier';
 import { tracked } from '@glimmer/tracking';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import { eq } from 'ember-truth-helpers';
 

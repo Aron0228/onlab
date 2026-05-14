@@ -1,6 +1,6 @@
 import Component from '@glimmer/component';
 import { action } from '@ember/object';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 import UiIcon from 'client/components/ui/icon';
 import UiThemeSwitcher from 'client/components/ui/theme-switcher';

@@ -2,7 +2,7 @@ import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import UiIcon from 'client/components/ui/icon';
 import { task } from 'ember-concurrency';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import type InvitationModel from 'client/models/invitation';

@@ -4,7 +4,7 @@ import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
 import UiButton from 'client/components/ui/button';
 import { task } from 'ember-concurrency';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import UiForm from 'client/components/ui/form';
 import UiFormGroup from 'client/components/ui/form-group';
 import UiInput from 'client/components/ui/input';

@@ -3,7 +3,7 @@ import { fn } from '@ember/helper';
 import { action } from '@ember/object';
 import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { eq, not, or } from 'ember-truth-helpers';
 import UiAlert from 'client/components/ui/alert';
 import UiAriaTabs from 'client/components/ui/aria-tabs';

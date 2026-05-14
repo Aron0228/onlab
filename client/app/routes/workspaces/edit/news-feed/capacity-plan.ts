@@ -1,5 +1,5 @@
 import Route from '@ember/routing/route';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type CapacityPlanEntryModel from 'client/models/capacity-plan-entry';
 import type CapacityPlanModel from 'client/models/capacity-plan';
 import type IssueAssignmentModel from 'client/models/issue-assignment';

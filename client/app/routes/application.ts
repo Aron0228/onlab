@@ -1,6 +1,6 @@
 import Route from '@ember/routing/route';
 import type Transition from '@ember/routing/transition';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import RouterService from '@ember/routing/router-service';
 import IntlService from 'ember-intl/services/intl';
 import moment from 'moment';
