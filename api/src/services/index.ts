@@ -9,6 +9,7 @@ export * from './ollama.service';
 export * from './pull-request-merge-risk.service';
 export * from './queue.service';
 export * from './capacity-planning-sync.service';
+export * from './capacity-planning-sync-scheduler.service';
 export * from './communication.service';
 export * from './communication-socket.service';
 export * from './expertise-catalog.service';

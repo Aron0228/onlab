@@ -135,8 +135,8 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
       );
       this.notes = `Create a new plan for ${this.args.model.workspace.name} using the current team and issue backlog.`;
     } else {
-      this.startDate = this.selectedPlan?.start ?? '';
-      this.endDate = this.selectedPlan?.end ?? '';
+      this.startDate = this.formatDateInputValue(this.selectedPlan?.start);
+      this.endDate = this.formatDateInputValue(this.selectedPlan?.end);
       this.notes = this.selectedPlan
         ? `Plan #${this.selectedPlan.id} has ${this.savedAssignments.length} assigned issue entries.`
         : `No saved capacity plan is available for ${this.args.model.workspace.name} yet.`;
@@ -216,7 +216,43 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
   }
 
   get canCreatePlan(): boolean {
-    return Boolean(this.startDate.trim() && this.endDate.trim());
+    return Boolean(
+      this.startDate.trim() &&
+      this.endDate.trim() &&
+      this.isValidDraftPeriod &&
+      !this.draftPeriodOverlapsExistingPlan
+    );
+  }
+
+  get isValidDraftPeriod(): boolean {
+    if (!this.startDate || !this.endDate) {
+      return true;
+    }
+
+    return (
+      this.serializeDateValue(this.startDate).getTime() <=
+      this.serializeDateValue(this.endDate).getTime()
+    );
+  }
+
+  get draftPeriodOverlapsExistingPlan(): boolean {
+    if (!this.startDate || !this.endDate) {
+      return false;
+    }
+
+    return this.dateRangeOverlapsExistingPlan(this.startDate, this.endDate);
+  }
+
+  get periodValidationMessage(): string {
+    if (!this.isValidDraftPeriod) {
+      return 'Choose an end date that comes after the start date.';
+    }
+
+    if (this.draftPeriodOverlapsExistingPlan) {
+      return 'This period overlaps an existing capacity plan.';
+    }
+
+    return 'Only non-overlapping planning windows can be selected.';
   }
 
   get hasSelectedIssue(): boolean {
@@ -367,6 +403,18 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
     return Number.parseInt(value ?? '', 10) || 0;
   }
 
+  formatDateInputValue(value: string | Date | null | undefined): string {
+    if (!value) {
+      return '';
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString().slice(0, 10);
+    }
+
+    return String(value).slice(0, 10);
+  }
+
   serializeDateValue(value: string): Date {
     const [year, month, day] = value.split('-').map((part) => Number(part));
 
@@ -376,6 +424,61 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
 
     return new Date(year, month - 1, day, 12, 0, 0, 0);
   }
+
+  dateRangeOverlapsExistingPlan(startValue: string, endValue: string): boolean {
+    const start = this.serializeDateValue(startValue).getTime();
+    const end = this.serializeDateValue(endValue).getTime();
+
+    return this.args.model.plans.some((plan) => {
+      if (
+        this.selectedPlan &&
+        Number(plan.id) === Number(this.selectedPlan.id)
+      ) {
+        return false;
+      }
+
+      const planStart = new Date(plan.start).getTime();
+      const planEnd = new Date(plan.end).getTime();
+
+      return start <= planEnd && end >= planStart;
+    });
+  }
+
+  isStartDateDisabled = (isoValue: string): boolean => {
+    if (this.isEditMode) {
+      return true;
+    }
+
+    if (this.endDate) {
+      const selectedStart = this.serializeDateValue(isoValue).getTime();
+      const selectedEnd = this.serializeDateValue(this.endDate).getTime();
+
+      return (
+        selectedStart > selectedEnd ||
+        this.dateRangeOverlapsExistingPlan(isoValue, this.endDate)
+      );
+    }
+
+    return this.dateRangeOverlapsExistingPlan(isoValue, isoValue);
+  };
+
+  isEndDateDisabled = (isoValue: string): boolean => {
+    if (this.isEditMode) {
+      return true;
+    }
+
+    if (this.startDate) {
+      const selectedStart = this.serializeDateValue(this.startDate).getTime();
+      const selectedEnd = this.serializeDateValue(isoValue).getTime();
+
+      return (
+        selectedEnd < selectedStart ||
+        this.dateRangeOverlapsExistingPlan(this.startDate, isoValue)
+      );
+    }
+
+    return this.dateRangeOverlapsExistingPlan(isoValue, isoValue);
+  };
 
   issueById(issueId: number): GithubIssueModel | null {
     return (
@@ -968,6 +1071,7 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                   @value={{this.startDate}}
                   @placeholder="Select start date"
                   @disabled={{this.isEditMode}}
+                  @isDateDisabled={{this.isStartDateDisabled}}
                   @onInput={{this.updateStartDate}}
                   @onChange={{this.updateStartDate}}
                 />
@@ -978,6 +1082,7 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                   @value={{this.endDate}}
                   @placeholder="Select end date"
                   @disabled={{this.isEditMode}}
+                  @isDateDisabled={{this.isEndDateDisabled}}
                   @onInput={{this.updateEndDate}}
                   @onChange={{this.updateEndDate}}
                 />
@@ -987,7 +1092,7 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
                 <span class="capacity-plan-editor__summary-label">Open estimate</span>
                 <strong>{{this.unassignedEstimateTotal}}h</strong>
                 <span class="font-color-text-secondary">
-                  Remaining AI-estimated work after current draft assignments.
+                  {{this.periodValidationMessage}}
                 </span>
               </div>
             </div>
@@ -1022,71 +1127,76 @@ export default class RoutesWorkspacesEditCapacityPlanningEditor extends Componen
             </:header>
 
             <:default>
-              <div class="capacity-plan-editor__suggestion">
-                <UiIcon @name="sparkles" />
-                <span>{{this.selectedIssueSuggestion}}</span>
-              </div>
+              <div class="capacity-plan-editor__issue-queue-body">
+                <div class="capacity-plan-editor__suggestion">
+                  <UiIcon @name="sparkles" />
+                  <span>{{this.selectedIssueSuggestion}}</span>
+                </div>
 
-              {{#if this.hasSelectedIssue}}
-                <UiButton
-                  class="capacity-plan-editor__assign-button"
-                  @text="Assign to best fit"
-                  @iconLeft="sparkles"
-                  @onClick={{this.assignSelectedIssueToBestFit}}
-                />
-              {{/if}}
+                {{#if this.hasSelectedIssue}}
+                  <UiButton
+                    class="capacity-plan-editor__assign-button"
+                    @text="Assign to best fit"
+                    @iconLeft="sparkles"
+                    @onClick={{this.assignSelectedIssueToBestFit}}
+                  />
+                {{/if}}
 
-              {{#if this.unassignedIssues.length}}
-                <div
-                  class="capacity-plan-editor__issue-list layout-vertical --gap-md"
-                >
-                  {{#each this.unassignedIssues as |issue|}}
-                    <button
-                      type="button"
-                      class={{this.issueCardClass issue.id}}
-                      draggable={{this.isNewMode}}
-                      {{on "click" (fn this.selectIssue issue.id)}}
-                      {{on "dragstart" (fn this.handleIssueDragStart issue.id)}}
-                      {{on "dragend" this.handleIssueDragEnd}}
-                    >
-                      <div class="layout-horizontal --gap-sm">
-                        <UiIcon @name="alert-circle" />
-                        <div class="layout-vertical --gap-xs">
-                          <div
-                            class="layout-horizontal --gap-sm --space-between"
-                          >
-                            <strong>#{{issue.number}}</strong>
-                            <span class="capacity-plan-editor__estimate-pill">
-                              {{if
-                                issue.estimatedHours
-                                issue.estimatedHours
-                                0
-                              }}h
-                            </span>
-                          </div>
-                          <span>{{issue.title}}</span>
-                          <div class="capacity-plan-editor__issue-meta">
-                            <span>{{issue.area}}</span>
-                            <span
-                              class="capacity-plan-editor__priority
-                                {{this.priorityClass issue.priority}}"
+                {{#if this.unassignedIssues.length}}
+                  <div
+                    class="capacity-plan-editor__issue-list layout-vertical --gap-md"
+                  >
+                    {{#each this.unassignedIssues as |issue|}}
+                      <button
+                        type="button"
+                        class={{this.issueCardClass issue.id}}
+                        draggable={{this.isNewMode}}
+                        {{on "click" (fn this.selectIssue issue.id)}}
+                        {{on
+                          "dragstart"
+                          (fn this.handleIssueDragStart issue.id)
+                        }}
+                        {{on "dragend" this.handleIssueDragEnd}}
+                      >
+                        <div class="layout-horizontal --gap-sm">
+                          <UiIcon @name="alert-circle" />
+                          <div class="layout-vertical --gap-xs">
+                            <div
+                              class="layout-horizontal --gap-sm --space-between"
                             >
-                              {{issue.priority}}
+                              <strong>#{{issue.number}}</strong>
+                              <span class="capacity-plan-editor__estimate-pill">
+                                {{if
+                                  issue.estimatedHours
+                                  issue.estimatedHours
+                                  0
+                                }}h
+                              </span>
+                            </div>
+                            <span>{{issue.title}}</span>
+                            <div class="capacity-plan-editor__issue-meta">
+                              <span>{{issue.area}}</span>
+                              <span
+                                class="capacity-plan-editor__priority
+                                  {{this.priorityClass issue.priority}}"
+                              >
+                                {{issue.priority}}
+                              </span>
+                            </div>
+                            <span class="capacity-plan-editor__estimate">
+                              {{this.selectedIssueEstimateLabel issue}}
                             </span>
                           </div>
-                          <span class="capacity-plan-editor__estimate">
-                            {{this.selectedIssueEstimateLabel issue}}
-                          </span>
                         </div>
-                      </div>
-                    </button>
-                  {{/each}}
-                </div>
-              {{else}}
-                <div class="capacity-plan-editor__empty-state">
-                  <p class="margin-zero">All issues have been assigned.</p>
-                </div>
-              {{/if}}
+                      </button>
+                    {{/each}}
+                  </div>
+                {{else}}
+                  <div class="capacity-plan-editor__empty-state">
+                    <p class="margin-zero">All issues have been assigned.</p>
+                  </div>
+                {{/if}}
+              </div>
 
             </:default>
           </UiContainer>

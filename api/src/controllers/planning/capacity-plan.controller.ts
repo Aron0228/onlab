@@ -7,7 +7,16 @@ import {
   Where,
   repository,
 } from '@loopback/repository';
-import {del, get, param, patch, post, put, requestBody} from '@loopback/rest';
+import {
+  del,
+  get,
+  HttpErrors,
+  param,
+  patch,
+  post,
+  put,
+  requestBody,
+} from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
 import {CapacityPlan, CapacityPlanRelations} from '../../models';
 import {CapacityPlanRepository} from '../../repositories';
@@ -97,6 +106,7 @@ export class CapacityPlanController {
     data: DataObject<CapacityPlan>,
   ): Promise<CapacityPlan> {
     await this.assertCanManageWorkspace(userProfile, data.workspaceId);
+    await this.assertNonOverlappingPlan(data);
 
     return this.capacityPlanRepository.create(data);
   }
@@ -120,6 +130,14 @@ export class CapacityPlanController {
   ): Promise<void> {
     const capacityPlan = await this.capacityPlanRepository.findById(id);
     await this.assertCanManageWorkspace(userProfile, capacityPlan.workspaceId);
+    await this.assertNonOverlappingPlan(
+      {
+        ...capacityPlan,
+        ...data,
+        workspaceId: capacityPlan.workspaceId,
+      },
+      id,
+    );
 
     return this.capacityPlanRepository.updateById(id, data);
   }
@@ -143,6 +161,13 @@ export class CapacityPlanController {
   ): Promise<void> {
     const capacityPlan = await this.capacityPlanRepository.findById(id);
     await this.assertCanManageWorkspace(userProfile, capacityPlan.workspaceId);
+    await this.assertNonOverlappingPlan(
+      {
+        ...data,
+        workspaceId: capacityPlan.workspaceId,
+      },
+      id,
+    );
 
     return this.capacityPlanRepository.replaceById(id, data);
   }
@@ -203,5 +228,52 @@ export class CapacityPlanController {
       Number(workspaceId),
       userId,
     );
+  }
+
+  private async assertNonOverlappingPlan(
+    data: DataObject<CapacityPlan>,
+    ignoredPlanId?: number,
+  ): Promise<void> {
+    const workspaceId = Number(data.workspaceId);
+    const start = this.parsePlanDate(data.start, 'start');
+    const end = this.parsePlanDate(data.end, 'end');
+
+    if (start.getTime() > end.getTime()) {
+      throw new HttpErrors.UnprocessableEntity(
+        'Capacity plan start date must be before the end date.',
+      );
+    }
+
+    const overlappingPlans = await this.capacityPlanRepository.find({
+      where: {
+        workspaceId,
+        start: {lte: end.toISOString()},
+        end: {gte: start.toISOString()},
+      },
+    });
+    const hasOverlap = overlappingPlans.some(
+      plan => Number(plan.id) !== Number(ignoredPlanId),
+    );
+
+    if (hasOverlap) {
+      throw new HttpErrors.UnprocessableEntity(
+        'Capacity plans cannot overlap with another plan in this workspace.',
+      );
+    }
+  }
+
+  private parsePlanDate(
+    value: string | Date | undefined,
+    fieldName: string,
+  ): Date {
+    const parsed = value instanceof Date ? value : new Date(String(value));
+
+    if (Number.isNaN(parsed.getTime())) {
+      throw new HttpErrors.UnprocessableEntity(
+        `Capacity plan ${fieldName} date is invalid.`,
+      );
+    }
+
+    return parsed;
   }
 }

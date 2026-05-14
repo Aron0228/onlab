@@ -14,6 +14,7 @@ describe('CapacityPlanningSyncService (unit)', () => {
   };
   let githubRepositoryRepository: {findById: ReturnType<typeof vi.fn>};
   let issueAssignmentRepository: {
+    find: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     deleteById: ReturnType<typeof vi.fn>;
@@ -22,14 +23,22 @@ describe('CapacityPlanningSyncService (unit)', () => {
     findById: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
   };
-  let workspaceRepository: {findById: ReturnType<typeof vi.fn>};
+  let workspaceRepository: {
+    find: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
+  };
   let githubService: {setIssueAssignees: ReturnType<typeof vi.fn>};
   let auditEventService: {record: ReturnType<typeof vi.fn>};
   let service: CapacityPlanningSyncService;
 
   beforeEach(() => {
     capacityPlanRepository = {
-      findById: vi.fn().mockResolvedValue({id: 8, workspaceId: 3}),
+      findById: vi.fn().mockResolvedValue({
+        id: 8,
+        workspaceId: 3,
+        start: new Date(Date.now() - 60_000).toISOString(),
+        end: new Date(Date.now() + 60_000).toISOString(),
+      }),
       findOne: vi.fn().mockResolvedValue({id: 8, workspaceId: 3}),
     };
     githubIssueRepository = {
@@ -47,6 +56,7 @@ describe('CapacityPlanningSyncService (unit)', () => {
       findById: vi.fn().mockResolvedValue({id: 4, fullName: 'team/api'}),
     };
     issueAssignmentRepository = {
+      find: vi.fn().mockResolvedValue([]),
       findOne: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({id: 19}),
       deleteById: vi.fn().mockResolvedValue(undefined),
@@ -64,6 +74,7 @@ describe('CapacityPlanningSyncService (unit)', () => {
       }),
     };
     workspaceRepository = {
+      find: vi.fn().mockResolvedValue([]),
       findById: vi.fn().mockResolvedValue({
         id: 3,
         githubInstallationId: '77',
@@ -136,6 +147,99 @@ describe('CapacityPlanningSyncService (unit)', () => {
 
     expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
     expect(auditEventService.record).not.toHaveBeenCalled();
+  });
+
+  it('skips immediate GitHub updates for future plans', async () => {
+    capacityPlanRepository.findById.mockResolvedValue({
+      id: 8,
+      workspaceId: 3,
+      start: new Date(Date.now() + 60_000).toISOString(),
+      end: new Date(Date.now() + 120_000).toISOString(),
+    });
+
+    await service.syncIssueAssignment(
+      new IssueAssignment({
+        capacityPlanId: 8,
+        issueId: 11,
+        userId: 5,
+        assignedHours: 6,
+      }),
+    );
+
+    expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
+  });
+
+  it('syncs assignments from active capacity plans on scheduled runs', async () => {
+    workspaceRepository.find.mockResolvedValue([
+      {
+        id: 3,
+        githubInstallationId: '77',
+        capacityPlanningSync: true,
+      },
+    ]);
+    capacityPlanRepository.findOne.mockResolvedValue({
+      id: 8,
+      workspaceId: 3,
+      start: new Date(Date.now() - 60_000).toISOString(),
+      end: new Date(Date.now() + 60_000).toISOString(),
+    });
+    issueAssignmentRepository.find.mockResolvedValue([
+      new IssueAssignment({
+        id: 9,
+        capacityPlanId: 8,
+        issueId: 11,
+        userId: 5,
+        assignedHours: 6,
+      }),
+      new IssueAssignment({
+        id: 10,
+        capacityPlanId: 8,
+        issueId: 11,
+        userId: 6,
+        assignedHours: 4,
+      }),
+    ]);
+    userRepository.findById
+      .mockResolvedValueOnce({id: 5, username: 'octocat'})
+      .mockResolvedValueOnce({id: 6, username: 'hubot'});
+
+    await expect(service.syncActiveCapacityPlans()).resolves.toBe(1);
+
+    expect(issueAssignmentRepository.find).toHaveBeenCalledWith({
+      where: {capacityPlanId: 8},
+    });
+    expect(githubService.setIssueAssignees).toHaveBeenCalledWith(
+      77,
+      'team/api',
+      27,
+      ['octocat', 'hubot'],
+    );
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 3,
+        action: 'capacity-planning.active-plan.synced',
+        resourceType: 'capacity-plan',
+        resourceId: '8',
+        source: 'system',
+      }),
+    );
+  });
+
+  it('skips scheduled capacity planning sync when no active plan exists', async () => {
+    workspaceRepository.find.mockResolvedValue([
+      {
+        id: 3,
+        githubInstallationId: '77',
+        capacityPlanningSync: true,
+      },
+    ]);
+    capacityPlanRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.syncActiveCapacityPlans()).resolves.toBe(0);
+
+    expect(issueAssignmentRepository.find).not.toHaveBeenCalled();
+    expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
   });
 
   it('skips GitHub updates when the workspace has no GitHub installation', async () => {

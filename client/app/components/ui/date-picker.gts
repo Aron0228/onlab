@@ -9,10 +9,12 @@ import { on } from '@ember/modifier';
 import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
 import UiIcon from 'client/components/ui/icon';
+import moment from 'moment';
 
 type CalendarDay = {
   date: Date;
   dayNumber: number;
+  isDisabled: boolean;
   isCurrentMonth: boolean;
   isSelected: boolean;
   isToday: boolean;
@@ -25,6 +27,7 @@ export interface UiDatePickerSignature {
     id?: string;
     placeholder?: string;
     disabled?: boolean;
+    isDateDisabled?: (isoValue: string) => boolean;
     onInput?: (value: string) => void;
     onChange?: (value: string) => void;
   };
@@ -77,32 +80,17 @@ export default class UiDatePicker extends Component<UiDatePickerSignature> {
       return this.args.placeholder ?? 'Select date';
     }
 
-    return new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(this.parseDate(this.committedValue));
+    return moment(this.parseDate(this.committedValue)).format('LL');
   }
 
   get monthLabel(): string {
-    return new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'long',
-    }).format(this.visibleMonth);
+    return moment(this.visibleMonth).format('MMMM YYYY');
   }
 
   get weekdayLabels(): string[] {
-    const formatter = new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-    });
-    const monday = new Date(Date.UTC(2026, 3, 13));
+    const weekdays = moment.weekdaysShort();
 
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(monday);
-      date.setUTCDate(monday.getUTCDate() + index);
-
-      return formatter.format(date);
-    });
+    return [...weekdays.slice(1), weekdays[0] ?? 'Sun'];
   }
 
   get calendarDays(): CalendarDay[] {
@@ -125,6 +113,7 @@ export default class UiDatePicker extends Component<UiDatePickerSignature> {
       return {
         date,
         dayNumber: date.getDate(),
+        isDisabled: Boolean(this.args.isDateDisabled?.(isoValue)),
         isCurrentMonth: date.getMonth() === this.visibleMonth.getMonth(),
         isSelected: isoValue === selectedValue,
         isToday: this.formatDate(today) === isoValue,
@@ -178,7 +167,9 @@ export default class UiDatePicker extends Component<UiDatePickerSignature> {
   dayButtonClass(day: CalendarDay): string {
     return `ui-date-picker__day ${
       day.isSelected ? '--selected' : ''
-    } ${!day.isCurrentMonth ? '--muted' : ''} ${day.isToday ? '--today' : ''}`;
+    } ${!day.isCurrentMonth ? '--muted' : ''} ${day.isToday ? '--today' : ''} ${
+      day.isDisabled ? '--disabled' : ''
+    }`;
   }
 
   @action
@@ -229,7 +220,13 @@ export default class UiDatePicker extends Component<UiDatePickerSignature> {
   @action
   selectDay(isoValue: string, event?: Event) {
     event?.stopPropagation();
+
+    if (this.args.isDateDisabled?.(isoValue)) {
+      return;
+    }
+
     this.stagedValue = isoValue;
+    this.commitSelection(event);
   }
 
   @action
@@ -304,6 +301,7 @@ export default class UiDatePicker extends Component<UiDatePickerSignature> {
                 <button
                   type="button"
                   class={{this.dayButtonClass day}}
+                  disabled={{day.isDisabled}}
                   {{on "click" (fn this.selectDay day.isoValue)}}
                 >
                   {{day.dayNumber}}
