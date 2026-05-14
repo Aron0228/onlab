@@ -90,6 +90,7 @@ describe('GithubWebhookService (unit)', () => {
         id: 99,
         fullName: 'team/api',
         workspaceId: 4,
+        workspace: {id: 4, issueSync: true},
       }),
     };
     userRepository = {
@@ -274,6 +275,57 @@ describe('GithubWebhookService (unit)', () => {
     expect(githubService.markIssueAsProcessing).not.toHaveBeenCalled();
     expect(githubService.applyPriorityPredictionToIssue).not.toHaveBeenCalled();
     expect(issueService.upsertIssue).not.toHaveBeenCalled();
+  });
+
+  it('upserts issues without AI priority side effects when issue priorities are disabled', async () => {
+    githubRepositoryRepository.findOne.mockResolvedValueOnce({
+      id: 99,
+      fullName: 'team/api',
+      workspaceId: 4,
+      workspace: {id: 4, issueSync: false},
+    });
+
+    await service.handleWebhook('issues', {
+      action: 'edited',
+      sender: {
+        login: 'octocat',
+        type: 'User',
+      },
+      installation: {id: 123},
+      repository: {
+        owner: {login: 'team'},
+        name: 'api',
+        full_name: 'team/api',
+      },
+      issue: {
+        id: 11,
+        node_id: 'node-1',
+        number: 101,
+        title: 'Broken',
+        body: 'Updated body',
+        state: 'open',
+      },
+    });
+
+    expect(issueService.upsertIssue).toHaveBeenCalledWith(
+      {
+        repositoryId: 99,
+        githubId: 11,
+        githubIssueNumber: 101,
+        title: 'Broken',
+        status: 'open',
+        description: 'Updated body',
+      },
+      {
+        repositoryId: 99,
+        githubId: 11,
+      },
+      undefined,
+    );
+    expect(issuePriorityService.predictIssuePriority).not.toHaveBeenCalled();
+    expect(githubService.markIssueAsProcessing).not.toHaveBeenCalled();
+    expect(githubService.syncRepositoryLabels).not.toHaveBeenCalled();
+    expect(githubService.applyPriorityPredictionToIssue).not.toHaveBeenCalled();
   });
 
   it('still processes issue events authored by third-party bots', async () => {

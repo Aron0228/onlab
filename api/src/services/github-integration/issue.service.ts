@@ -19,7 +19,7 @@ type IssuePredictionWrite = {
 
 type GithubIssueWrite = {
   issue: DataObject<GithubIssue>;
-  prediction: IssuePredictionWrite;
+  prediction?: IssuePredictionWrite | null;
 };
 
 @injectable({scope: BindingScope.SINGLETON})
@@ -123,11 +123,15 @@ export class IssueService {
           'github.issue.synced',
         );
       }
-      await this.aiPredictionService.createPredictionsBulk(
-        createdIssues.map((issue, batchIndex) =>
-          buildAIPredictionWrite(issue.id, batch[batchIndex].prediction),
-        ),
-      );
+      const predictionWrites = createdIssues.flatMap((issue, batchIndex) => {
+        const prediction = batch[batchIndex].prediction;
+
+        return prediction ? [buildAIPredictionWrite(issue.id, prediction)] : [];
+      });
+
+      if (predictionWrites.length) {
+        await this.aiPredictionService.createPredictionsBulk(predictionWrites);
+      }
     }
   }
 

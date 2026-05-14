@@ -210,6 +210,7 @@ async function processSyncIssuesJob(
   workspaceMemberRepository: WorkspaceMemberRepository,
   userExpertiseAssocRepository: UserExpertiseAssocRepository,
 ) {
+  const workspace = await workspaceRepository.findById(job.data.workspaceId);
   const repositories = await githubRepositoryRepository.find({
     where: {workspaceId: job.data.workspaceId},
   });
@@ -221,6 +222,7 @@ async function processSyncIssuesJob(
       githubService,
       issuePriorityService,
       issueService,
+      workspace.issueSync !== false,
     );
   }
 
@@ -288,36 +290,48 @@ async function processCreateIssueJob(
     throw new Error('Workspace is not connected to a GitHub installation');
   }
 
-  await syncRepositoryLabels(
-    repository,
-    installationId,
-    githubService,
-    labelService,
-  );
+  const issuePriorityEnabled = workspace.issueSync !== false;
+  const prediction = issuePriorityEnabled
+    ? (job.data.prediction ??
+      (await issuePriorityService.predictIssuePriority({
+        installationId,
+        repositoryFullName: repository.fullName,
+        workspaceId: repository.workspaceId,
+        title: job.data.title,
+        description: job.data.description,
+      })))
+    : null;
 
-  const prediction =
-    job.data.prediction ??
-    (await issuePriorityService.predictIssuePriority({
+  if (issuePriorityEnabled) {
+    await syncRepositoryLabels(
+      repository,
       installationId,
-      repositoryFullName: repository.fullName,
-      workspaceId: repository.workspaceId,
-      title: job.data.title,
-      description: job.data.description,
-    }));
+      githubService,
+      labelService,
+    );
+  }
+
   const githubIssue = await githubService.createIssue(
     installationId,
     repository.fullName,
     job.data.title,
-    issuePriorityService.upsertPredictionNote(job.data.description, prediction),
+    prediction
+      ? issuePriorityService.upsertPredictionNote(
+          job.data.description,
+          prediction,
+        )
+      : job.data.description,
   );
 
-  await githubService.applyPriorityPredictionToIssue(
-    installationId,
-    repository.fullName,
-    githubIssue.number,
-    prediction,
-    job.data.description,
-  );
+  if (prediction) {
+    await githubService.applyPriorityPredictionToIssue(
+      installationId,
+      repository.fullName,
+      githubIssue.number,
+      prediction,
+      job.data.description,
+    );
+  }
 
   await issueService.upsertIssue(
     mapIssueToModel(
@@ -329,7 +343,7 @@ async function processCreateIssueJob(
       repositoryId: repository.id,
       githubId: githubIssue.id,
     },
-    prediction,
+    prediction ?? undefined,
   );
 }
 
@@ -503,8 +517,14 @@ async function syncRepositoryIssues(
   githubService: GithubService,
   issuePriorityService: IssuePriorityService,
   issueService: IssueService,
+  issuePriorityEnabled: boolean,
 ) {
-  await githubService.syncRepositoryLabels(installationId, repository.fullName);
+  if (issuePriorityEnabled) {
+    await githubService.syncRepositoryLabels(
+      installationId,
+      repository.fullName,
+    );
+  }
   await issueService.deleteByRepositoryId(repository.id);
 
   let page = 1;
@@ -520,9 +540,9 @@ async function syncRepositoryIssues(
     );
     const records: Array<{
       issue: DataObject<GithubIssue>;
-      prediction: Awaited<
+      prediction?: Awaited<
         ReturnType<IssuePriorityService['predictIssuePriority']>
-      >;
+      > | null;
     }> = [];
     const issueUpdates: Array<{
       issueNumber: number;
@@ -537,30 +557,36 @@ async function syncRepositoryIssues(
       const description = issuePriorityService.sanitizeIssueDescription(
         githubIssue.body ?? '',
       );
-      const processingReactionId = await githubService.markIssueAsProcessing(
-        installationId,
-        repository.fullName,
-        githubIssue.number,
-      );
+      const processingReactionId = issuePriorityEnabled
+        ? await githubService.markIssueAsProcessing(
+            installationId,
+            repository.fullName,
+            githubIssue.number,
+          )
+        : null;
 
-      const prediction = await issuePriorityService.predictIssuePriority({
-        installationId,
-        repositoryFullName: repository.fullName,
-        workspaceId: repository.workspaceId,
-        title: githubIssue.title,
-        description,
-      });
+      const prediction = issuePriorityEnabled
+        ? await issuePriorityService.predictIssuePriority({
+            installationId,
+            repositoryFullName: repository.fullName,
+            workspaceId: repository.workspaceId,
+            title: githubIssue.title,
+            description,
+          })
+        : null;
 
       records.push({
         issue: mapIssueToModel(repository.id, githubIssue, description),
         prediction,
       });
-      issueUpdates.push({
-        issueNumber: githubIssue.number,
-        description,
-        processingReactionId,
-        prediction,
-      });
+      if (prediction) {
+        issueUpdates.push({
+          issueNumber: githubIssue.number,
+          description,
+          processingReactionId,
+          prediction,
+        });
+      }
     }
 
     if (records.length && !loggedSample) {

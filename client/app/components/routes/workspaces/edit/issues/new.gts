@@ -97,14 +97,30 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
     return Number(this.args.model.workspace.id);
   }
 
+  get isIssuePriorityEnabled(): boolean {
+    return this.args.model.workspace.issueSync !== false;
+  }
+
   get canAnalyze(): boolean {
+    return Boolean(
+      this.isIssuePriorityEnabled &&
+      this.selectedRepository &&
+      this.title.trim() &&
+      this.description.trim()
+    );
+  }
+
+  get hasRequiredIssueFields(): boolean {
     return Boolean(
       this.selectedRepository && this.title.trim() && this.description.trim()
     );
   }
 
   get canCreate(): boolean {
-    return Boolean(this.canAnalyze && this.analysisResult);
+    return Boolean(
+      this.hasRequiredIssueFields &&
+      (!this.isIssuePriorityEnabled || this.analysisResult)
+    );
   }
 
   get isAnalyzeDisabled(): boolean {
@@ -162,7 +178,7 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
   }
 
   analyzeIssueTask = task(async () => {
-    if (!this.selectedRepository) {
+    if (!this.selectedRepository || !this.isIssuePriorityEnabled) {
       return;
     }
 
@@ -191,7 +207,7 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
           repositoryId: Number(this.selectedRepository.id),
           title: this.title.trim(),
           description: this.description.trim(),
-          prediction: this.analysisResult,
+          prediction: this.isIssuePriorityEnabled ? this.analysisResult : null,
         },
       }
     )) as CreateIssueResponse;
@@ -281,7 +297,12 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
             <div class="layout-vertical --gap-sm">
               <h2 class="margin-zero">Create New Issue</h2>
               <span class="font-color-text-secondary">
-                Add a new issue and let AI analyze its priority
+                {{#if this.isIssuePriorityEnabled}}
+                  Add a new issue and let AI analyze its priority
+                {{else}}
+                  Add a new issue. AI priority analysis is disabled for this
+                  workspace.
+                {{/if}}
               </span>
             </div>
           </div>
@@ -408,19 +429,33 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
           </div>
         {{/if}}
 
-        {{#if this.analyzeIssueTask.isRunning}}
-          <div class="issue-new-panel__loading">
-            <UiLoadingSpinner />
-          </div>
+        {{#if this.isIssuePriorityEnabled}}
+          {{#if this.analyzeIssueTask.isRunning}}
+            <div class="issue-new-panel__loading">
+              <UiLoadingSpinner />
+            </div>
+          {{else}}
+            <UiButton
+              class="issue-new-panel__action issue-new-panel__analyze"
+              @text="Analyze with AI"
+              @iconLeft="sparkles"
+              @hierarchy="secondary"
+              @onClick={{this.analyzeIssue}}
+              @disabled={{this.isAnalyzeDisabled}}
+            />
+          {{/if}}
         {{else}}
-          <UiButton
-            class="issue-new-panel__action issue-new-panel__analyze"
-            @text="Analyze with AI"
-            @iconLeft="sparkles"
-            @hierarchy="secondary"
-            @onClick={{this.analyzeIssue}}
-            @disabled={{this.isAnalyzeDisabled}}
-          />
+          <UiContainer @bordered={{true}} @variant="info">
+            <:default>
+              <div class="layout-horizontal --gap-sm">
+                <UiIcon @name="info" @variant="info" />
+                <p class="margin-zero font-color-text-secondary">
+                  AI issue priority analysis is disabled in workspace settings,
+                  so this issue will be created without AI labels or notes.
+                </p>
+              </div>
+            </:default>
+          </UiContainer>
         {{/if}}
 
         <div class="issue-new-panel__footer layout-horizontal --gap-md">

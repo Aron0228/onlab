@@ -41,7 +41,9 @@ describe('GithubIssueController (unit)', () => {
         .mockResolvedValue({id: 4, workspaceId: 9, fullName: 'team/api'}),
     };
     workspaceRepository = {
-      findById: vi.fn().mockResolvedValue({githubInstallationId: 11}),
+      findById: vi
+        .fn()
+        .mockResolvedValue({githubInstallationId: 11, issueSync: true}),
     };
     issueService = {
       deleteById: vi.fn().mockResolvedValue(undefined),
@@ -166,6 +168,23 @@ describe('GithubIssueController (unit)', () => {
     expect(priorityService.predictIssuePriority).not.toHaveBeenCalled();
   });
 
+  it('rejects priority analysis when AI issue priorities are disabled', async () => {
+    workspaceRepository.findById.mockResolvedValueOnce({
+      githubInstallationId: 11,
+      issueSync: false,
+    });
+
+    await expect(
+      controller.analyzePriority({id: 7} as never, {
+        repositoryId: 4,
+        title: 'Broken sign-in',
+        description: 'Users cannot log in',
+      }),
+    ).rejects.toBeInstanceOf(HttpErrors.BadRequest);
+
+    expect(priorityService.predictIssuePriority).not.toHaveBeenCalled();
+  });
+
   it('queues issue creation with the already analyzed prediction', async () => {
     const prediction: IssuePriorityPrediction = {
       priority: 'High',
@@ -194,6 +213,36 @@ describe('GithubIssueController (unit)', () => {
       title: 'Broken sign-in',
       description: 'Users cannot log in',
       prediction,
+    });
+  });
+
+  it('queues issue creation without a prediction when AI issue priorities are disabled', async () => {
+    workspaceRepository.findById.mockResolvedValueOnce({
+      githubInstallationId: 11,
+      issueSync: false,
+    });
+
+    await expect(
+      controller.createWithPriority({id: 7} as never, {
+        repositoryId: 4,
+        title: 'Broken sign-in',
+        description: 'Users cannot log in',
+        prediction: {
+          priority: 'High',
+          reason: 'Should be ignored',
+        },
+      }),
+    ).resolves.toEqual({
+      queued: true,
+      jobId: 'create-issue:4:broken-sign-in',
+    });
+
+    expect(priorityService.normalizePredictionInput).not.toHaveBeenCalled();
+    expect(queueService.enqueueGithubIssueCreation).toHaveBeenCalledWith({
+      repositoryId: 4,
+      title: 'Broken sign-in',
+      description: 'Users cannot log in',
+      prediction: null,
     });
   });
 
