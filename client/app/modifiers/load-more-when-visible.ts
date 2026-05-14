@@ -5,13 +5,16 @@ type LoadMoreWhenVisibleNamedArgs = {
   rootMargin?: string;
 };
 
+const ROOT_MARGIN_PART_PATTERN = /^-?\d*\.?\d+(px|%)$/;
+const DEFAULT_ROOT_MARGIN = '0px 0px 288px 0px';
+
 export default modifier(
   (
     element: Element,
     [onLoadMore]: [() => void],
     {
       enabled = true,
-      rootMargin = '0px 0px 18rem 0px',
+      rootMargin = DEFAULT_ROOT_MARGIN,
     }: LoadMoreWhenVisibleNamedArgs
   ) => {
     if (!enabled || typeof IntersectionObserver === 'undefined') {
@@ -28,7 +31,7 @@ export default modifier(
       },
       {
         root: element.parentElement,
-        rootMargin,
+        rootMargin: normalizeRootMargin(rootMargin),
       }
     );
 
@@ -39,3 +42,17 @@ export default modifier(
     };
   }
 );
+
+function normalizeRootMargin(rootMargin: string): string {
+  const parts = rootMargin.trim().split(/\s+/);
+
+  if (
+    parts.length >= 1 &&
+    parts.length <= 4 &&
+    parts.every((part) => ROOT_MARGIN_PART_PATTERN.test(part))
+  ) {
+    return rootMargin;
+  }
+
+  return DEFAULT_ROOT_MARGIN;
+}
