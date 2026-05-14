@@ -27,6 +27,7 @@ import type SessionAccountService from 'client/services/session-account';
 import type SessionService from 'ember-simple-auth/services/session';
 
 type SocketLike = {
+  connected?: boolean;
   on(
     event: string,
     callback: (...args: unknown[]) => void,
@@ -154,6 +155,7 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     this.socket?.off('typing:updated', this.onTypingUpdated);
     this.socket?.off('presence:snapshot', this.onPresenceSnapshot);
     this.socket?.off('presence:updated', this.onPresenceUpdated);
+    this.socket?.off('connect', this.onSocketConnected);
     this.emitTyping(false);
     this.clearTypingTimers();
     this.revokeSelectedFilePreviewUrl();
@@ -362,7 +364,7 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     this.selectedChannelId = channel.id;
     this.messages = channel.messages;
     this.markChannelRead(channel.id);
-    this.socket?.emit('channel:join', channel.id);
+    this.safeSocketEmit('channel:join', channel.id);
     this.isThreadPinnedToBottom = true;
     this.scheduleThreadScrollToBottom(true);
   }
@@ -605,7 +607,7 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
         ? [await this.uploadAttachment(this.selectedFile)]
         : [];
 
-      this.socket?.emit(
+      const didSend = this.safeSocketEmit(
         'message:send',
         {
           channelId: this.selectedChannelId,
@@ -620,6 +622,11 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
           }
         }
       );
+
+      if (!didSend) {
+        this.errorMessage = 'Connection is not ready yet. Please try again.';
+        return;
+      }
 
       this.draft = '';
       this.clearSelectedFile();
@@ -902,17 +909,24 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     socket.on('typing:updated', this.onTypingUpdated, this);
     socket.on('presence:snapshot', this.onPresenceSnapshot, this);
     socket.on('presence:updated', this.onPresenceUpdated, this);
+    socket.on('connect', this.onSocketConnected, this);
 
     this.socket = socket;
 
-    socket.emit('presence:request', {}, (rawResponse) => {
+    if (this.isSocketOpen(socket)) {
+      this.onSocketConnected();
+    }
+  };
+
+  private onSocketConnected = (): void => {
+    this.safeSocketEmit('presence:request', {}, (rawResponse) => {
       const response = rawResponse as PresenceRequestResponse;
 
       this.onPresenceSnapshot(response);
     });
 
     if (this.selectedChannelId) {
-      socket.emit('channel:join', this.selectedChannelId);
+      this.safeSocketEmit('channel:join', this.selectedChannelId);
     }
   };
 
@@ -1077,7 +1091,7 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     }
 
     if (channelId) {
-      this.socket?.emit('channel:join', channelId);
+      this.safeSocketEmit('channel:join', channelId);
     }
 
     this.scheduleThreadScrollToBottom(true);
@@ -1101,7 +1115,7 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   private emitTyping(isTyping: boolean): void {
     if (!this.selectedChannelId) return;
 
-    this.socket?.emit('typing:update', {
+    this.safeSocketEmit('typing:update', {
       channelId: this.selectedChannelId,
       isTyping,
     });
@@ -1110,6 +1124,34 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
       globalThis.clearTimeout(this.typingStopTimer);
       this.typingStopTimer = undefined;
     }
+  }
+
+  private safeSocketEmit(
+    event: string,
+    payload: unknown,
+    callback?: (response: unknown) => void
+  ): boolean {
+    if (!this.socket || !this.isSocketOpen(this.socket)) {
+      return false;
+    }
+
+    try {
+      this.socket.emit(event, payload, callback);
+      return true;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.toLowerCase().includes('transport not open')
+      ) {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  private isSocketOpen(socket: SocketLike): boolean {
+    return socket.connected === true;
   }
 
   private resetTypingExpiry(userId: number): void {
