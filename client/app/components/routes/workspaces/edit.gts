@@ -6,6 +6,7 @@ import UiButton from 'client/components/ui/button';
 import UiCheckbox from 'client/components/ui/checkbox';
 import UiInput from 'client/components/ui/input';
 import RoutesWorkspacesHeaderActions from 'client/components/routes/workspaces/header-actions';
+import RoutesWorkspacesWorkspaceSelector from 'client/components/routes/workspaces/workspace-selector';
 import { LinkTo } from '@ember/routing';
 import { fn } from '@ember/helper';
 import { on } from '@ember/modifier';
@@ -763,6 +764,9 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
           <div
             class="workspace-header-panel__workspace layout-horizontal --gap-md"
           >
+            <RoutesWorkspacesWorkspaceSelector
+              @workspace={{@model.workspace}}
+            />
             <RoutesWorkspacesHeaderActions />
           </div>
         </div>

@@ -33,11 +33,164 @@
     display: flex;
     align-items: center;
     width: 100%;
+    min-width: 0;
   }
 
   .workspace-header-panel__title {
     color: var(--text-on-primary);
     font-weight: var(--font-weight-bold);
+  }
+
+  .workspace-selector {
+    position: relative;
+    z-index: 40;
+    width: min(31rem, 48vw);
+    min-width: 17rem;
+  }
+
+  .workspace-selector__trigger {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 4rem;
+    padding: var(--space-sm);
+    gap: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
+  .workspace-selector__trigger:hover,
+  .workspace-selector__trigger:focus-visible {
+    background: var(--bg-hover);
+    border-color: var(--color-primary-600);
+    outline: none;
+  }
+
+  .workspace-selector__trigger-copy,
+  .workspace-selector__item-copy {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: calc(var(--space-xs) / 2);
+  }
+
+  .workspace-selector__trigger-copy strong,
+  .workspace-selector__item-copy strong,
+  .workspace-selector__trigger-copy small,
+  .workspace-selector__item-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-selector__trigger-copy strong,
+  .workspace-selector__item-copy strong {
+    font-weight: var(--font-weight-bold);
+  }
+
+  .workspace-selector__trigger-copy small,
+  .workspace-selector__item-copy small {
+    color: var(--text-muted);
+  }
+
+  .workspace-selector__chevron {
+    color: var(--text-muted);
+    transition: transform 0.16s ease;
+  }
+
+  .workspace-selector__chevron.--open {
+    transform: rotate(180deg);
+  }
+
+  .workspace-selector__menu {
+    position: absolute;
+    top: calc(100% + var(--space-xs));
+    left: 0;
+    width: min(34rem, calc(100vw - var(--space-xl)));
+    max-height: min(34rem, calc(100dvh - 7rem));
+    overflow-y: auto;
+    padding: var(--space-sm);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.32);
+  }
+
+  .workspace-selector__menu-header {
+    padding: var(--space-xs) var(--space-sm) var(--space-sm);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+  }
+
+  .workspace-selector__list {
+    display: grid;
+    gap: var(--space-xs);
+  }
+
+  .workspace-selector__item,
+  .workspace-selector__create {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 4rem;
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
+  .workspace-selector__item:hover,
+  .workspace-selector__create:hover,
+  .workspace-selector__item:focus-visible,
+  .workspace-selector__create:focus-visible {
+    background: var(--bg-hover);
+    outline: none;
+  }
+
+  .workspace-selector__item.--active {
+    background: var(--bg-active);
+  }
+
+  .workspace-selector__create {
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+
+  .workspace-selector__create-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-600);
+    color: var(--text-on-primary);
+  }
+
+  .workspace-selector__empty {
+    padding: var(--space-sm);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .workspace-selector__loading {
+    display: grid;
+    min-height: 5rem;
+    place-items: center;
   }
 
   .body {
@@ -313,6 +466,15 @@
       align-items: center;
       justify-content: space-between;
       min-height: 5rem;
+    }
+
+    .workspace-selector {
+      width: min(24rem, calc(100vw - 7rem));
+      min-width: 0;
+    }
+
+    .workspace-selector__trigger {
+      min-height: 3.5rem;
     }
 
     .body.--collapsed .workspace-summary,
