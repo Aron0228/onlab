@@ -233,7 +233,10 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
       return;
     }
 
-    void this.router.transitionTo('workspaces.edit', Number(workspace.id));
+    void this.router.transitionTo(
+      'workspaces.edit.news-feed',
+      Number(workspace.id)
+    );
   }
 
   @action

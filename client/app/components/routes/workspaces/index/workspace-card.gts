@@ -23,7 +23,7 @@ export default class RoutesWorkspacesIndexWorkspaceCard extends Component<Routes
   }
 
   <template>
-    <LinkTo @route="workspaces.edit" @model={{@model.id}}>
+    <LinkTo @route="workspaces.edit.news-feed" @model={{@model.id}}>
       <UiContainer @bordered={{true}} class="">
         <div class="layout-horizontal --gap-md">
           <UiAvatar @model={{@model}} @squared={{true}} />
