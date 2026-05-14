@@ -24,6 +24,7 @@
     "eslint:fix": "eslint . --fix",
     "pretest": "pnpm run rebuild",
     "test": "vitest run",
+    "test:security": "vitest run --config vitest.security.config.ts",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "docker:build": "docker build -t rest-api .",

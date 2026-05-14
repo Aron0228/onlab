@@ -14,6 +14,7 @@ import {UserProfile} from '@loopback/security';
 import {AuthenticationBindings} from '@loopback/authentication';
 import {HttpErrors} from '@loopback/rest';
 import {WORKSPACE_MEMBER_ROLE} from '../../constants';
+import {UserRepository} from '../auth';
 
 export class InvitationRepository extends DefaultCrudRepository<
   Invitation,
@@ -31,6 +32,8 @@ export class InvitationRepository extends DefaultCrudRepository<
     private workspaceRepositoryGetter: Getter<WorkspaceRepository>,
     @repository.getter('WorkspaceMemberRepository')
     private workspaceMemberRepositoryGetter: Getter<WorkspaceMemberRepository>,
+    @repository.getter('UserRepository')
+    private userRepositoryGetter: Getter<UserRepository>,
 
     @inject.getter(AuthenticationBindings.CURRENT_USER)
     private currentUserProfileGetter: Getter<UserProfile | undefined>,
@@ -56,6 +59,7 @@ export class InvitationRepository extends DefaultCrudRepository<
 
     const workspaceMemberRepository =
       await this.workspaceMemberRepositoryGetter();
+    const userRepository = await this.userRepositoryGetter();
 
     // Default serialization level is IsolationLevel.READ_COMMITTED
     const tx = await this.dataSource.beginTransaction({
@@ -66,9 +70,20 @@ export class InvitationRepository extends DefaultCrudRepository<
       const invitation = await this.findById(invitationId, {
         fields: {
           id: true,
+          email: true,
           workspaceId: true,
         },
       });
+      const user = await userRepository.findById(Number(currentUserId));
+
+      if (
+        user.email.trim().toLowerCase() !==
+        invitation.email.trim().toLowerCase()
+      ) {
+        throw new HttpErrors.Forbidden(
+          'This invitation belongs to another email address.',
+        );
+      }
 
       await workspaceMemberRepository.create({
         userId: currentUserId,
@@ -79,6 +94,10 @@ export class InvitationRepository extends DefaultCrudRepository<
       await this.deleteById(invitation.id);
     } catch (error) {
       tx.rollback();
+
+      if (error instanceof HttpErrors.HttpError) {
+        throw error;
+      }
 
       throw new HttpErrors.InternalServerError(error.message);
     }
