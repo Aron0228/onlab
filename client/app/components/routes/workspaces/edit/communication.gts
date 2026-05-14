@@ -28,6 +28,9 @@ import type SessionService from 'ember-simple-auth/services/session';
 
 type SocketLike = {
   connected?: boolean;
+  socket?: {
+    connected?: boolean;
+  };
   on(
     event: string,
     callback: (...args: unknown[]) => void,
@@ -1151,7 +1154,7 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   }
 
   private isSocketOpen(socket: SocketLike): boolean {
-    return socket.connected === true;
+    return socket.connected === true || socket.socket?.connected === true;
   }
 
   private resetTypingExpiry(userId: number): void {
