@@ -4,7 +4,7 @@ import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
 import { fn, hash } from '@ember/helper';
 import { on } from '@ember/modifier';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { LinkTo } from '@ember/routing';
 import { task } from 'ember-concurrency';
 import UiAvatar from 'client/components/ui/avatar';

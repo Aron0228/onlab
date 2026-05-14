@@ -1,4 +1,4 @@
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type GithubPullRequestModel from 'client/models/github-pull-request';
 import ProtectedRoute from 'client/routes/protected';
 import type { WorkspacesEditPullRequestsRouteModel } from 'client/routes/workspaces/edit/pull-requests';

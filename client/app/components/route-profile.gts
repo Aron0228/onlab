@@ -1,7 +1,7 @@
 import Component from '@glimmer/component';
 import UiAvatar from 'client/components/ui/avatar';
 import { LinkTo } from '@ember/routing';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { hash } from '@ember/helper';
 import { or } from 'ember-truth-helpers';
 import type UserModel from 'client/models/user';

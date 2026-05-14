@@ -1,4 +1,4 @@
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type GithubRepositoryModel from 'client/models/github-repository';
 import type NewsFeedEntryModel from 'client/models/news-feed-entry';
 import type WorkspaceModel from 'client/models/workspace';

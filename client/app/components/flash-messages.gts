@@ -1,7 +1,7 @@
 import Component from '@glimmer/component';
 import { fn } from '@ember/helper';
 import UiAlert from 'client/components/ui/alert';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type RouterService from '@ember/routing/router-service';
 import type { EmptyArgs } from 'client/types/component';
 

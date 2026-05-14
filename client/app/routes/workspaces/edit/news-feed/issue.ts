@@ -1,5 +1,5 @@
 import Route from '@ember/routing/route';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type GithubIssueModel from 'client/models/github-issue';
 import type { WorkspacesEditNewsFeedRouteModel } from 'client/routes/workspaces/edit/news-feed';
 

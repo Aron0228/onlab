@@ -1,5 +1,5 @@
 import Route from '@ember/routing/route';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import type WorkspaceModel from 'client/models/workspace';
 import type SessionAccountService from 'client/services/session-account';
 

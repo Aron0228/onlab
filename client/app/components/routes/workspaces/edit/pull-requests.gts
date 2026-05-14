@@ -4,7 +4,7 @@ import { action } from '@ember/object';
 import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { task } from 'ember-concurrency';
 import { modifier } from 'ember-modifier';
 import type { WorkspacesEditPullRequestsRouteModel } from 'client/routes/workspaces/edit/pull-requests';

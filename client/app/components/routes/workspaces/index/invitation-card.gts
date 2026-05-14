@@ -1,5 +1,5 @@
 import Component from '@glimmer/component';
-import { inject as service } from '@ember/service';
+import { service } from '@ember/service';
 import { task } from 'ember-concurrency';
 import UiAvatar from 'client/components/ui/avatar';
 import UiButton from 'client/components/ui/button';
