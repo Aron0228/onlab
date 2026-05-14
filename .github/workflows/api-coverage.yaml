@@ -4,12 +4,12 @@ on:
   push:
     branches: [master]
     paths:
-      - "api/**"
+      - 'api/**'
   pull_request:
     branches:
-      - "*"
+      - '*'
     paths:
-      - "api/**"
+      - 'api/**'
 
 permissions:
   contents: read
@@ -78,6 +78,10 @@ jobs:
       - name: Run API tests with coverage
         working-directory: api
         run: pnpm exec vitest run --coverage
+
+      - name: Run API security authorization tests
+        working-directory: api
+        run: pnpm run test:security
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

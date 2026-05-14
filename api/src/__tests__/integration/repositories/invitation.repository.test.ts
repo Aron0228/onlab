@@ -118,6 +118,10 @@ describe('InvitationRepository (integration)', () => {
         throw new Error('workspace accessor not used');
       },
       async () => workspaceMemberRepository as never,
+      async () =>
+        ({
+          findById: vi.fn().mockResolvedValue({email: 'invitee@example.com'}),
+        }) as never,
       async () => givenCurrentUser(42),
     );
     const rollback = vi.fn();
@@ -154,6 +158,7 @@ describe('InvitationRepository (integration)', () => {
         throw new Error('workspace accessor not used');
       },
       async () => ({create: vi.fn()}) as never,
+      async () => ({findById: vi.fn()}) as never,
       async () => undefined,
     );
 
@@ -172,6 +177,10 @@ describe('InvitationRepository (integration)', () => {
       async () =>
         ({
           create: vi.fn().mockRejectedValue(new Error('create failed')),
+        }) as never,
+      async () =>
+        ({
+          findById: vi.fn().mockResolvedValue({email: 'invitee@example.com'}),
         }) as never,
       async () => givenCurrentUser(42),
     );
