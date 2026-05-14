@@ -5,7 +5,7 @@ import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { service } from '@ember/service';
-import { task } from 'ember-concurrency';
+import { didCancel, restartableTask, task, timeout } from 'ember-concurrency';
 import { modifier } from 'ember-modifier';
 import type { WorkspacesEditPullRequestsRouteModel } from 'client/routes/workspaces/edit/pull-requests';
 import type GithubPullRequestModel from 'client/models/github-pull-request';
@@ -47,7 +47,9 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
   @tracked pullRequestOffset = 0;
   @tracked hasMorePullRequests = true;
   @tracked hasLoadedInitialPullRequests = false;
+  @tracked searchQuery = '';
   private paginationScopeKey: string | null = null;
+  private paginationGeneration = 0;
 
   loadPullRequestsPageTask = task(async () => {
     if (!this.hasMorePullRequests) {
@@ -55,6 +57,9 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
     }
 
     const repositoryIds = this.repositoryIds;
+    const searchQuery = this.normalizedSearchQuery;
+    const generation = this.paginationGeneration;
+    const offset = this.pullRequestOffset;
 
     if (!repositoryIds.length) {
       this.hasMorePullRequests = false;
@@ -62,17 +67,35 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
       return;
     }
 
+    const where: Record<string, unknown> = {
+      repositoryId: { inq: repositoryIds },
+    };
+
+    if (searchQuery) {
+      const searchTerm = `%${escapeLikeTerm(searchQuery)}%`;
+      where.or = [
+        { title: { ilike: searchTerm } },
+        { description: { ilike: searchTerm } },
+      ];
+    }
+
     const pullRequests = await this.store.query('github-pull-request', {
       filter: {
         include: ['aiPrediction'],
         limit: PULL_REQUEST_PAGE_SIZE,
-        skip: this.pullRequestOffset,
+        skip: offset,
         order: ['id DESC'],
-        where: {
-          repositoryId: { inq: repositoryIds },
-        },
+        where,
       },
     });
+
+    if (
+      generation !== this.paginationGeneration ||
+      searchQuery !== this.normalizedSearchQuery ||
+      offset !== this.pullRequestOffset
+    ) {
+      return;
+    }
 
     this.pullRequestOffset += pullRequests.length;
     this.hasMorePullRequests = pullRequests.length === PULL_REQUEST_PAGE_SIZE;
@@ -83,6 +106,11 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
     );
   });
 
+  searchPullRequestsTask = restartableTask(async () => {
+    await timeout(250);
+    this.loadNextPage();
+  });
+
   get repositoryIds(): Array<string | number> {
     return this.args.model.repositories.flatMap((repo) =>
       repo.id == null ? [] : [repo.id]
@@ -91,6 +119,10 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
 
   get repositoryScopeKey(): string {
     return this.repositoryIds.join(',');
+  }
+
+  get normalizedSearchQuery(): string {
+    return this.searchQuery.trim();
   }
 
   get filters() {
@@ -303,17 +335,30 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
   }
 
   @action
+  updateSearchQuery(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.searchQuery = target.value;
+
+    void this.loadPullRequestsPageTask.cancelAll();
+    this.resetPagination();
+    this.searchPullRequestsTask.perform().catch((error: unknown) => {
+      logTaskError('Failed to search pull requests', error);
+    });
+  }
+
+  @action
   loadNextPage(): void {
     if (!this.canLoadMore) {
       return;
     }
 
     this.loadPullRequestsPageTask.perform().catch((error: unknown) => {
-      console.error('Failed to load pull requests page', error);
+      logTaskError('Failed to load pull requests page', error);
     });
   }
 
   private resetPagination(): void {
+    this.paginationGeneration += 1;
     this.workspacePullRequests = [];
     this.pullRequestOffset = 0;
     this.hasMorePullRequests = true;
@@ -358,6 +403,18 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
               >{{filter.count}}</span>
             </button>
           {{/each}}
+        </div>
+
+        <div class="pull-requests-search-container layout-horizontal --gap-sm">
+          <UiIcon @name="search" />
+          <input
+            type="text"
+            class="pull-requests-search-input"
+            aria-label="Search pull requests"
+            placeholder="Search pull requests..."
+            value={{this.searchQuery}}
+            {{on "input" this.updateSearchQuery}}
+          />
         </div>
       </div>
 
@@ -502,4 +559,16 @@ export default class RoutesWorkspacesEditPullRequests extends Component<RoutesWo
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeLikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+function logTaskError(message: string, error: unknown): void {
+  if (didCancel(error)) {
+    return;
+  }
+
+  console.error(message, error);
 }
