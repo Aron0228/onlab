@@ -56,4 +56,10 @@ export class JwtTokenService {
       ? token
       : undefined;
   }
+
+  public async revokeToken(id: string): Promise<void> {
+    const accessTokenRepository = await this.accessTokenRepositoryGetter();
+
+    await accessTokenRepository.updateById(id, {revoked: true});
+  }
 }

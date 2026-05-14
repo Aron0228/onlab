@@ -1,10 +1,20 @@
+import {authenticate} from '@loopback/authentication';
 import {inject, service} from '@loopback/core';
-import {get, param, Response, RestBindings} from '@loopback/rest';
-import {GithubOauthService} from '../services/auth/github-oauth.service';
+import {
+  get,
+  HttpErrors,
+  param,
+  post,
+  Request,
+  Response,
+  RestBindings,
+} from '@loopback/rest';
+import {GithubOauthService, JwtTokenService} from '../services/auth';
 
 export class AuthController {
   constructor(
     @service(GithubOauthService) private githubOauthService: GithubOauthService,
+    @service(JwtTokenService) private jwtTokenService: JwtTokenService,
   ) {}
 
   @get('/auth/github')
@@ -22,5 +32,31 @@ export class AuthController {
     @param.query.string('code') code?: string,
   ) {
     return await this.githubOauthService.callback(response, code);
+  }
+
+  @post('/auth/logout')
+  @authenticate('jwt-header')
+  async logout(
+    @inject(RestBindings.Http.REQUEST) request: Request,
+  ): Promise<{message: string}> {
+    const token = this.getBearerToken(request);
+
+    if (!token) {
+      throw new HttpErrors.Unauthorized('Missing authentication token.');
+    }
+
+    await this.jwtTokenService.revokeToken(token);
+
+    return {message: 'Logged out successfully.'};
+  }
+
+  private getBearerToken(request: Request): string | undefined {
+    const authorizationHeader = request.headers.authorization;
+
+    if (!authorizationHeader?.startsWith('Bearer ')) {
+      return undefined;
+    }
+
+    return authorizationHeader.slice('Bearer '.length).trim() || undefined;
   }
 }
