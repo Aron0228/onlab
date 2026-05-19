@@ -10,15 +10,19 @@
 .route-workspaces-edit-issues {
   background: var(--bg-app);
   flex: 1;
+  width: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 
   .issues-header {
     background: var(--bg-surface);
     padding: var(--space-md);
+    min-width: 0;
 
     .issues-filters {
       width: 100%;
+      min-width: 0;
     }
 
     .issue-filter {
@@ -41,6 +45,7 @@
       color: var(--issue-filter-color);
       cursor: pointer;
       text-align: left;
+      overflow: hidden;
 
       &:hover {
         border-color: var(--issue-filter-color);
@@ -90,6 +95,7 @@
 
     .issues-search-container {
       align-items: center;
+      min-width: 0;
       padding: var(--space-sm) var(--space-md);
       border-radius: var(--radius-md);
       background: var(--bg-input);
@@ -104,6 +110,7 @@
     .issues-search-input {
       appearance: none;
       flex: 1;
+      min-width: 0;
       border: none;
       background: transparent;
       color: var(--text-primary);
@@ -140,6 +147,7 @@
         white 12%
       );
       display: block;
+      min-width: 0;
       color: inherit;
       text-decoration: none;
 
@@ -194,6 +202,8 @@
     }
 
     .issue-card {
+      min-width: 0;
+
       .ui-container__header {
         padding-bottom: 0;
       }
@@ -203,6 +213,7 @@
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
+      min-width: 0;
     }
 
     .issue-list-pagination-loader {
@@ -227,11 +238,13 @@
 .issue-summary {
   color: var(--text-secondary);
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .issue-analysis {
   align-items: center;
   flex-wrap: wrap;
+  min-width: 0;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--bg-active) 86%, white 14%);
@@ -553,28 +566,77 @@
 @media (width <= 768px) {
   .workspaces-edit-issues-layout {
     flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .workspaces-edit-issues-layout:has(> .route-workspaces-edit-issues-edit)
+    .route-workspaces-edit-issues,
+  .workspaces-edit-issues-layout:has(> .route-workspaces-edit-issues-new)
+    .route-workspaces-edit-issues {
+    display: none;
+  }
+
+  .route-workspaces-edit-issues {
+    .issues-header {
+      padding: var(--space-sm);
+    }
+
+    .issue-filter {
+      flex-basis: calc(50% - var(--space-sm));
+      min-width: 0;
+      padding: var(--space-sm);
+    }
+
+    .issue-filter.--unknown {
+      flex-basis: 100%;
+    }
+
+    .issues-body {
+      padding: var(--space-md) var(--space-sm) var(--space-lg);
+    }
+
+    .issue-card__header {
+      align-items: flex-start;
+    }
+
+    .issue-ai-priority,
+    .issue-status {
+      max-width: 100%;
+    }
+
+    .issue-status {
+      margin-left: 0;
+    }
   }
 
   .route-workspaces-edit-issues-edit {
     width: 100%;
-    flex-basis: auto;
+    height: 100%;
+    flex: 1 1 auto;
     border-left: 0;
-    border-top: 1px solid var(--border-subtle);
 
     .issue-edit-panel {
       max-height: none;
+      min-height: 0;
+      padding: var(--space-md);
     }
 
     .issue-edit-metadata {
       grid-template-columns: minmax(0, 1fr);
     }
+
+    .issue-panel__close {
+      display: none;
+    }
   }
 
   .route-workspaces-edit-issues-new {
     width: 100%;
-    flex-basis: auto;
+    height: 100%;
+    flex: 1 1 auto;
     border-left: 0;
-    border-top: 1px solid var(--border-subtle);
 
     .issue-new-panel__footer {
       flex-direction: column;

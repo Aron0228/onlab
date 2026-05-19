@@ -57,7 +57,9 @@ export default class RoutesWorkspacesHeaderActions extends Component<RoutesWorks
   }
 
   <template>
-    <div class="layout-horizontal --gap-md margin-left-auto">
+    <div
+      class="workspace-header-actions layout-horizontal --gap-md margin-left-auto"
+    >
       <UiLanguageSelector />
       <UiThemeSwitcher />
       <UiIconButton
@@ -67,11 +69,14 @@ export default class RoutesWorkspacesHeaderActions extends Component<RoutesWorks
       />
       <hr class="separator --vertical" />
       <UiIconButton
+        class="workspace-header-actions__logout"
         @iconName="logout"
         @onClick={{this.logout}}
         aria-label="Log out"
       />
-      <RouteProfile />
+      <span class="workspace-header-actions__profile">
+        <RouteProfile />
+      </span>
     </div>
   </template>
 }

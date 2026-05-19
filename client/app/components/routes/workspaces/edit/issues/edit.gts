@@ -136,6 +136,15 @@ export default class RoutesWorkspacesEditIssuesEdit extends Component<RoutesWork
     <aside class="route-workspaces-edit-issues-edit">
       <div class="issue-edit-panel layout-vertical --gap-lg">
         <div class="issue-edit-panel__header layout-horizontal --gap-md">
+          <LinkTo
+            @route={{this.closeRoute}}
+            @model={{this.closeModel}}
+            class="mobile-detail-back"
+            aria-label="Back to issues"
+          >
+            <UiIcon @name="arrow-left" />
+          </LinkTo>
+
           <div class="layout-horizontal --gap-sm">
             <UiIcon @name="exclamation-circle" @variant="primary" />
             <h2 class="margin-zero">

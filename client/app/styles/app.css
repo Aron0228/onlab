@@ -48,6 +48,12 @@ body {
   padding: 0;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;

@@ -282,6 +282,15 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     <aside class="route-workspaces-edit-pull-requests-edit">
       <div class="pull-request-edit-panel layout-vertical --gap-lg">
         <div class="pull-request-edit-panel__header layout-horizontal --gap-md">
+          <LinkTo
+            @route={{this.closeRoute}}
+            @model={{this.closeModel}}
+            class="mobile-detail-back"
+            aria-label="Back to pull requests"
+          >
+            <UiIcon @name="arrow-left" />
+          </LinkTo>
+
           <div class="layout-horizontal --gap-sm">
             <UiIcon @name="git-pull-request" @variant="primary" />
             <h2 class="margin-zero">

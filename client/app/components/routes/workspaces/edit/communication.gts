@@ -1,12 +1,14 @@
 import Component from '@glimmer/component';
 import type Owner from '@ember/owner';
 import { action } from '@ember/object';
+import { registerDestructor } from '@ember/destroyable';
 import { fn, hash } from '@ember/helper';
 import { on } from '@ember/modifier';
 import { service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 import { eq } from 'ember-truth-helpers';
 import { modifier } from 'ember-modifier';
+import type RouterService from '@ember/routing/router-service';
 import UiAvatar from 'client/components/ui/avatar';
 import UiButton from 'client/components/ui/button';
 import UiCheckbox from 'client/components/ui/checkbox';
@@ -105,6 +107,7 @@ interface Signature {
 
 export default class RoutesWorkspacesEditCommunication extends Component<Signature> {
   @service declare api: ApiService;
+  @service declare router: RouterService;
   @service declare session: SessionService;
   @service declare sessionAccount: SessionAccountService;
   @service('socket-io') declare socketIOService: SocketIoServiceLike;
@@ -146,6 +149,13 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     this.channels = args.model.channels;
     this.selectedChannelId = args.model.selectedChannelId;
     this.messages = this.selectedChannel?.messages ?? [];
+    document.addEventListener('click', this.closeChannelMenuOnOutsideClick);
+    registerDestructor(this, () => {
+      document.removeEventListener(
+        'click',
+        this.closeChannelMenuOnOutsideClick
+      );
+    });
     this.scheduleAfterRender(() => {
       this.connectSocket();
     });
@@ -392,6 +402,16 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     this.selectChannel(channel);
   }
 
+  @action backToDirectMessages(): void {
+    this.emitTyping(false);
+    this.selectedChannelId = null;
+    this.messages = [];
+    this.isChannelMenuOpen = false;
+    void this.router.transitionTo('workspaces.edit.communication', {
+      queryParams: { channelId: null },
+    });
+  }
+
   @action updateDraft(value: string): void {
     this.draft = value;
     this.updateTypingState();
@@ -406,6 +426,15 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
     this.channelActionError = null;
     this.isChannelMenuOpen = !this.isChannelMenuOpen;
   }
+
+  private closeChannelMenuOnOutsideClick = (event: MouseEvent): void => {
+    const target = event.target as HTMLElement | null;
+
+    if (!target?.closest('.communication-header__menu')) {
+      this.isChannelMenuOpen = false;
+      this.channelActionError = null;
+    }
+  };
 
   @action async toggleMuteSelectedChannel(): Promise<void> {
     const channel = this.selectedChannel;
@@ -1262,7 +1291,8 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   <template>
     <section
       class="communication-shell
-        {{unless this.shouldShowDirectMessageRail '--thread-only'}}"
+        {{unless this.shouldShowDirectMessageRail '--thread-only'}}
+        {{if this.selectedChannel '--has-thread'}}"
       {{this.syncModelSelection @model.selectedChannelId @model.channels}}
     >
       {{#if this.shouldShowDirectMessageRail}}
@@ -1309,6 +1339,13 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
           <header
             class="communication-header layout-horizontal --gap-md --padding-lg"
           >
+            <UiIconButton
+              class="mobile-detail-back"
+              @iconName="arrow-left"
+              @onClick={{this.backToDirectMessages}}
+              aria-label="Back to direct messages"
+            />
+
             {{#if this.selectedDirectMember}}
               <span class="communication-presence-avatar --header">
                 <UiAvatar @model={{this.selectedDirectMember}} @size="sm" />

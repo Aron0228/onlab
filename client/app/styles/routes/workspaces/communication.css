@@ -591,11 +591,37 @@
 @media (max-width: 900px) {
   .communication-shell {
     grid-template-columns: 1fr;
+    height: 100%;
   }
 
   .communication-rail {
     max-height: 22rem;
     border-right: 0;
     border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .communication-shell.--has-thread .communication-rail {
+    display: none;
+  }
+
+  .communication-header {
+    min-height: 4.5rem;
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .communication-header .mobile-detail-back {
+    display: inline-flex;
+  }
+
+  .communication-thread {
+    padding: var(--space-md);
+  }
+
+  .communication-composer {
+    padding: var(--space-md);
+  }
+
+  .communication-message {
+    max-width: 100%;
   }
 }
