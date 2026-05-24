@@ -109,6 +109,7 @@ describe('WorkspaceController (unit)', () => {
         {id: 30, name: 'dev-frontend'},
       ],
       canCreateChannels: true,
+      canManageGithubInstallation: true,
     });
 
     expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(11, 7);

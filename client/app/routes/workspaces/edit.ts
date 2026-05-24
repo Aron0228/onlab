@@ -39,6 +39,7 @@ export type WorkspaceNavigation = {
   items: WorkspaceNavigationItem[];
   channels: WorkspaceNavigationChannel[];
   canCreateChannels: boolean;
+  canManageGithubInstallation: boolean;
 };
 
 export default class WorkspacesEditRoute extends ProtectedRoute {
@@ -62,6 +63,7 @@ export default class WorkspacesEditRoute extends ProtectedRoute {
           items: [],
           channels: [],
           canCreateChannels: false,
+          canManageGithubInstallation: false,
         },
       };
     }
@@ -97,6 +99,7 @@ function parseWorkspaceNavigation(payload: unknown): WorkspaceNavigation {
       items: [],
       channels: [],
       canCreateChannels: false,
+      canManageGithubInstallation: false,
     };
   }
 
@@ -121,6 +124,7 @@ function parseWorkspaceNavigation(payload: unknown): WorkspaceNavigation {
         name: String(channel.name),
       })),
     canCreateChannels: Boolean(payload.canCreateChannels),
+    canManageGithubInstallation: Boolean(payload.canManageGithubInstallation),
   };
 }
 
@@ -128,6 +132,7 @@ function isNavigationPayload(payload: unknown): payload is {
   items: Array<Record<string, unknown>>;
   channels: Array<Record<string, unknown>>;
   canCreateChannels?: boolean;
+  canManageGithubInstallation?: boolean;
 } {
   return (
     isRecord(payload) &&

@@ -234,6 +234,22 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     return this.args.model.navigation.canCreateChannels;
   }
 
+  get isGithubInstallationMissing(): boolean {
+    return !this.args.model.workspace.githubInstallationId;
+  }
+
+  get canManageGithubInstallation(): boolean {
+    return this.args.model.navigation.canManageGithubInstallation;
+  }
+
+  get githubSetupMessage(): string {
+    if (this.canManageGithubInstallation) {
+      return 'GitHub is not connected yet. Install the GitHub app to sync repositories, issues, pull requests, and AI analysis for this workspace.';
+    }
+
+    return 'GitHub is not connected yet. Ask a workspace admin or owner to finish the GitHub app installation.';
+  }
+
   get canShowChannelsSection(): boolean {
     return this.canManageChannels || this.groupChannels.length > 0;
   }
@@ -260,6 +276,28 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     this.isCollapsed = true;
     this.selectedCommunicationChannelId = null;
   };
+
+  @action reinstallGithubApp(): void {
+    const workspaceId = Number(this.args.model.workspace.id);
+    const token = this.session.data.authenticated?.token;
+
+    if (!workspaceId || !token) {
+      this.flashMessages.danger(
+        'We could not start the GitHub installation. Please sign in again and retry.',
+        {
+          title: 'GitHub setup failed',
+        }
+      );
+      return;
+    }
+
+    const installUrl = this.api.buildUrl('/github/installApp', {
+      workspaceId: String(workspaceId),
+      token: String(token),
+    });
+
+    globalThis.location.assign(installUrl.toString());
+  }
 
   @action openCreateChannelModal(): void {
     this.channelErrorMessage = null;
@@ -896,6 +934,27 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
           {{/if}}
         </div>
         <div class="workspace-content-panel">
+          {{#if this.isGithubInstallationMissing}}
+            <div class="workspace-setup-banner">
+              <div class="workspace-setup-banner__icon">
+                <UiIcon @name="brand-github" />
+              </div>
+
+              <div class="workspace-setup-banner__copy">
+                <strong>Finish GitHub setup</strong>
+                <span>{{this.githubSetupMessage}}</span>
+              </div>
+
+              {{#if this.canManageGithubInstallation}}
+                <UiButton
+                  class="workspace-setup-banner__action"
+                  @text="Install GitHub App"
+                  @iconRight="arrow-right"
+                  @onClick={{this.reinstallGithubApp}}
+                />
+              {{/if}}
+            </div>
+          {{/if}}
           {{yield}}
         </div>
       </div>

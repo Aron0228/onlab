@@ -47,6 +47,7 @@ type WorkspaceNavigation = {
   items: WorkspaceNavigationItem[];
   channels: WorkspaceNavigationChannel[];
   canCreateChannels: boolean;
+  canManageGithubInstallation: boolean;
 };
 
 const WORKSPACE_NAVIGATION_ITEMS: Array<
@@ -196,12 +197,20 @@ export class WorkspaceController {
         WORKSPACE_PERMISSION.COMMUNICATION_MANAGE,
       )
     ).allowed;
+    const canManageGithubInstallation = (
+      await this.workspaceAuthorizationService.checkPermission(
+        id,
+        userId,
+        WORKSPACE_PERMISSION.GITHUB_INSTALL_MANAGE,
+      )
+    ).allowed;
 
     if (!canViewCommunication) {
       return {
         items: allowedItems,
         channels: [],
         canCreateChannels: false,
+        canManageGithubInstallation,
       };
     }
 
@@ -231,6 +240,7 @@ export class WorkspaceController {
         name: channel.name ?? 'untitled',
       })),
       canCreateChannels,
+      canManageGithubInstallation,
     };
   }
 

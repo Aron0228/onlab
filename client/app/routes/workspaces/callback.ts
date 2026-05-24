@@ -69,6 +69,6 @@ export default class WorkspacesCallbackRoute extends Route {
       );
     }
 
-    this.router.transitionTo('workspaces');
+    this.router.transitionTo('workspaces.edit.news-feed', workspaceId);
   }
 }
