@@ -14,6 +14,7 @@ describe('NewsFeedEntryController (unit)', () => {
     replaceById: ReturnType<typeof vi.fn>;
     deleteById: ReturnType<typeof vi.fn>;
     findPersonalizedFeed: ReturnType<typeof vi.fn>;
+    findWorkspaceFeed: ReturnType<typeof vi.fn>;
   };
   let authorization: {
     getAuthenticatedUserId: ReturnType<typeof vi.fn>;
@@ -33,6 +34,7 @@ describe('NewsFeedEntryController (unit)', () => {
       replaceById: vi.fn(),
       deleteById: vi.fn(),
       findPersonalizedFeed: vi.fn(),
+      findWorkspaceFeed: vi.fn(),
     };
     authorization = {
       getAuthenticatedUserId: vi.fn().mockReturnValue(9),
@@ -92,6 +94,38 @@ describe('NewsFeedEntryController (unit)', () => {
 
     expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(3, 9);
     expect(repository.findPersonalizedFeed).toHaveBeenCalledWith(3, 9);
+  });
+
+  it('paginates personalized feed results', async () => {
+    const entries = [
+      entry,
+      new NewsFeedEntry({
+        ...entry,
+        id: 21,
+        title: 'Second update',
+      }),
+      new NewsFeedEntry({
+        ...entry,
+        id: 22,
+        title: 'Third update',
+      }),
+    ];
+    repository.findPersonalizedFeed.mockResolvedValue(entries);
+
+    await expect(controller.feed({id: 9} as never, 3, 1, 1)).resolves.toEqual([
+      entries[1],
+    ]);
+  });
+
+  it('returns the full workspace feed when personalization is disabled', async () => {
+    repository.findWorkspaceFeed.mockResolvedValue([entry]);
+
+    await expect(
+      controller.feed({id: 9} as never, 3, undefined, undefined, false),
+    ).resolves.toEqual([entry]);
+
+    expect(repository.findWorkspaceFeed).toHaveBeenCalledWith(3);
+    expect(repository.findPersonalizedFeed).not.toHaveBeenCalled();
   });
 
   it('derives the feed user from the authenticated session', async () => {

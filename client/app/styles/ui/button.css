@@ -18,9 +18,13 @@
     font-size: var(--text-base);
   }
 
+  .ui-icon-wrapper {
+    color: currentColor;
+  }
+
   &.--hierarchy-primary {
     background-color: var(--color-primary-600);
-    color: var(--text-primary);
+    color: var(--text-on-primary);
 
     &:hover:not(:disabled) {
       background-color: var(--color-primary-700);
@@ -55,7 +59,7 @@
 .btn:active:not(:disabled) {
   transform: scale(0.97);
   filter: brightness(0.9);
-  opacity: var(--opactiy-active);
+  opacity: var(--opacity-active);
 }
 
 .btn:disabled {

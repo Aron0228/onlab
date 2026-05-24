@@ -5,6 +5,8 @@ import type WorkspaceModel from 'client/models/workspace';
 import type { WorkspacesIssuesRouteModel } from 'client/routes/workspaces/edit';
 import ProtectedRoute from 'client/routes/protected';
 
+export const NEWS_FEED_PAGE_SIZE = 20;
+
 type StoreLike = {
   query(
     modelName: 'news-feed-entry',
@@ -42,7 +44,11 @@ export default class WorkspacesEditNewsFeedRoute extends ProtectedRoute {
 
     const entries =
       Number.isFinite(workspaceId) && workspaceId > 0
-        ? await this.store.query('news-feed-entry', { workspaceId })
+        ? await this.store.query('news-feed-entry', {
+            workspaceId,
+            limit: NEWS_FEED_PAGE_SIZE,
+            skip: 0,
+          })
         : [];
 
     return {

@@ -1,15 +1,34 @@
 import Component from '@glimmer/component';
+import { action } from '@ember/object';
 import { LinkTo } from '@ember/routing';
+import { service } from '@ember/service';
+import { tracked } from '@glimmer/tracking';
+import { eq } from 'ember-truth-helpers';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { modifier } from 'ember-modifier';
 import UiContainer from 'client/components/ui/container';
 import UiIcon from 'client/components/ui/icon';
+import UiButton from 'client/components/ui/button';
+import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import type NewsFeedEntryModel from 'client/models/news-feed-entry';
-import type { WorkspacesEditNewsFeedRouteModel } from 'client/routes/workspaces/edit/news-feed';
+import loadMoreWhenVisible from 'client/modifiers/load-more-when-visible';
+import {
+  NEWS_FEED_PAGE_SIZE,
+  type WorkspacesEditNewsFeedRouteModel,
+} from 'client/routes/workspaces/edit/news-feed';
+import mergeRecordsById from 'client/utils/merge-records-by-id';
 
 type DayGroup = {
   label: string;
   entries: NewsFeedEntryModel[];
+};
+
+type StoreLike = {
+  query(
+    modelName: 'news-feed-entry',
+    query: Record<string, unknown>
+  ): Promise<NewsFeedEntryModel[]> | NewsFeedEntryModel[];
 };
 
 const AI_PRIORITY_NOTE_START = '<!-- onlab-ai-priority:start -->';
@@ -26,6 +45,68 @@ export interface RoutesWorkspacesEditNewsFeedSignature {
 }
 
 export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorkspacesEditNewsFeedSignature> {
+  @service declare store: StoreLike;
+
+  @tracked entries: NewsFeedEntryModel[] = [];
+  @tracked nextOffset = 0;
+  @tracked hasMoreEntries = true;
+  @tracked isLoadingMore = false;
+  @tracked isAiSuggestionsEnabled = true;
+  private initializedFeedScopeKey: string | null = null;
+
+  initializeFeed = modifier((_element: HTMLElement, [scopeKey]: [string]) => {
+    if (this.initializedFeedScopeKey === scopeKey) {
+      return;
+    }
+
+    this.initializedFeedScopeKey = scopeKey;
+    this.entries = [...this.args.model.entries];
+    this.nextOffset = this.entries.length;
+    this.hasMoreEntries = this.entries.length === NEWS_FEED_PAGE_SIZE;
+    this.isLoadingMore = false;
+    this.isAiSuggestionsEnabled = true;
+  });
+
+  get workspaceId(): number {
+    return Number(this.args.model.workspace.id);
+  }
+
+  get awayDays(): number {
+    const timestamps = this.entries
+      .map((entry) => new Date(entry.happenedAt).getTime())
+      .filter(Number.isFinite);
+
+    if (!timestamps.length) {
+      return 0;
+    }
+
+    const latestDate = new Date(Math.max(...timestamps));
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    const startOfLatest = new Date(
+      latestDate.getFullYear(),
+      latestDate.getMonth(),
+      latestDate.getDate()
+    );
+
+    return Math.max(
+      0,
+      Math.floor(
+        (startOfToday.getTime() - startOfLatest.getTime()) / 86_400_000
+      )
+    );
+  }
+
+  get feedScopeKey(): string {
+    return `${this.workspaceId}:${this.args.model.entries
+      .map((entry) => entry.id)
+      .join(',')}`;
+  }
+
   getSanitizedCardText = (
     value: string | null | undefined,
     options: {
@@ -83,7 +164,7 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
   get groups(): DayGroup[] {
     const groupedEntries = new Map<string, NewsFeedEntryModel[]>();
 
-    for (const entry of this.args.model.entries) {
+    for (const entry of this.entries) {
       const label = toDayLabel(entry.happenedAt);
       const existingEntries = groupedEntries.get(label) ?? [];
       existingEntries.push(entry);
@@ -119,6 +200,19 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
         return 'calendar-event';
       default:
         return 'users';
+    }
+  }
+
+  sourceClass(entry: NewsFeedEntryModel): string {
+    switch (entry.sourceType) {
+      case 'github-issue':
+        return '--source-issue';
+      case 'github-pull-request':
+        return '--source-pull-request';
+      case 'capacity-plan':
+        return '--source-capacity-plan';
+      default:
+        return '--source-default';
     }
   }
 
@@ -173,36 +267,111 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
     return bits.join(' • ');
   };
 
+  get aiSuggestionsToggleLabel(): string {
+    return `AI Suggestions ${this.isAiSuggestionsEnabled ? 'On' : 'Off'}`;
+  }
+
+  @action
+  async loadNextPage(): Promise<void> {
+    if (!this.hasMoreEntries || this.isLoadingMore) {
+      return;
+    }
+
+    this.isLoadingMore = true;
+
+    try {
+      const entries = Array.from(
+        await this.store.query('news-feed-entry', {
+          workspaceId: this.workspaceId,
+          limit: NEWS_FEED_PAGE_SIZE,
+          skip: this.nextOffset,
+          personalized: this.isAiSuggestionsEnabled,
+        })
+      );
+
+      this.entries = mergeRecordsById(this.entries, entries);
+      this.nextOffset += entries.length;
+      this.hasMoreEntries = entries.length === NEWS_FEED_PAGE_SIZE;
+    } finally {
+      this.isLoadingMore = false;
+    }
+  }
+
+  @action
+  async toggleAiSuggestions(): Promise<void> {
+    if (this.isLoadingMore) {
+      return;
+    }
+
+    const nextMode = !this.isAiSuggestionsEnabled;
+    this.isLoadingMore = true;
+
+    try {
+      const entries = Array.from(
+        await this.store.query('news-feed-entry', {
+          workspaceId: this.workspaceId,
+          limit: NEWS_FEED_PAGE_SIZE,
+          skip: 0,
+          personalized: nextMode,
+        })
+      );
+
+      this.isAiSuggestionsEnabled = nextMode;
+      this.entries = entries;
+      this.nextOffset = entries.length;
+      this.hasMoreEntries = entries.length === NEWS_FEED_PAGE_SIZE;
+    } finally {
+      this.isLoadingMore = false;
+    }
+  }
+
   <template>
-    <div class="route-workspaces-edit-news-feed">
+    <div
+      class="route-workspaces-edit-news-feed"
+      {{this.initializeFeed this.feedScopeKey}}
+    >
       <div class="news-feed__hero layout-vertical --gap-md">
         <div
-          class="layout-horizontal --justify-between --align-center --gap-md"
+          class="news-feed__hero-top layout-horizontal --justify-between --gap-md"
         >
           <div class="layout-vertical --gap-sm">
-            <h1 class="margin-zero">Welcome Back!</h1>
+            <div class="news-feed__title">Welcome Back!</div>
             <p class="margin-zero color-secondary">
-              Here's what's happening in your workspace.
+              {{#if this.awayDays}}
+                You've been away for
+                <strong>{{this.awayDays}}
+                  {{if (eq this.awayDays 1) "day" "days"}}</strong>. Here's what
+                happened while you were gone.
+              {{else}}
+                Here's what's happening in your workspace.
+              {{/if}}
             </p>
           </div>
+          <UiButton
+            class="news-feed__ai-status layout-horizontal --gap-sm
+              {{unless this.isAiSuggestionsEnabled '--off'}}"
+            @text={{this.aiSuggestionsToggleLabel}}
+            @iconLeft="sparkles"
+            @hierarchy={{if this.isAiSuggestionsEnabled "primary" "secondary"}}
+            @onClick={{this.toggleAiSuggestions}}
+            aria-pressed={{if this.isAiSuggestionsEnabled "true" "false"}}
+          />
         </div>
 
-        <UiContainer @bordered={{true}} @variant="primary">
-          <:default>
-            <div class="layout-horizontal --gap-md --align-center">
-              <div class="news-feed__banner-icon">
-                <UiIcon @name="sparkles" @variant="normal" />
-              </div>
-              <div class="layout-vertical --gap-xs">
-                <strong>AI-Curated Feed for Developer</strong>
-                <p class="margin-zero color-secondary">
-                  Activities are prioritized based on your role, expertise, and
-                  relevance. Click any item to view details.
-                </p>
-              </div>
+        <div class="news-feed__banner">
+          <div class="layout-horizontal --gap-md --align-center">
+            <div class="news-feed__banner-icon">
+              <UiIcon @name="sparkles" @variant="normal" />
             </div>
-          </:default>
-        </UiContainer>
+            <div class="layout-vertical --gap-xs">
+              <strong>AI-Curated Feed</strong>
+              <p class="margin-zero color-secondary">
+                Activities are prioritized based on your role, expertise, and
+                relevance. Click any item to view details.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="news-feed__body layout-vertical --gap-lg">
@@ -227,12 +396,15 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
                     >
                       <div
                         class="news-feed-card
+                          {{this.sourceClass entry}}
                           {{this.priorityClass entry.sourcePriority}}"
                       >
                         <div
                           class="news-feed-card__header layout-horizontal --justify-between --gap-md"
                         >
-                          <div class="layout-horizontal --gap-md">
+                          <div
+                            class="news-feed-card__main layout-horizontal --gap-md"
+                          >
                             <div class="news-feed-card__icon">
                               <UiIcon @name={{this.iconForEntry entry}} />
                             </div>
@@ -245,11 +417,10 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
                           </div>
 
                           <div
-                            class="issue-ai-priority
+                            class="news-feed-card__priority
                               {{this.priorityClass entry.sourcePriority}}
                               layout-horizontal --gap-xs margin-left-auto"
                           >
-                            <UiIcon @name="circle-arrow-up" @size="sm" />
                             <span class="font-size-text-sm">
                               {{this.priorityLabel entry.sourcePriority}}
                             </span>
@@ -282,11 +453,16 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
                       </div>
                     </LinkTo>
                   {{else}}
-                    <div class="news-feed-card is-disabled">
+                    <div
+                      class="news-feed-card is-disabled
+                        {{this.sourceClass entry}}"
+                    >
                       <div
                         class="news-feed-card__header layout-horizontal --justify-between --gap-md"
                       >
-                        <div class="layout-horizontal --gap-md">
+                        <div
+                          class="news-feed-card__main layout-horizontal --gap-md"
+                        >
                           <div class="news-feed-card__icon">
                             <UiIcon @name={{this.iconForEntry entry}} />
                           </div>
@@ -299,11 +475,10 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
                         </div>
 
                         <div
-                          class="issue-ai-priority
+                          class="news-feed-card__priority
                             {{this.priorityClass entry.sourcePriority}}
                             layout-horizontal --gap-xs margin-left-auto"
                         >
-                          <UiIcon @name="circle-arrow-up" @size="sm" />
                           <span class="font-size-text-sm">
                             {{this.priorityLabel entry.sourcePriority}}
                           </span>
@@ -349,6 +524,18 @@ export default class RoutesWorkspacesEditNewsFeed extends Component<RoutesWorksp
             </:default>
           </UiContainer>
         {{/if}}
+
+        {{#if this.isLoadingMore}}
+          <div class="news-feed__loader">
+            <UiLoadingSpinner />
+          </div>
+        {{/if}}
+
+        <div
+          class="news-feed__sentinel"
+          aria-hidden="true"
+          {{loadMoreWhenVisible this.loadNextPage enabled=this.hasMoreEntries}}
+        ></div>
       </div>
     </div>
   </template>
