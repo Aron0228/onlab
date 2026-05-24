@@ -14,10 +14,20 @@ describe('WorkspaceController (unit)', () => {
       replaceById: vi.fn(),
       deleteById: vi.fn(),
     };
+    const channelRepository = {
+      find: vi.fn(),
+    };
+    const channelMemberRepository = {
+      find: vi.fn(),
+    };
     const authorization = {
       getAuthenticatedUserId: vi.fn().mockReturnValue(7),
       mergeWorkspaceAccessFilter: vi.fn().mockResolvedValue({
         where: {ownerId: 7},
+      }),
+      checkPermission: vi.fn().mockResolvedValue({
+        allowed: true,
+        role: 'OWNER',
       }),
       assertWorkspaceOwner: vi.fn().mockResolvedValue('OWNER'),
       assertWorkspaceMember: vi.fn().mockResolvedValue('OWNER'),
@@ -31,11 +41,15 @@ describe('WorkspaceController (unit)', () => {
 
     return {
       repository,
+      channelRepository,
+      channelMemberRepository,
       authorization,
       auditEventService,
       workspaceService,
       controller: new WorkspaceController(
         repository as never,
+        channelRepository as never,
+        channelMemberRepository as never,
         authorization as never,
         auditEventService as never,
         workspaceService as never,
@@ -57,6 +71,58 @@ describe('WorkspaceController (unit)', () => {
       7,
     );
     expect(repository.find).toHaveBeenCalledWith({where: {ownerId: 7}});
+  });
+
+  it('returns navigation items and only joined group channels', async () => {
+    const {
+      controller,
+      authorization,
+      channelMemberRepository,
+      channelRepository,
+    } = createController();
+    authorization.checkPermission.mockImplementation(
+      (_workspaceId: number, _userId: number, permission: string) =>
+        Promise.resolve({
+          allowed: permission !== 'capacity-plan.manage',
+          role: 'ADMIN',
+        }),
+    );
+    channelMemberRepository.find.mockResolvedValue([
+      {channelId: 20},
+      {channelId: 30},
+    ]);
+    channelRepository.find.mockResolvedValue([
+      {id: 20, name: 'general'},
+      {id: 30, name: 'dev-frontend'},
+    ]);
+
+    await expect(controller.navigation({id: 7} as never, 11)).resolves.toEqual({
+      items: [
+        expect.objectContaining({id: 'news-feed'}),
+        expect.objectContaining({id: 'direct-messages'}),
+        expect.objectContaining({id: 'issues'}),
+        expect.objectContaining({id: 'pull-requests'}),
+        expect.objectContaining({id: 'settings'}),
+      ],
+      channels: [
+        {id: 20, name: 'general'},
+        {id: 30, name: 'dev-frontend'},
+      ],
+      canCreateChannels: true,
+    });
+
+    expect(authorization.assertWorkspaceMember).toHaveBeenCalledWith(11, 7);
+    expect(channelMemberRepository.find).toHaveBeenCalledWith({
+      where: {userId: 7},
+    });
+    expect(channelRepository.find).toHaveBeenCalledWith({
+      where: {
+        id: {inq: [20, 30]},
+        workspaceId: 11,
+        type: 'GROUP',
+      },
+      order: ['id ASC'],
+    });
   });
 
   it('creates workspaces owned by the authenticated user', async () => {

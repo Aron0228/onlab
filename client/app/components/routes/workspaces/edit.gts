@@ -22,6 +22,11 @@ import type ApiService from 'client/services/api';
 import type SessionAccountService from 'client/services/session-account';
 import type SessionService from 'ember-simple-auth/services/session';
 import type {
+  WorkspaceNavigation,
+  WorkspaceNavigationChannel,
+  WorkspaceNavigationItem,
+} from 'client/routes/workspaces/edit';
+import type {
   CommunicationChannel,
   CommunicationMember,
   CommunicationMessage,
@@ -32,25 +37,8 @@ import type Owner from '@ember/owner';
 type WorkspacesEditModel = {
   workspace: WorkspaceModel;
   repositories: GithubRepositoryModel[];
+  navigation: WorkspaceNavigation;
 };
-
-type MenuLinkItem = {
-  separator: false;
-  iconName: string;
-  name: string;
-  route: string;
-  query?: Record<string, unknown>;
-};
-
-type MenuSeparatorItem = {
-  separator: true;
-};
-
-type MenuItem = MenuLinkItem | MenuSeparatorItem;
-
-const SEPARATOR = {
-  separator: true,
-} as const;
 
 type SocketLike = {
   socket?: RawSocketLike;
@@ -101,6 +89,8 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
 
   @tracked isCollapsed = false;
   @tracked communicationChannels: CommunicationChannel[] = [];
+  @tracked navigationChannels: WorkspaceNavigationChannel[] =
+    this.args.model.navigation.channels;
   @tracked communicationMembers: CommunicationMember[] = [];
   @tracked selectedCommunicationChannelId = this.channelIdFromUrl;
   @tracked unreadCounts: Record<number, number> = {};
@@ -168,70 +158,84 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     return `body${this.isCollapsed ? ' --collapsed' : ''}`;
   }
 
-  get menuItems(): MenuItem[] {
-    return [
-      {
-        separator: false,
-        iconName: 'sparkles',
-        name: 'News Feed',
-        route: 'workspaces.edit.news-feed',
-      },
-      {
-        separator: false,
-        iconName: 'message-circle',
-        name: 'Direct Messages',
-        route: 'workspaces.edit.communication',
-        query: { channelId: null },
-      },
-      SEPARATOR,
-      {
-        separator: false,
-        iconName: 'exclamation-circle',
-        name: 'Issues',
-        route: 'workspaces.edit.issues',
-      },
-      {
-        separator: false,
-        iconName: 'git-pull-request',
-        name: 'Pull Requests',
-        route: 'workspaces.edit.pull-requests',
-      },
-      {
-        separator: false,
-        iconName: 'calendar-event',
-        name: 'Capacity Planning',
-        route: 'workspaces.edit.capacity-planning',
-      },
-      SEPARATOR,
-      {
-        separator: false,
-        iconName: 'settings',
-        name: 'Settings',
-        route: 'workspaces.edit.settings',
-      },
-    ];
+  get menuItems(): WorkspaceNavigationItem[] {
+    return this.args.model.navigation.items;
   }
 
-  routeForMenuItem(menuItem: MenuItem): string {
-    return menuItem.separator ? '' : menuItem.route;
+  get primaryMenuItems(): WorkspaceNavigationItem[] {
+    return this.menuItems.filter((item) =>
+      ['news-feed', 'direct-messages'].includes(item.id)
+    );
   }
 
-  iconForMenuItem(menuItem: MenuItem): string {
-    return menuItem.separator ? '' : menuItem.iconName;
+  get workMenuItems(): WorkspaceNavigationItem[] {
+    return this.menuItems.filter((item) =>
+      ['issues', 'pull-requests'].includes(item.id)
+    );
   }
 
-  labelForMenuItem(menuItem: MenuItem): string {
-    return menuItem.separator ? '' : menuItem.name;
+  get planningMenuItems(): WorkspaceNavigationItem[] {
+    return this.menuItems.filter((item) => item.id === 'capacity-planning');
   }
 
-  queryForMenuItem(menuItem: MenuItem): Record<string, unknown> {
-    return menuItem.separator ? {} : (menuItem.query ?? {});
+  get settingsMenuItems(): WorkspaceNavigationItem[] {
+    return this.menuItems.filter((item) => item.id === 'settings');
+  }
+
+  get hasWorkMenuItems(): boolean {
+    return this.workMenuItems.length > 0;
+  }
+
+  get hasPlanningMenuItems(): boolean {
+    return this.planningMenuItems.length > 0;
+  }
+
+  get hasSettingsMenuItems(): boolean {
+    return this.settingsMenuItems.length > 0;
+  }
+
+  routeForMenuItem(menuItem: WorkspaceNavigationItem): string {
+    return menuItem.route;
+  }
+
+  iconForMenuItem(menuItem: WorkspaceNavigationItem): string {
+    return menuItem.iconName;
+  }
+
+  labelForMenuItem(menuItem: WorkspaceNavigationItem): string {
+    return menuItem.label;
+  }
+
+  queryForMenuItem(menuItem: WorkspaceNavigationItem): Record<string, unknown> {
+    return menuItem.query ?? {};
   }
 
   get groupChannels(): CommunicationChannel[] {
-    return this.communicationChannels.filter(
-      (channel) => channel.type === 'GROUP'
+    const channelsById = new Map(
+      this.communicationChannels
+        .filter((channel) => channel.type === 'GROUP')
+        .map((channel) => [channel.id, channel])
     );
+
+    return this.navigationChannels.map(
+      (channel) =>
+        channelsById.get(channel.id) ?? {
+          id: channel.id,
+          workspaceId: Number(this.args.model.workspace.id),
+          type: 'GROUP',
+          name: channel.name,
+          members: [],
+          messages: [],
+        }
+    );
+  }
+
+  get canManageChannels(): boolean {
+    return this.args.model.navigation.canCreateChannels;
+  }
+
+  get canShowChannelsSection(): boolean {
+    return this.canManageChannels || this.groupChannels.length > 0;
   }
 
   get canCreateChannel(): boolean {
@@ -305,6 +309,10 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       );
       const channel = parseChannel(payload);
 
+      this.navigationChannels = [
+        { id: channel.id, name: channel.name ?? 'untitled' },
+        ...this.navigationChannels.filter((item) => item.id !== channel.id),
+      ];
       this.communicationChannels = [
         channel,
         ...this.communicationChannels.filter((item) => item.id !== channel.id),
@@ -338,8 +346,8 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     return count > 99 ? '99+' : String(count);
   };
 
-  isDirectMessagesMenuItem = (menuItem: MenuItem): boolean => {
-    return !menuItem.separator && menuItem.name === 'Direct Messages';
+  isDirectMessagesMenuItem = (menuItem: WorkspaceNavigationItem): boolean => {
+    return menuItem.id === 'direct-messages';
   };
 
   isSelectedCommunicationChannel = (channelId: number): boolean => {
@@ -361,6 +369,15 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
   private loadCommunicationMenu = async (): Promise<void> => {
     const workspace = this.args.model.workspace;
     const workspaceId = Number(workspace.id);
+
+    if (
+      !this.menuItems.some((item) => item.id === 'direct-messages') &&
+      !this.canShowChannelsSection
+    ) {
+      this.communicationMembers = [];
+      this.communicationChannels = [];
+      return;
+    }
 
     try {
       const [members, owner, channelsPayload] = await Promise.all([
@@ -535,6 +552,8 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       payload?: {
         workspaceId?: number;
         channelId?: number;
+        channelType?: 'DIRECT' | 'GROUP';
+        channelName?: string;
       };
     };
 
@@ -546,16 +565,20 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
     if (!workspaceId || !channelId) return;
     if (channelId === this.selectedCommunicationChannelId) return;
 
-    this.flashMessages.info?.(
-      notification.message ?? 'You received a new message.',
-      {
-        title: notification.title ?? 'New message',
-        sticky: true,
-        route: 'workspaces.edit.communication',
-        models: [workspaceId, { queryParams: { channelId } }],
-        actionText: 'Open chat',
-      }
-    );
+    const channelType = notification.payload?.channelType;
+    const channelName = notification.payload?.channelName?.trim();
+    const alertTitle =
+      channelType === 'GROUP'
+        ? `#${channelName || 'channel'}`
+        : notification.title || 'Direct message';
+
+    this.flashMessages.info?.(notification.message ?? 'Sent an attachment.', {
+      title: alertTitle,
+      sticky: true,
+      route: 'workspaces.edit.communication',
+      models: [workspaceId, { queryParams: { channelId } }],
+      actionText: 'Open Chat',
+    });
     void this.playNotificationSound();
   };
 
@@ -629,6 +652,14 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       !this.communicationChannels.some((channel) => channel.id === channelId) &&
       detail.channel
     ) {
+      if (detail.channel.type === 'GROUP') {
+        this.navigationChannels = [
+          { id: detail.channel.id, name: detail.channel.name ?? 'untitled' },
+          ...this.navigationChannels.filter(
+            (item) => item.id !== detail.channel?.id
+          ),
+        ];
+      }
       this.communicationChannels = [
         detail.channel,
         ...this.communicationChannels,
@@ -733,15 +764,9 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
       <div class={{this.bodyClass}}>
         <div class="workspace-summary layout-horizontal --gap-md">
           <div class="workspace-summary__identity layout-horizontal --gap-md">
-            <UiAvatar
-              @model={{@model.workspace}}
-              @squared={{true}}
-              @size="sm"
+            <RoutesWorkspacesWorkspaceSelector
+              @workspace={{@model.workspace}}
             />
-
-            <div class="workspace-summary__content layout-vertical --gap-sm">
-              <h3 class="margin-zero">{{@model.workspace.name}}</h3>
-            </div>
           </div>
 
           <UiIconButton
@@ -764,18 +789,70 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
           <div
             class="workspace-header-panel__workspace layout-horizontal --gap-md"
           >
-            <RoutesWorkspacesWorkspaceSelector
-              @workspace={{@model.workspace}}
-            />
             <RoutesWorkspacesHeaderActions />
           </div>
         </div>
 
         <div class="workspace-nav layout-vertical --gap-sm">
-          {{#each this.menuItems as |menuItem|}}
-            {{#if menuItem.separator}}
-              <hr class="separator --horizontal --menu" />
-            {{else}}
+          {{#each this.primaryMenuItems as |menuItem|}}
+            <LinkTo
+              @route={{this.routeForMenuItem menuItem}}
+              @query={{this.queryForMenuItem menuItem}}
+              class="nav-item layout-horizontal --gap-sm"
+              {{on "click" this.onNavItemClick}}
+            >
+              <UiIcon @name={{this.iconForMenuItem menuItem}} />
+              <span>{{this.labelForMenuItem menuItem}}</span>
+              {{#if (this.isDirectMessagesMenuItem menuItem)}}
+                {{#if this.directUnreadCount}}
+                  <span class="workspace-unread-badge margin-left-auto">
+                    {{this.unreadLabel this.directUnreadCount}}
+                  </span>
+                {{/if}}
+              {{/if}}
+            </LinkTo>
+          {{/each}}
+
+          {{#if this.canShowChannelsSection}}
+            <hr class="separator --horizontal --menu" />
+            <div class="workspace-channel-section layout-vertical --gap-xs">
+              <div class="workspace-channel-section__heading">
+                <span>Channels</span>
+                {{#if this.canManageChannels}}
+                  <UiIconButton
+                    class="workspace-channel-section__add"
+                    @iconName="plus"
+                    @onClick={{this.openCreateChannelModal}}
+                    aria-label="Create channel"
+                  />
+                {{/if}}
+              </div>
+
+              {{#each this.groupChannels as |channel|}}
+                <button
+                  type="button"
+                  class="workspace-channel-item layout-horizontal --gap-sm
+                    {{if
+                      (this.isSelectedCommunicationChannel channel.id)
+                      '--active'
+                    }}"
+                  {{on "click" (fn this.openChannel channel)}}
+                >
+                  <UiIcon @name="hash" @size="sm" />
+                  <span>{{channel.name}}</span>
+                  {{#if (this.unreadCountFor channel.id)}}
+                    <span class="workspace-unread-badge margin-left-auto">
+                      {{this.unreadLabel (this.unreadCountFor channel.id)}}
+                    </span>
+                  {{/if}}
+                </button>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{#if this.hasWorkMenuItems}}
+            <hr class="separator --horizontal --menu" />
+            {{#each this.workMenuItems as |menuItem|}}
               <LinkTo
                 @route={{this.routeForMenuItem menuItem}}
                 @query={{this.queryForMenuItem menuItem}}
@@ -784,48 +861,39 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
               >
                 <UiIcon @name={{this.iconForMenuItem menuItem}} />
                 <span>{{this.labelForMenuItem menuItem}}</span>
-                {{#if (this.isDirectMessagesMenuItem menuItem)}}
-                  {{#if this.directUnreadCount}}
-                    <span class="workspace-unread-badge margin-left-auto">
-                      {{this.unreadLabel this.directUnreadCount}}
-                    </span>
-                  {{/if}}
-                {{/if}}
               </LinkTo>
-            {{/if}}
-          {{/each}}
-
-          <div class="workspace-channel-section layout-vertical --gap-xs">
-            <div class="workspace-channel-section__heading">
-              <span>Channels</span>
-              <UiIconButton
-                class="workspace-channel-section__add"
-                @iconName="plus"
-                @onClick={{this.openCreateChannelModal}}
-                aria-label="Create channel"
-              />
-            </div>
-
-            {{#each this.groupChannels as |channel|}}
-              <button
-                type="button"
-                class="workspace-channel-item layout-horizontal --gap-sm
-                  {{if
-                    (this.isSelectedCommunicationChannel channel.id)
-                    '--active'
-                  }}"
-                {{on "click" (fn this.openChannel channel)}}
-              >
-                <UiIcon @name="hash" @size="sm" />
-                <span>{{channel.name}}</span>
-                {{#if (this.unreadCountFor channel.id)}}
-                  <span class="workspace-unread-badge margin-left-auto">
-                    {{this.unreadLabel (this.unreadCountFor channel.id)}}
-                  </span>
-                {{/if}}
-              </button>
             {{/each}}
-          </div>
+          {{/if}}
+
+          {{#if this.hasPlanningMenuItems}}
+            <hr class="separator --horizontal --menu" />
+            {{#each this.planningMenuItems as |menuItem|}}
+              <LinkTo
+                @route={{this.routeForMenuItem menuItem}}
+                @query={{this.queryForMenuItem menuItem}}
+                class="nav-item layout-horizontal --gap-sm"
+                {{on "click" this.onNavItemClick}}
+              >
+                <UiIcon @name={{this.iconForMenuItem menuItem}} />
+                <span>{{this.labelForMenuItem menuItem}}</span>
+              </LinkTo>
+            {{/each}}
+          {{/if}}
+
+          {{#if this.hasSettingsMenuItems}}
+            <hr class="separator --horizontal --menu" />
+            {{#each this.settingsMenuItems as |menuItem|}}
+              <LinkTo
+                @route={{this.routeForMenuItem menuItem}}
+                @query={{this.queryForMenuItem menuItem}}
+                class="nav-item layout-horizontal --gap-sm"
+                {{on "click" this.onNavItemClick}}
+              >
+                <UiIcon @name={{this.iconForMenuItem menuItem}} />
+                <span>{{this.labelForMenuItem menuItem}}</span>
+              </LinkTo>
+            {{/each}}
+          {{/if}}
         </div>
         <div class="workspace-content-panel">
           {{yield}}

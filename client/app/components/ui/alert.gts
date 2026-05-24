@@ -8,6 +8,7 @@ import UiButton from 'client/components/ui/button';
 export interface UiAlertSignature {
   Args: {
     message: string;
+    title?: string;
     type?: 'info' | 'success' | 'warning' | 'alert';
     onClose: () => void;
     onActivate?: () => void;
@@ -62,10 +63,15 @@ export default class UiAlert extends Component<UiAlertSignature> {
       </div>
 
       <div class="ui-alert__content">
+        {{#if @title}}
+          <strong class="ui-alert__title">{{@title}}</strong>
+        {{/if}}
         <div class="ui-alert__message">
           {{@message}}
         </div>
+      </div>
 
+      <div class="ui-alert__controls">
         {{#if @actionText}}
           <UiButton
             class="ui-alert__action"
@@ -75,10 +81,9 @@ export default class UiAlert extends Component<UiAlertSignature> {
             @onClick={{this.activateAction}}
           />
         {{/if}}
-      </div>
 
-      <div class="ui-alert__close">
         <UiIconButton
+          class="ui-alert__close"
           @iconName="x"
           @iconVariant={{this.icon.variant}}
           @onClick={{this.close}}

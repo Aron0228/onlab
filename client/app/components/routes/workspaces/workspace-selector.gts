@@ -14,6 +14,7 @@ import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 import type WorkspaceModel from 'client/models/workspace';
 import type WorkspaceMemberModel from 'client/models/workspace-member';
 import type { ApiServiceLike } from 'client/types/services';
+import type SessionService from 'ember-simple-auth/services/session';
 
 type WorkspaceRole = 'MEMBER' | 'ADMIN' | 'OWNER';
 
@@ -36,6 +37,41 @@ type StoreLike = {
   ): Promise<WorkspaceMemberModel[]>;
 };
 
+type SocketLike = {
+  connected?: boolean;
+  socket?: {
+    connected?: boolean;
+  };
+  on(
+    event: string,
+    callback: (...args: unknown[]) => void,
+    context?: unknown
+  ): void;
+  off(event: string, callback: (...args: unknown[]) => void): void;
+  emit(
+    event: string,
+    payload: unknown,
+    callback?: (response: unknown) => void
+  ): void;
+};
+
+type SocketIoServiceLike = {
+  socketFor(url: string, options?: Record<string, unknown>): SocketLike;
+};
+
+type PresenceRequestResponse = {
+  onlineUserIds?: number[];
+};
+
+type PresenceSnapshotPayload = {
+  onlineUserIds?: number[];
+};
+
+type PresenceUpdatePayload = {
+  userId?: number;
+  isOnline?: boolean;
+};
+
 type WorkspaceSelectorItem = {
   workspace: WorkspaceModel;
   role: WorkspaceRole;
@@ -55,13 +91,20 @@ export interface RoutesWorkspacesWorkspaceSelectorSignature {
 export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesWorkspacesWorkspaceSelectorSignature> {
   @service declare api: ApiServiceLike;
   @service declare router: RouterService;
+  @service declare session: SessionService;
   @service declare sessionAccount: SessionAccountServiceLike;
+  @service('socket-io') declare socketIOService: SocketIoServiceLike;
   @service declare store: StoreLike;
 
   @tracked isOpen = false;
   @tracked isLoading = false;
   @tracked workspaceItems: WorkspaceSelectorItem[] = [];
   @tracked errorMessage: string | null = null;
+  @tracked currentWorkspaceRole: WorkspaceRole | null = null;
+  @tracked currentWorkspaceUserIds: number[] = [];
+  @tracked onlineUserIds: number[] = [];
+
+  private socket?: SocketLike;
 
   constructor(
     owner: Owner,
@@ -70,17 +113,44 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
     super(owner, args);
 
     document.addEventListener('click', this.closeOnOutsideClick);
+    this.scheduleAfterRender(() => {
+      void this.loadCurrentWorkspaceMeta();
+      this.connectSocket();
+    });
     registerDestructor(this, () => {
       document.removeEventListener('click', this.closeOnOutsideClick);
+      this.socket?.off('connect', this.onSocketConnected);
+      this.socket?.off('presence:snapshot', this.onPresenceSnapshot);
+      this.socket?.off('presence:updated', this.onPresenceUpdated);
     });
+  }
+
+  private scheduleAfterRender(callback: FrameRequestCallback): void {
+    const schedule =
+      globalThis.requestAnimationFrame ??
+      ((frameCallback: FrameRequestCallback) =>
+        globalThis.setTimeout(frameCallback, 0));
+
+    schedule(callback);
   }
 
   get currentWorkspace(): WorkspaceModel {
     return this.args.workspace;
   }
 
-  get currentWorkspaceSlug(): string {
-    return this.workspaceSlug(this.currentWorkspace);
+  get onlineMemberCount(): number {
+    const workspaceUserIds = new Set(this.currentWorkspaceUserIds);
+
+    return this.onlineUserIds.filter((userId) => workspaceUserIds.has(userId))
+      .length;
+  }
+
+  get onlineMemberLabel(): string {
+    return `${this.onlineMemberCount} online`;
+  }
+
+  get currentWorkspaceRoleLabel(): string {
+    return this.currentWorkspaceRole ?? 'MEMBER';
   }
 
   get hasOtherWorkspaces(): boolean {
@@ -101,14 +171,6 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
       },
     ];
   }
-
-  workspaceSlug = (workspace: WorkspaceModel): string => {
-    return workspace.name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-  };
 
   isCurrentWorkspace = (workspace: WorkspaceModel): boolean => {
     return Number(workspace.id) === Number(this.currentWorkspace.id);
@@ -198,6 +260,50 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
     }
   }
 
+  private async loadCurrentWorkspaceMeta(): Promise<void> {
+    const workspaceId = Number(this.currentWorkspace.id);
+    const currentUserId = Number(this.sessionAccount.id);
+
+    if (!workspaceId) return;
+
+    try {
+      const workspaceMembers = await this.store.query('workspace-member', {
+        filter: {
+          where: {
+            workspaceId,
+          },
+        },
+      });
+      const memberUserIds = workspaceMembers
+        .map((member) => Number(member.userId))
+        .filter((userId) => Number.isFinite(userId));
+
+      this.currentWorkspaceUserIds = [
+        ...new Set([Number(this.currentWorkspace.ownerId), ...memberUserIds]),
+      ].filter((userId) => Number.isFinite(userId));
+
+      if (Number(this.currentWorkspace.ownerId) === currentUserId) {
+        this.currentWorkspaceRole = 'OWNER';
+        return;
+      }
+
+      const currentMembership = workspaceMembers.find(
+        (member) => Number(member.userId) === currentUserId
+      );
+
+      this.currentWorkspaceRole =
+        (currentMembership?.role as WorkspaceRole | null) ?? 'MEMBER';
+    } catch {
+      this.currentWorkspaceUserIds = [
+        Number(this.currentWorkspace.ownerId),
+      ].filter((userId) => Number.isFinite(userId));
+      this.currentWorkspaceRole =
+        Number(this.currentWorkspace.ownerId) === currentUserId
+          ? 'OWNER'
+          : 'MEMBER';
+    }
+  }
+
   private async fetchWorkspaceMemberCount(
     workspaceId: number
   ): Promise<string> {
@@ -214,6 +320,54 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
 
     return `${count} member${count === 1 ? '' : 's'}`;
   }
+
+  private connectSocket(): void {
+    const token = this.session.data.authenticated?.token;
+    if (!token || this.socket) return;
+
+    const socket = this.socketIOService.socketFor(
+      import.meta.env.VITE_API_URL as string,
+      {
+        query: { token },
+      }
+    );
+
+    socket.on('connect', this.onSocketConnected, this);
+    socket.on('presence:snapshot', this.onPresenceSnapshot, this);
+    socket.on('presence:updated', this.onPresenceUpdated, this);
+    this.socket = socket;
+
+    if (socket.connected === true || socket.socket?.connected === true) {
+      this.onSocketConnected();
+    }
+  }
+
+  private onSocketConnected = (): void => {
+    this.socket?.emit('presence:request', {}, (rawResponse) => {
+      const response = rawResponse as PresenceRequestResponse;
+
+      this.onPresenceSnapshot(response);
+    });
+  };
+
+  private onPresenceSnapshot = (payload: unknown): void => {
+    const snapshot = payload as PresenceSnapshotPayload;
+
+    this.onlineUserIds = [...new Set(snapshot.onlineUserIds ?? [])].filter(
+      (userId) => Number.isFinite(userId)
+    );
+  };
+
+  private onPresenceUpdated = (payload: unknown): void => {
+    const update = payload as PresenceUpdatePayload;
+    const userId = Number(update.userId);
+
+    if (!Number.isFinite(userId)) return;
+
+    this.onlineUserIds = update.isOnline
+      ? [...new Set([...this.onlineUserIds, userId])]
+      : this.onlineUserIds.filter((onlineUserId) => onlineUserId !== userId);
+  };
 
   @action
   toggleSelector(event: Event): void {
@@ -254,16 +408,23 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
         aria-expanded={{if this.isOpen "true" "false"}}
         {{on "click" this.toggleSelector}}
       >
-        <UiIcon @name="building-community" @variant="primary" />
-        <span class="workspace-selector__trigger-copy">
-          <strong>{{this.currentWorkspace.name}}</strong>
-          <small>{{this.currentWorkspaceSlug}}</small>
-        </span>
-        <UiIcon
-          class="workspace-selector__chevron {{if this.isOpen '--open'}}"
-          @name="chevron-down"
+        <UiAvatar
+          @model={{this.currentWorkspace}}
+          @squared={{true}}
           @size="sm"
         />
+        <span class="workspace-selector__trigger-copy">
+          <h2 class="margin-zero">{{this.currentWorkspace.name}}</h2>
+          <small class="workspace-selector__trigger-meta">
+            <span
+              class="workspace-selector__online-dot"
+              aria-hidden="true"
+            ></span>
+            <span>{{this.onlineMemberLabel}}</span>
+            <span aria-hidden="true">·</span>
+            <span>{{this.currentWorkspaceRoleLabel}}</span>
+          </small>
+        </span>
       </button>
 
       {{#if this.isOpen}}

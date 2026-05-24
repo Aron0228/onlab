@@ -17,6 +17,7 @@
   .workspace-header-panel {
     display: flex;
     align-items: center;
+    min-width: 0;
   }
 
   .workspace-summary {
@@ -32,12 +33,44 @@
   .workspace-header-panel__workspace {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     width: 100%;
     min-width: 0;
   }
 
   .workspace-header-actions {
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
+    gap: var(--space-md);
+  }
+
+  .workspace-header-actions .ui-icon-button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: var(--radius-md);
+    background: inherit;
+    transform: none;
+  }
+
+  .workspace-header-actions .ui-icon-button:hover,
+  .workspace-header-actions .ui-icon-button:focus-visible {
+    background: var(--bg-hover);
+    outline: none;
+    transform: none;
+  }
+
+  .workspace-header-actions .ui-icon-button > .ui-icon-wrapper,
+  .workspace-header-actions
+    .ui-icon-button
+    > .ui-icon-wrapper.--variant-normal {
+    width: 24px;
+    height: 24px;
+  }
+
+  .workspace-header-actions .separator.--vertical {
+    min-height: 2rem;
   }
 
   .workspace-header-actions__profile {
@@ -57,8 +90,8 @@
   .workspace-selector {
     position: relative;
     z-index: 40;
-    width: min(31rem, 48vw);
-    min-width: 17rem;
+    width: 100%;
+    min-width: 0;
   }
 
   .workspace-selector__trigger {
@@ -66,12 +99,12 @@
     align-items: center;
     width: 100%;
     min-width: 0;
-    min-height: 4rem;
+    min-height: 3.5rem;
     padding: var(--space-sm);
     gap: var(--space-md);
-    border: 1px solid var(--border-subtle);
+    border: 0;
     border-radius: var(--radius-lg);
-    background: var(--bg-surface);
+    background: transparent;
     color: var(--text-primary);
     cursor: pointer;
     font: inherit;
@@ -81,7 +114,6 @@
   .workspace-selector__trigger:hover,
   .workspace-selector__trigger:focus-visible {
     background: var(--bg-hover);
-    border-color: var(--color-primary-600);
     outline: none;
   }
 
@@ -112,6 +144,21 @@
     color: var(--text-muted);
   }
 
+  .workspace-selector__trigger-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .workspace-selector__online-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--color-primary-500);
+    box-shadow: 0 0 0 2px var(--color-primary-100);
+  }
+
   .workspace-selector__chevron {
     color: var(--text-muted);
     transition: transform 0.16s ease;
@@ -125,7 +172,7 @@
     position: absolute;
     top: calc(100% + var(--space-xs));
     left: 0;
-    width: min(34rem, calc(100vw - var(--space-xl)));
+    width: min(22rem, calc(100vw - var(--space-xl)));
     max-height: min(34rem, calc(100dvh - 7rem));
     overflow-y: auto;
     padding: var(--space-sm);
@@ -223,12 +270,14 @@
 
   .workspace-summary {
     grid-area: summary;
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
   }
 
   .workspace-header-panel {
     grid-area: header;
-    padding: var(--space-md);
+    min-height: 4rem;
+    padding: var(--space-sm) var(--space-lg);
+    border-left: 0;
   }
 
   .workspace-nav {
@@ -246,9 +295,10 @@
   }
 
   .nav-item {
-    color: var(--text-muted);
+    color: var(--text-secondary);
     border-radius: var(--radius-md);
     padding: var(--space-sm);
+    font-weight: var(--font-weight-bold);
 
     .ui-icon-wrapper,
     .ui-icon-wrapper.--variant-normal {
@@ -306,9 +356,10 @@
     border: 0;
     border-radius: var(--radius-md);
     background: transparent;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     font: inherit;
+    font-weight: var(--font-weight-bold);
     text-align: left;
   }
 
@@ -505,7 +556,7 @@
 
     .workspace-selector {
       flex: 1 1 auto;
-      width: min(10rem, 31vw);
+      width: 100%;
       min-width: 0;
     }
 

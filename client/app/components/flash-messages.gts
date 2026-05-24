@@ -23,6 +23,7 @@ type FlashMessagesServiceLike = {
 
 type FlashMessageLike = {
   message: string;
+  title?: string;
   type?: string;
   _guid?: string;
   route?: string;
@@ -64,6 +65,7 @@ export default class FlashMessages extends Component<FlashMessagesSignature> {
       {{#each this.flashMessages.queue as |flash|}}
         <UiAlert
           @message={{flash.message}}
+          @title={{flash.title}}
           @type={{this.flashType flash.type}}
           @onClose={{fn this.dismissFlash flash}}
           @onActivate={{if flash.route (fn this.activateFlash flash)}}
