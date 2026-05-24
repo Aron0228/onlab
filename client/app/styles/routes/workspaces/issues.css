@@ -517,9 +517,203 @@
   }
 
   .issue-new-panel__textarea {
+    width: 100%;
     min-height: 14rem;
     resize: vertical;
     line-height: 1.6;
+  }
+
+  .issue-new-repository-option {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+    text-align: left;
+
+    strong,
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-bold);
+    }
+  }
+
+  .ui-dropdown__dropdown__option.--is-active
+    .issue-new-repository-option
+    strong {
+    color: var(--color-primary-600);
+  }
+
+  .issue-new-markdown-editor {
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+
+    &:focus-within {
+      border-color: var(--color-primary-500);
+      box-shadow: 0 0 0 3px
+        color-mix(in srgb, var(--color-primary-500) 18%, transparent);
+    }
+  }
+
+  .issue-new-markdown-editor__tabs {
+    display: flex;
+    gap: var(--space-xs);
+    padding: var(--space-xs);
+    border-bottom: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--bg-hover) 72%, transparent);
+  }
+
+  .issue-new-markdown-editor__tab {
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+
+    &.--active {
+      border-color: var(--border-subtle);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
+  }
+
+  .issue-new-markdown-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    padding: var(--space-xs);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+
+    button {
+      min-width: 2rem;
+      height: 2rem;
+      padding: 0 var(--space-sm);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--text-sm);
+      font-weight: var(--font-weight-bold);
+    }
+
+    button:hover,
+    button:focus-visible {
+      border-color: var(--color-primary-500);
+      background: var(--bg-active);
+      color: var(--color-primary-600);
+      outline: none;
+    }
+  }
+
+  .issue-new-markdown-editor .issue-new-panel__textarea {
+    min-height: 14rem;
+    border: 0;
+    border-radius: 0;
+    background: var(--bg-input);
+    box-shadow: none;
+
+    &:focus {
+      outline: none;
+      box-shadow: none;
+    }
+  }
+
+  .issue-new-markdown {
+    overflow-y: auto;
+    resize: none;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    white-space: normal;
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+
+    p,
+    ul,
+    ol,
+    blockquote,
+    pre {
+      margin: 0 0 var(--space-md);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 var(--space-sm);
+      color: var(--text-primary);
+    }
+
+    ul,
+    ol {
+      padding-left: 1.25rem;
+    }
+
+    li + li {
+      margin-top: var(--space-xs);
+    }
+
+    a {
+      color: var(--color-accent-500);
+      text-decoration: underline;
+      text-underline-offset: 0.12em;
+    }
+
+    blockquote {
+      margin-left: 0;
+      padding: var(--space-sm) var(--space-md);
+      border-left: 3px solid var(--color-primary-500);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      background: color-mix(
+        in srgb,
+        var(--color-accent-subtle) 35%,
+        transparent
+      );
+      color: var(--text-primary);
+    }
+
+    code {
+      padding: 0.1rem 0.35rem;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+    }
+
+    pre code {
+      display: block;
+      padding: 0;
+      background: transparent;
+    }
+  }
+
+  .issue-new-markdown__placeholder {
+    color: var(--text-muted);
   }
 
   .issue-new-panel__analysis-header {
