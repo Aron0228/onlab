@@ -429,12 +429,31 @@
   }
 
   .pull-request-reviewer-avatar {
-    display: inline-grid;
+    display: inline-flex;
     flex: 0 0 2.35rem;
     width: 2.35rem;
     height: 2.35rem;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+  }
+
+  .pull-request-reviewer-avatar .ui-avatar-frame {
+    --ui-avatar-size: 2.35rem;
+    border-radius: var(--radius-md);
+  }
+
+  .pull-request-reviewer-avatar .ui-avatar {
+    border-radius: var(--radius-md);
+  }
+
+  .pull-request-reviewer-avatar__fallback {
+    display: inline-grid;
+    width: 100%;
+    height: 100%;
     place-items: center;
-    border-radius: var(--radius-sm);
+    border-radius: inherit;
     background: linear-gradient(
       135deg,
       var(--color-primary-500),
@@ -565,68 +584,28 @@
   }
 
   &.--very-high {
-    --pull-request-risk-bg: color-mix(
-      in srgb,
-      var(--color-very-high-bg) 78%,
-      black 22%
-    );
-    --pull-request-risk-color: color-mix(
-      in srgb,
-      var(--color-very-high) 88%,
-      white 12%
-    );
+    --pull-request-risk-bg: var(--color-very-high-bg);
+    --pull-request-risk-color: var(--color-very-high);
   }
 
   &.--high {
-    --pull-request-risk-bg: color-mix(
-      in srgb,
-      var(--color-high-bg) 78%,
-      black 22%
-    );
-    --pull-request-risk-color: color-mix(
-      in srgb,
-      var(--color-high) 88%,
-      white 12%
-    );
+    --pull-request-risk-bg: var(--color-high-bg);
+    --pull-request-risk-color: var(--color-high);
   }
 
   &.--medium {
-    --pull-request-risk-bg: color-mix(
-      in srgb,
-      var(--color-medium-bg) 74%,
-      black 26%
-    );
-    --pull-request-risk-color: color-mix(
-      in srgb,
-      var(--color-medium) 90%,
-      white 10%
-    );
+    --pull-request-risk-bg: var(--color-medium-bg);
+    --pull-request-risk-color: var(--color-medium);
   }
 
   &.--low {
-    --pull-request-risk-bg: color-mix(
-      in srgb,
-      var(--color-low-bg) 74%,
-      black 26%
-    );
-    --pull-request-risk-color: color-mix(
-      in srgb,
-      var(--color-low) 90%,
-      white 10%
-    );
+    --pull-request-risk-bg: var(--color-low-bg);
+    --pull-request-risk-color: var(--color-low);
   }
 
   &.--unknown {
-    --pull-request-risk-bg: color-mix(
-      in srgb,
-      var(--color-unknown-bg) 80%,
-      black 20%
-    );
-    --pull-request-risk-color: color-mix(
-      in srgb,
-      var(--color-unknown) 90%,
-      white 10%
-    );
+    --pull-request-risk-bg: var(--color-unknown-bg);
+    --pull-request-risk-color: var(--color-unknown);
   }
 }
 
