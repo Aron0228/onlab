@@ -40,6 +40,18 @@
   color: var(--text-on-primary);
 }
 
+.communication-person-list__sentinel {
+  min-height: 1px;
+}
+
+.communication-person-list__empty {
+  padding: var(--space-md);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
 .communication-presence-avatar {
   position: relative;
   display: inline-flex;
@@ -281,6 +293,17 @@
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+.communication-message.--own .communication-attachment {
+  border-color: color-mix(in srgb, var(--text-on-primary) 72%, transparent);
+  background: color-mix(in srgb, var(--text-on-primary) 8%, transparent);
+  color: var(--text-on-primary);
+}
+
+.communication-attachment .ui-icon-wrapper {
+  color: currentColor;
 }
 
 .communication-attachment__copy {
@@ -289,21 +312,50 @@
 }
 
 .communication-image-attachment {
+  position: relative;
   display: block;
   width: min(42rem, 100%);
-  padding: 0;
   overflow: hidden;
-  border: 0;
   border-radius: 8px;
+}
+
+.communication-image-attachment__preview {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
   background: transparent;
   cursor: pointer;
 }
 
-.communication-image-attachment img {
+.communication-image-attachment__preview img {
   display: block;
   width: 100%;
   max-height: 32rem;
   object-fit: cover;
+}
+
+.communication-image-attachment__download {
+  position: absolute;
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid color-mix(in srgb, white 48%, transparent);
+  border-radius: 8px;
+  background: rgb(20 24 31 / 78%);
+  color: white;
+  backdrop-filter: blur(8px);
+}
+
+.communication-image-attachment__download .ui-icon-wrapper {
+  color: currentColor;
+}
+
+.communication-image-attachment__download:hover {
+  background: rgb(20 24 31 / 92%);
 }
 
 .communication-video-attachment {
@@ -313,13 +365,19 @@
 
 .communication-video-attachment__meta {
   align-items: center;
-  padding: var(--space-xs) var(--space-sm);
-  color: var(--text-secondary);
+  min-height: 2.5rem;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
   font-size: var(--text-sm);
 }
 
 .communication-message.--own .communication-video-attachment__meta {
-  color: color-mix(in srgb, var(--text-on-primary) 78%, transparent);
+  background: color-mix(in srgb, var(--bg-surface) 96%, transparent);
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
 .communication-video-attachment__download {
@@ -329,6 +387,10 @@
   height: 2rem;
   border-radius: 8px;
   color: inherit;
+}
+
+.communication-video-attachment__download .ui-icon-wrapper {
+  color: currentColor;
 }
 
 .communication-video-attachment__download:hover {
@@ -511,6 +573,7 @@
 .communication-lightbox__close .ui-icon-wrapper {
   width: 1.5rem;
   height: 1.5rem;
+  color: currentColor;
 }
 
 .communication-lightbox__close:hover {

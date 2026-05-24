@@ -15,6 +15,7 @@ describe('CommunicationController (unit)', () => {
       leaveGroupChannel: vi.fn(),
       deleteGroupChannel: vi.fn(),
       updateChannelMute: vi.fn(),
+      listDirectMembers: vi.fn(),
       listMessages: vi.fn(),
       sendMessage: vi.fn(),
       createMessageNotifications: vi.fn(),
@@ -62,6 +63,24 @@ describe('CommunicationController (unit)', () => {
       10,
       11,
     );
+  });
+
+  it('lists direct message members with search pagination', async () => {
+    const {controller, communicationService} = createSubject();
+    communicationService.listDirectMembers.mockResolvedValue([
+      {id: 1, userId: 11, fullName: 'Ada Lovelace', username: 'ada'},
+    ]);
+
+    await expect(
+      controller.listDirectMembers(3, user, 'ada', 25, 50),
+    ).resolves.toEqual([
+      {id: 1, userId: 11, fullName: 'Ada Lovelace', username: 'ada'},
+    ]);
+    expect(communicationService.listDirectMembers).toHaveBeenCalledWith(3, 10, {
+      search: 'ada',
+      limit: 25,
+      skip: 50,
+    });
   });
 
   it('adds channel members', async () => {

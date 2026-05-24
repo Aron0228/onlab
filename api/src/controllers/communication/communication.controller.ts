@@ -32,6 +32,14 @@ interface SendMessageRequest {
   attachmentIds?: number[];
 }
 
+interface CommunicationDirectMember {
+  id: number;
+  userId: number;
+  fullName: string;
+  username: string;
+  avatarUrl?: string;
+}
+
 @authenticate('jwt-header')
 export class CommunicationController {
   constructor(
@@ -46,6 +54,21 @@ export class CommunicationController {
     @inject(SecurityBindings.USER) user: UserProfile,
   ): Promise<Channel[]> {
     return this.communicationService.listChannels(workspaceId, Number(user.id));
+  }
+
+  @get('/communication/workspaces/{workspaceId}/direct-members')
+  async listDirectMembers(
+    @param.path.number('workspaceId') workspaceId: number,
+    @inject(SecurityBindings.USER) user: UserProfile,
+    @param.query.string('search') search?: string,
+    @param.query.number('limit') limit?: number,
+    @param.query.number('skip') skip?: number,
+  ): Promise<CommunicationDirectMember[]> {
+    return this.communicationService.listDirectMembers(
+      workspaceId,
+      Number(user.id),
+      {search, limit, skip},
+    );
   }
 
   @post('/communication/workspaces/{workspaceId}/channels')

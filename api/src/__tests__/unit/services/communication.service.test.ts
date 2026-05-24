@@ -10,6 +10,9 @@ describe('CommunicationService (unit)', () => {
   let messageRepository: Record<string, ReturnType<typeof vi.fn>>;
   let messageAttachmentRepository: Record<string, ReturnType<typeof vi.fn>>;
   let fileRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let userRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let workspaceRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let workspaceMemberRepository: Record<string, ReturnType<typeof vi.fn>>;
   let auditEventService: Record<string, ReturnType<typeof vi.fn>>;
   let workspaceAuthorizationService: Record<string, ReturnType<typeof vi.fn>>;
   let notificationService: Record<string, ReturnType<typeof vi.fn>>;
@@ -43,6 +46,15 @@ describe('CommunicationService (unit)', () => {
     fileRepository = {
       findById: vi.fn(),
     };
+    userRepository = {
+      find: vi.fn(),
+    };
+    workspaceRepository = {
+      findById: vi.fn().mockResolvedValue({id: 3, ownerId: 99}),
+    };
+    workspaceMemberRepository = {
+      find: vi.fn(),
+    };
     auditEventService = {
       record: vi.fn().mockResolvedValue(undefined),
     };
@@ -61,6 +73,9 @@ describe('CommunicationService (unit)', () => {
       messageRepository as never,
       messageAttachmentRepository as never,
       fileRepository as never,
+      userRepository as never,
+      workspaceRepository as never,
+      workspaceMemberRepository as never,
       auditEventService as never,
       workspaceAuthorizationService as never,
       notificationService as never,
@@ -97,6 +112,97 @@ describe('CommunicationService (unit)', () => {
         },
       ],
       order: ['updatedAt DESC'],
+    });
+  });
+
+  it('lists direct members with workspace pagination', async () => {
+    workspaceMemberRepository.find.mockResolvedValue([
+      {
+        id: 1,
+        userId: 11,
+      },
+    ]);
+    workspaceRepository.findById.mockResolvedValue({id: 3, ownerId: 10});
+    userRepository.find.mockResolvedValue([
+      {
+        id: 11,
+        fullName: 'Ada Lovelace',
+        username: 'ada',
+        avatarUrl: 'avatar.png',
+      },
+    ]);
+
+    await expect(
+      service.listDirectMembers(3, 10, {limit: 25, skip: 50}),
+    ).resolves.toEqual([
+      {
+        id: 1,
+        userId: 11,
+        fullName: 'Ada Lovelace',
+        username: 'ada',
+        avatarUrl: 'avatar.png',
+      },
+    ]);
+    expect(workspaceAuthorizationService.assertPermission).toHaveBeenCalledWith(
+      3,
+      10,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
+    expect(workspaceMemberRepository.find).toHaveBeenCalledWith({
+      where: {workspaceId: 3, userId: {neq: 10}},
+    });
+    expect(userRepository.find).toHaveBeenCalledWith({
+      where: {
+        and: [{id: {inq: [11]}}],
+      },
+      order: ['fullName ASC', 'username ASC'],
+      limit: 25,
+      skip: 50,
+    });
+  });
+
+  it('searches direct members by user fields with pagination', async () => {
+    workspaceMemberRepository.find.mockResolvedValue([
+      {id: 1, userId: 11},
+      {id: 2, userId: 12},
+    ]);
+    workspaceRepository.findById.mockResolvedValue({id: 3, ownerId: 10});
+    userRepository.find.mockResolvedValue([
+      {
+        id: 12,
+        fullName: 'Grace Hopper',
+        username: 'grace',
+        avatarUrl: 'grace.png',
+      },
+    ]);
+
+    await expect(
+      service.listDirectMembers(3, 10, {search: 'grace', limit: 10, skip: 20}),
+    ).resolves.toEqual([
+      {
+        id: 2,
+        userId: 12,
+        fullName: 'Grace Hopper',
+        username: 'grace',
+        avatarUrl: 'grace.png',
+      },
+    ]);
+    expect(userRepository.find).toHaveBeenCalledWith({
+      where: {
+        and: [
+          {id: {inq: [11, 12]}},
+          {
+            or: [
+              {fullName: {ilike: '%grace%'}},
+              {username: {ilike: '%grace%'}},
+              {email: {ilike: '%grace%'}},
+            ],
+          },
+        ],
+      },
+      order: ['fullName ASC', 'username ASC'],
+      limit: 10,
+      skip: 20,
     });
   });
 

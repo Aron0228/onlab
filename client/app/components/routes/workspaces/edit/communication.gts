@@ -17,6 +17,7 @@ import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiInput from 'client/components/ui/input';
 import UiVideoPlayer from 'client/components/ui/video-player';
+import loadMoreWhenVisible from 'client/modifiers/load-more-when-visible';
 import type {
   CommunicationAttachment,
   CommunicationChannel,
@@ -85,6 +86,8 @@ type MessageRenderItem = {
   showMeta?: boolean;
 };
 
+const DIRECT_MEMBER_PAGE_SIZE = 25;
+
 type JsonApiDocument = {
   data: {
     id: string;
@@ -135,8 +138,13 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   @tracked isUpdatingChannel = false;
   @tracked isDeletingChannel = false;
   @tracked channelActionError: string | null = null;
+  @tracked directMemberResults: CommunicationMember[] = [];
+  @tracked directMemberOffset = 0;
+  @tracked hasMoreDirectMembers = true;
+  @tracked isLoadingDirectMembers = false;
 
   private socket?: SocketLike;
+  private directMemberSearchGeneration = 0;
   private threadElement?: HTMLElement;
   private typingStopTimer?: ReturnType<typeof globalThis.setTimeout>;
   private typingExpiryTimers = new Map<
@@ -147,6 +155,12 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   constructor(owner: Owner, args: Signature['Args']) {
     super(owner, args);
     this.channels = args.model.channels;
+    this.directMemberResults = args.model.members
+      .filter((member) => member.userId !== this.currentUserId)
+      .slice(0, DIRECT_MEMBER_PAGE_SIZE);
+    this.directMemberOffset = this.directMemberResults.length;
+    this.hasMoreDirectMembers =
+      this.directMemberResults.length === DIRECT_MEMBER_PAGE_SIZE;
     this.selectedChannelId = args.model.selectedChannelId;
     this.messages = this.selectedChannel?.messages ?? [];
     document.addEventListener('click', this.closeChannelMenuOnOutsideClick);
@@ -245,16 +259,15 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   }
 
   get filteredMembers(): CommunicationMember[] {
-    const query = this.search.trim().toLowerCase();
-    const members = this.args.model.members.filter(
-      (member) => member.userId !== this.currentUserId
-    );
+    return this.directMemberResults;
+  }
 
-    if (!query) return members;
+  get visibleDirectMembers(): CommunicationMember[] {
+    return this.directMemberResults;
+  }
 
-    return members.filter((member) =>
-      `${member.fullName} ${member.username}`.toLowerCase().includes(query)
-    );
+  get canLoadMoreDirectMembers(): boolean {
+    return this.hasMoreDirectMembers && !this.isLoadingDirectMembers;
   }
 
   get headerTitle(): string {
@@ -419,6 +432,59 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
 
   @action updateSearch(value: string): void {
     this.search = value;
+    this.directMemberSearchGeneration += 1;
+    this.directMemberOffset = 0;
+    this.hasMoreDirectMembers = true;
+    this.isLoadingDirectMembers = false;
+    this.directMemberResults = [];
+    void this.loadDirectMemberPage(this.directMemberSearchGeneration);
+  }
+
+  @action loadMoreDirectMembers(): void {
+    void this.loadDirectMemberPage(this.directMemberSearchGeneration);
+  }
+
+  private async loadDirectMemberPage(generation: number): Promise<void> {
+    if (!this.hasMoreDirectMembers || this.isLoadingDirectMembers) {
+      return;
+    }
+
+    const skip = this.directMemberOffset;
+    const search = this.search.trim();
+
+    this.isLoadingDirectMembers = true;
+
+    try {
+      const payload = await this.api.request(
+        `/communication/workspaces/${this.workspaceId}/direct-members`,
+        {
+          params: {
+            limit: String(DIRECT_MEMBER_PAGE_SIZE),
+            skip: String(skip),
+            ...(search ? { search } : {}),
+          },
+        }
+      );
+      const members = parseCommunicationMembers(payload);
+
+      if (
+        generation !== this.directMemberSearchGeneration ||
+        skip !== this.directMemberOffset
+      ) {
+        return;
+      }
+
+      this.directMemberResults =
+        skip === 0
+          ? members
+          : mergeCommunicationMembers(this.directMemberResults, members);
+      this.directMemberOffset += members.length;
+      this.hasMoreDirectMembers = members.length === DIRECT_MEMBER_PAGE_SIZE;
+    } finally {
+      if (generation === this.directMemberSearchGeneration) {
+        this.isLoadingDirectMembers = false;
+      }
+    }
   }
 
   @action toggleChannelMenu(event?: Event): void {
@@ -712,15 +778,14 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
   };
 
   memberName = (userId?: number): string => {
-    return (
-      this.args.model.members.find((member) => member.userId === userId)
-        ?.fullName ?? 'Unknown user'
-    );
+    return this.memberFor(userId)?.fullName ?? 'Unknown user';
   };
 
   memberFor = (userId?: number): CommunicationMember | null => {
     return (
-      this.args.model.members.find((member) => member.userId === userId) ?? null
+      this.args.model.members.find((member) => member.userId === userId) ??
+      this.directMemberResults.find((member) => member.userId === userId) ??
+      null
     );
   };
 
@@ -1304,8 +1369,8 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
               @placeholder="Search people..."
               @onInput={{this.updateSearch}}
             />
-            <div class="layout-vertical --gap-xs">
-              {{#each this.filteredMembers as |member|}}
+            <div class="communication-person-list layout-vertical --gap-xs">
+              {{#each this.visibleDirectMembers as |member|}}
                 <button
                   type="button"
                   class="communication-person layout-horizontal --gap-sm"
@@ -1329,6 +1394,21 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
                   {{/if}}
                 </button>
               {{/each}}
+              {{#unless this.visibleDirectMembers.length}}
+                {{#unless this.isLoadingDirectMembers}}
+                  <div class="communication-person-list__empty">
+                    No people match your search.
+                  </div>
+                {{/unless}}
+              {{/unless}}
+              <div
+                class="communication-person-list__sentinel"
+                aria-hidden="true"
+                {{loadMoreWhenVisible
+                  this.loadMoreDirectMembers
+                  enabled=this.canLoadMoreDirectMembers
+                }}
+              ></div>
             </div>
           </div>
         </aside>
@@ -1485,24 +1565,33 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
                         {{/if}}
                         {{#each message.attachments as |attachment|}}
                           {{#if (this.isImageAttachment attachment)}}
-                            <button
-                              type="button"
-                              class="communication-image-attachment"
-                              {{on
-                                "click"
-                                (fn
-                                  this.openImagePreview
-                                  (this.filePreviewUrl attachment)
-                                  attachment.file.originalName
-                                )
-                              }}
-                            >
-                              <img
-                                src={{this.filePreviewUrl attachment}}
-                                alt={{attachment.file.originalName}}
-                                {{on "load" this.onAttachmentImageLoad}}
-                              />
-                            </button>
+                            <div class="communication-image-attachment">
+                              <button
+                                type="button"
+                                class="communication-image-attachment__preview"
+                                {{on
+                                  "click"
+                                  (fn
+                                    this.openImagePreview
+                                    (this.filePreviewUrl attachment)
+                                    attachment.file.originalName
+                                  )
+                                }}
+                              >
+                                <img
+                                  src={{this.filePreviewUrl attachment}}
+                                  alt={{attachment.file.originalName}}
+                                  {{on "load" this.onAttachmentImageLoad}}
+                                />
+                              </button>
+                              <a
+                                class="communication-image-attachment__download"
+                                href={{this.fileDownloadUrl attachment}}
+                                aria-label="Download image"
+                              >
+                                <UiIcon @name="download" @size="sm" />
+                              </a>
+                            </div>
                           {{else if (this.isVideoAttachment attachment)}}
                             <div
                               class="communication-video-attachment layout-vertical --gap-xs"
@@ -1517,7 +1606,6 @@ export default class RoutesWorkspacesEditCommunication extends Component<Signatu
                               <div
                                 class="communication-video-attachment__meta layout-horizontal --gap-sm"
                               >
-                                <UiIcon @name="player-play" @size="sm" />
                                 <span
                                   class="communication-attachment__copy"
                                 >{{attachment.file.originalName}}</span>
@@ -1855,6 +1943,41 @@ function parseChannelMember(payload: unknown): {
     userId: Number(payload.data.attributes?.userId),
     mutedAt: payload.data.attributes?.mutedAt as string | null | undefined,
   };
+}
+
+function parseCommunicationMembers(payload: unknown): CommunicationMember[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload
+    .map((item) => item as Partial<CommunicationMember>)
+    .filter(
+      (member): member is CommunicationMember =>
+        typeof member.id === 'number' && typeof member.userId === 'number'
+    )
+    .map((member) => ({
+      id: Number(member.id),
+      userId: Number(member.userId),
+      fullName: member.fullName ?? 'Unknown user',
+      username: member.username ?? '',
+      avatarUrl: member.avatarUrl,
+    }));
+}
+
+function mergeCommunicationMembers(
+  currentMembers: CommunicationMember[],
+  nextMembers: CommunicationMember[]
+): CommunicationMember[] {
+  const merged = new Map(
+    currentMembers.map((member) => [member.userId, member])
+  );
+
+  for (const member of nextMembers) {
+    merged.set(member.userId, member);
+  }
+
+  return [...merged.values()];
 }
 
 function asResourceIdentifierArray(

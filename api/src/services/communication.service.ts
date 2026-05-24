@@ -15,6 +15,9 @@ import {
   FileRepository,
   MessageAttachmentRepository,
   MessageRepository,
+  UserRepository,
+  WorkspaceRepository,
+  WorkspaceMemberRepository,
 } from '../repositories';
 import {AuditEventService} from './audit-event.service';
 import {NotificationService} from './notification.service';
@@ -41,6 +44,23 @@ export interface UpdateChannelMuteData {
   muted: boolean;
 }
 
+export interface CommunicationMemberSearchOptions {
+  search?: string;
+  limit?: number;
+  skip?: number;
+}
+
+export interface CommunicationMemberSearchResult {
+  id: number;
+  userId: number;
+  fullName: string;
+  username: string;
+  avatarUrl?: string;
+}
+
+const DEFAULT_MEMBER_SEARCH_LIMIT = 25;
+const MAX_MEMBER_SEARCH_LIMIT = 100;
+
 @injectable({scope: BindingScope.SINGLETON})
 export class CommunicationService {
   constructor(
@@ -54,6 +74,12 @@ export class CommunicationService {
     private messageAttachmentRepository: MessageAttachmentRepository,
     @repository(FileRepository)
     private fileRepository: FileRepository,
+    @repository(UserRepository)
+    private userRepository: UserRepository,
+    @repository(WorkspaceRepository)
+    private workspaceRepository: WorkspaceRepository,
+    @repository(WorkspaceMemberRepository)
+    private workspaceMemberRepository: WorkspaceMemberRepository,
     @service(AuditEventService)
     private auditEventService: AuditEventService,
     @service(WorkspaceAuthorizationService)
@@ -92,6 +118,95 @@ export class CommunicationService {
         },
       ],
       order: ['updatedAt DESC'],
+    });
+  }
+
+  async listDirectMembers(
+    workspaceId: number,
+    userId: number,
+    options: CommunicationMemberSearchOptions = {},
+  ): Promise<CommunicationMemberSearchResult[]> {
+    await this.workspaceAuthorizationService.assertPermission(
+      workspaceId,
+      userId,
+      WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+    );
+
+    const limit = clampNumber(
+      options.limit,
+      1,
+      MAX_MEMBER_SEARCH_LIMIT,
+      DEFAULT_MEMBER_SEARCH_LIMIT,
+    );
+    const skip = Math.max(0, Math.floor(options.skip ?? 0));
+    const search = options.search?.trim();
+
+    const [workspace, members] = await Promise.all([
+      this.workspaceRepository.findById(workspaceId),
+      this.workspaceMemberRepository.find({
+        where: {workspaceId, userId: {neq: userId}},
+      }),
+    ]);
+    const memberByUserId = new Map(
+      members
+        .filter(
+          (member): member is typeof member & {userId: number} =>
+            typeof member.userId === 'number',
+        )
+        .map(member => [member.userId, member]),
+    );
+    const memberUserIds = new Set(memberByUserId.keys());
+
+    if (workspace.ownerId !== userId) {
+      memberUserIds.add(workspace.ownerId);
+    }
+
+    if (!memberUserIds.size) {
+      return [];
+    }
+
+    const searchWhere = search
+      ? [
+          {
+            or: [
+              {fullName: {ilike: `%${escapeLikeTerm(search)}%`}},
+              {username: {ilike: `%${escapeLikeTerm(search)}%`}},
+              {email: {ilike: `%${escapeLikeTerm(search)}%`}},
+            ],
+          },
+        ]
+      : [];
+    const users = await this.userRepository.find({
+      where: {
+        and: [{id: {inq: [...memberUserIds]}}, ...searchWhere],
+      },
+      order: ['fullName ASC', 'username ASC'],
+      limit,
+      skip,
+    });
+
+    return users.flatMap(user => {
+      const member = memberByUserId.get(user.id);
+
+      return member
+        ? [
+            {
+              id: member?.id ?? user.id,
+              userId: user.id,
+              fullName: user.fullName,
+              username: user.username,
+              avatarUrl: user.avatarUrl,
+            },
+          ]
+        : [
+            {
+              id: user.id,
+              userId: user.id,
+              fullName: user.fullName,
+              username: user.username,
+              avatarUrl: user.avatarUrl,
+            },
+          ];
     });
   }
 
@@ -518,3 +633,20 @@ export class CommunicationService {
 export type MessageWithAttachments = Message & {
   attachments?: MessageAttachment[];
 };
+
+function clampNumber(
+  value: number | undefined,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function escapeLikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, character => `\\${character}`);
+}
