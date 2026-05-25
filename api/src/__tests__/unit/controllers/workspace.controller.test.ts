@@ -126,6 +126,45 @@ describe('WorkspaceController (unit)', () => {
     });
   });
 
+  it('returns navigation without channels when communication is not visible', async () => {
+    const {controller, authorization, channelMemberRepository} =
+      createController();
+    authorization.checkPermission.mockImplementation(
+      (_workspaceId: number, _userId: number, permission: string) =>
+        Promise.resolve({
+          allowed: permission !== 'communication.view',
+          role: 'ADMIN',
+        }),
+    );
+
+    await expect(controller.navigation({id: 7} as never, 11)).resolves.toEqual({
+      items: expect.not.arrayContaining([
+        expect.objectContaining({id: 'direct-messages'}),
+      ]),
+      channels: [],
+      canCreateChannels: false,
+      canManageGithubInstallation: true,
+    });
+
+    expect(channelMemberRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('skips channel loading when the user has no joined group channels', async () => {
+    const {controller, channelMemberRepository, channelRepository} =
+      createController();
+    channelMemberRepository.find.mockResolvedValue([]);
+
+    await expect(controller.navigation({id: 7} as never, 11)).resolves.toEqual(
+      expect.objectContaining({
+        channels: [],
+        canCreateChannels: true,
+        canManageGithubInstallation: true,
+      }),
+    );
+
+    expect(channelRepository.find).not.toHaveBeenCalled();
+  });
+
   it('creates workspaces owned by the authenticated user', async () => {
     const {controller, repository, auditEventService} = createController();
     const workspace = new Workspace({id: 11, name: 'Demo', ownerId: 7});

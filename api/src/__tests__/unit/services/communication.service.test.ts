@@ -206,6 +206,49 @@ describe('CommunicationService (unit)', () => {
     });
   });
 
+  it('includes the workspace owner when a member searches direct-message targets', async () => {
+    workspaceMemberRepository.find.mockResolvedValue([
+      {id: 2, userId: undefined},
+    ]);
+    workspaceRepository.findById.mockResolvedValue({id: 3, ownerId: 99});
+    userRepository.find.mockResolvedValue([
+      {
+        id: 99,
+        fullName: 'Workspace Owner',
+        username: 'owner',
+        avatarUrl: undefined,
+      },
+    ]);
+
+    await expect(service.listDirectMembers(3, 10)).resolves.toEqual([
+      {
+        id: 99,
+        userId: 99,
+        fullName: 'Workspace Owner',
+        username: 'owner',
+        avatarUrl: undefined,
+      },
+    ]);
+
+    expect(userRepository.find).toHaveBeenCalledWith({
+      where: {
+        and: [{id: {inq: [99]}}],
+      },
+      order: ['fullName ASC', 'username ASC'],
+      limit: 25,
+      skip: 0,
+    });
+  });
+
+  it('returns no direct-message targets when the workspace has no other users', async () => {
+    workspaceMemberRepository.find.mockResolvedValue([]);
+    workspaceRepository.findById.mockResolvedValue({id: 3, ownerId: 10});
+
+    await expect(service.listDirectMembers(3, 10)).resolves.toEqual([]);
+
+    expect(userRepository.find).not.toHaveBeenCalled();
+  });
+
   it('creates a group channel and adds unique workspace members', async () => {
     channelRepository.create.mockResolvedValue({id: 20});
     channelRepository.findById.mockResolvedValue({id: 20, members: []});
@@ -395,6 +438,23 @@ describe('CommunicationService (unit)', () => {
     );
   });
 
+  it('rejects blank group channel names', async () => {
+    workspaceAuthorizationService.getWorkspaceRole.mockResolvedValue(
+      WORKSPACE_ROLE.ADMIN,
+    );
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'GROUP',
+    });
+
+    await expect(
+      service.updateGroupChannel(20, 10, {name: '   '}),
+    ).rejects.toBeInstanceOf(HttpErrors.BadRequest);
+
+    expect(channelRepository.updateById).not.toHaveBeenCalled();
+  });
+
   it('rejects group channel actions for direct channels', async () => {
     channelRepository.findById.mockResolvedValue({
       id: 20,
@@ -436,6 +496,30 @@ describe('CommunicationService (unit)', () => {
       expect.objectContaining({
         action: 'communication.channel.deleted',
         payload: {reason: 'last-member-left', name: undefined},
+      }),
+    );
+  });
+
+  it('audits group channel leaves when other members remain', async () => {
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'GROUP',
+    });
+    channelMemberRepository.findOne.mockResolvedValue({
+      id: 4,
+      channelId: 20,
+      userId: 10,
+    });
+    channelMemberRepository.find.mockResolvedValue([{id: 5, userId: 11}]);
+
+    await expect(service.leaveGroupChannel(20, 10)).resolves.toBeUndefined();
+
+    expect(channelRepository.deleteById).not.toHaveBeenCalled();
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'communication.channel.member.left',
+        resourceId: '20',
       }),
     );
   });
@@ -514,6 +598,16 @@ describe('CommunicationService (unit)', () => {
     expect(channelMemberRepository.updateById).toHaveBeenCalledWith(4, {
       mutedAt: null,
     });
+  });
+
+  it('rejects channel mute updates from non-members', async () => {
+    channelMemberRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.updateChannelMute(20, 10, {muted: true}),
+    ).rejects.toBeInstanceOf(HttpErrors.Forbidden);
+
+    expect(channelMemberRepository.updateById).not.toHaveBeenCalled();
   });
 
   it('lists messages with sender and attachment file inclusions', async () => {
@@ -616,6 +710,41 @@ describe('CommunicationService (unit)', () => {
       expect.objectContaining({
         title: 'ada',
         message: 'Sent an attachment.',
+      }),
+    );
+  });
+
+  it('uses fallback labels for messages without sender or channel names', async () => {
+    channelRepository.findById.mockResolvedValue({
+      id: 20,
+      workspaceId: 3,
+      type: 'GROUP',
+      members: [{userId: 10}, {userId: 11}],
+    });
+    notificationService.create.mockResolvedValue({
+      id: 92,
+      userId: 11,
+      type: 'communication-message',
+    });
+
+    await service.createMessageNotifications(
+      20,
+      new Message({
+        id: 44,
+        channelId: 20,
+        senderId: 10,
+        content: 'hello',
+      }),
+      10,
+    );
+
+    expect(notificationService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Someone in #channel',
+        message: 'hello',
+        payload: expect.objectContaining({
+          channelName: undefined,
+        }),
       }),
     );
   });

@@ -242,6 +242,45 @@ describe('CapacityPlanningSyncService (unit)', () => {
     expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
   });
 
+  it('skips scheduled workspace entries that cannot sync', async () => {
+    workspaceRepository.find.mockResolvedValue([
+      {
+        id: undefined,
+        githubInstallationId: '77',
+        capacityPlanningSync: true,
+      },
+      {
+        id: 3,
+        githubInstallationId: '77',
+        capacityPlanningSync: false,
+      },
+      {
+        id: 4,
+        githubInstallationId: null,
+        capacityPlanningSync: true,
+      },
+    ]);
+
+    await expect(service.syncActiveCapacityPlans()).resolves.toBe(0);
+
+    expect(workspaceRepository.findById).not.toHaveBeenCalled();
+    expect(capacityPlanRepository.findOne).not.toHaveBeenCalled();
+    expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
+  });
+
+  it('skips active workspace sync when sync is disabled', async () => {
+    workspaceRepository.findById.mockResolvedValue({
+      id: 3,
+      githubInstallationId: '77',
+      capacityPlanningSync: false,
+    });
+
+    await expect(service.syncActiveWorkspacePlan(3)).resolves.toBe(0);
+
+    expect(capacityPlanRepository.findOne).not.toHaveBeenCalled();
+    expect(githubService.setIssueAssignees).not.toHaveBeenCalled();
+  });
+
   it('skips GitHub updates when the workspace has no GitHub installation', async () => {
     workspaceRepository.findById.mockResolvedValue({
       id: 3,
@@ -310,6 +349,40 @@ describe('CapacityPlanningSyncService (unit)', () => {
         resourceType: 'issue-assignment',
         resourceId: '19',
         source: 'github',
+      }),
+    );
+  });
+
+  it('uses the local username when an assigned GitHub assignee has no login', async () => {
+    capacityPlanRepository.findOne = vi.fn().mockResolvedValue({
+      id: 8,
+      workspaceId: 3,
+    });
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue({
+      id: 11,
+      repositoryId: 4,
+      githubId: 22,
+      githubIssueNumber: 27,
+    });
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'assigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 111},
+    });
+
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          assignee: 'octocat',
+        }),
       }),
     );
   });
@@ -488,6 +561,46 @@ describe('CapacityPlanningSyncService (unit)', () => {
         resourceType: 'issue-assignment',
         resourceId: '19',
         source: 'github',
+      }),
+    );
+  });
+
+  it('uses the local username when an unassigned GitHub assignee has no login', async () => {
+    capacityPlanRepository.findOne = vi.fn().mockResolvedValue({
+      id: 8,
+      workspaceId: 3,
+    });
+    githubRepositoryRepository.findById.mockResolvedValue({
+      id: 4,
+      workspaceId: 3,
+      fullName: 'team/api',
+    });
+    githubIssueRepository.findOne.mockResolvedValue({
+      id: 11,
+      repositoryId: 4,
+      githubId: 22,
+      githubIssueNumber: 27,
+    });
+    issueAssignmentRepository.findOne.mockResolvedValue({
+      id: 19,
+      capacityPlanId: 8,
+      issueId: 11,
+      userId: 5,
+    });
+
+    await service.syncGithubIssueAssigneeChange({
+      action: 'unassigned',
+      repositoryId: 4,
+      githubIssueId: 22,
+      githubIssueNumber: 27,
+      assignee: {id: 111},
+    });
+
+    expect(auditEventService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          assignee: 'octocat',
+        }),
       }),
     );
   });

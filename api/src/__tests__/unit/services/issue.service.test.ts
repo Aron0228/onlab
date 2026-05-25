@@ -341,4 +341,52 @@ describe('IssueService (unit)', () => {
     );
     expect(aiPredictionService.createPredictionsBulk).toHaveBeenCalledTimes(3);
   });
+
+  it('saves bulk issues through repository withoutNewsFeed when available', async () => {
+    const withoutNewsFeed = vi.fn(async callback => callback());
+    githubIssueRepository = {
+      ...githubIssueRepository,
+      withoutNewsFeed,
+    } as typeof githubIssueRepository & {
+      withoutNewsFeed: typeof withoutNewsFeed;
+    };
+    service = new IssueService(
+      githubIssueRepository as never,
+      issueAssignmentRepository as never,
+      githubRepositoryRepository as never,
+      aiPredictionService as never,
+      auditEventService as never,
+    );
+
+    await service.saveIssuesBulk([
+      {
+        issue: {
+          repositoryId: 1,
+          githubId: 1,
+          githubIssueNumber: 1,
+          title: 'Issue 1',
+          status: 'open',
+        },
+      },
+    ]);
+
+    expect(withoutNewsFeed).toHaveBeenCalledTimes(1);
+    expect(githubIssueRepository.createAll).toHaveBeenCalledWith([
+      {
+        repositoryId: 1,
+        githubId: 1,
+        githubIssueNumber: 1,
+        title: 'Issue 1',
+        status: 'open',
+      },
+    ]);
+  });
+
+  it('skips bulk issue persistence when the input is empty', async () => {
+    await service.saveIssuesBulk([]);
+
+    expect(githubIssueRepository.createAll).not.toHaveBeenCalled();
+    expect(auditEventService.record).not.toHaveBeenCalled();
+    expect(aiPredictionService.createPredictionsBulk).not.toHaveBeenCalled();
+  });
 });

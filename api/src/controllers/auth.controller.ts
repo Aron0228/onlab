@@ -45,7 +45,13 @@ export class AuthController {
       throw new HttpErrors.Unauthorized('Missing authentication token.');
     }
 
-    await this.jwtTokenService.revokeToken(token);
+    try {
+      await this.jwtTokenService.revokeToken(token);
+    } catch {
+      throw new HttpErrors.Unauthorized(
+        'Authentication token could not be revoked.',
+      );
+    }
 
     return {message: 'Logged out successfully.'};
   }

@@ -75,4 +75,14 @@ describe('AuthController (unit)', () => {
       } as never),
     ).rejects.toThrow('Missing authentication token.');
   });
+
+  it('rejects logout when token revocation fails', async () => {
+    jwtTokenService.revokeToken.mockRejectedValue(new Error('not found'));
+
+    await expect(
+      controller.logout({
+        headers: {authorization: 'Bearer jwt-token'},
+      } as never),
+    ).rejects.toThrow('Authentication token could not be revoked.');
+  });
 });
