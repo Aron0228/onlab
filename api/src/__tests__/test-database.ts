@@ -1,8 +1,11 @@
 import {execFile} from 'child_process';
+import {config as loadDotenv} from 'dotenv';
 import path from 'path';
 import {promisify} from 'util';
 
 const API_ROOT = path.resolve(__dirname, '../..');
+
+loadDotenv({path: path.resolve(API_ROOT, '.env')});
 
 const TEST_POSTGRES_HOST =
   process.env.TEST_POSTGRES_HOST ??
