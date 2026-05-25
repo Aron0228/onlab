@@ -126,6 +126,18 @@
   color: var(--text-muted);
 }
 
+.ui-date-picker__day.--disabled,
+.ui-date-picker__day:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.ui-date-picker__day.--disabled:hover,
+.ui-date-picker__day:disabled:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+}
+
 .ui-date-picker__actions {
   display: flex;
   justify-content: flex-end;

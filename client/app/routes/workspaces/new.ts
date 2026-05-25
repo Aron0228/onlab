@@ -6,7 +6,14 @@ import type SessionAccountService from 'client/services/session-account';
 type StoreLike = {
   createRecord(
     modelName: 'workspace',
-    data: { ownerId?: number }
+    data: {
+      ownerId?: number;
+      issueSync?: boolean;
+      capacityPlanningSync?: boolean;
+      prRiskPredictionSync?: boolean;
+      reviewerSuggestionSync?: boolean;
+      prReviewReminderCron?: string | null;
+    }
   ): WorkspaceModel;
 };
 
@@ -17,6 +24,11 @@ export default class WorkspacesNewRoute extends Route {
   model(): WorkspaceModel {
     return this.store.createRecord('workspace', {
       ownerId: this.sessionAccount.id,
+      issueSync: false,
+      capacityPlanningSync: false,
+      prRiskPredictionSync: false,
+      reviewerSuggestionSync: false,
+      prReviewReminderCron: null,
     });
   }
 }

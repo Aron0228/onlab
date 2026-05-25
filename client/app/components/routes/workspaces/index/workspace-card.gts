@@ -22,8 +22,12 @@ export default class RoutesWorkspacesIndexWorkspaceCard extends Component<Routes
     return this.args.role?.toLowerCase();
   }
 
+  get isGithubInstallationMissing(): boolean {
+    return !this.args.model.githubInstallationId;
+  }
+
   <template>
-    <LinkTo @route="workspaces.edit" @model={{@model.id}}>
+    <LinkTo @route="workspaces.edit.news-feed" @model={{@model.id}}>
       <UiContainer @bordered={{true}} class="">
         <div class="layout-horizontal --gap-md">
           <UiAvatar @model={{@model}} @squared={{true}} />
@@ -38,11 +42,20 @@ export default class RoutesWorkspacesIndexWorkspaceCard extends Component<Routes
             </span>
           </div>
 
-          {{#if @role}}
-            <div class="layout-horizontal --gap-sm margin-left-auto">
+          <div
+            class="workspace-card__badges layout-horizontal --gap-sm margin-left-auto"
+          >
+            {{#if this.isGithubInstallationMissing}}
+              <div class="workspace-setup-status">
+                <UiIcon @name="alert-triangle" />
+                Setup incomplete
+              </div>
+            {{/if}}
+
+            {{#if @role}}
               <div class="workspace-role --{{this.roleClass}}">{{@role}}</div>
-            </div>
-          {{/if}}
+            {{/if}}
+          </div>
         </div>
       </UiContainer>
     </LinkTo>

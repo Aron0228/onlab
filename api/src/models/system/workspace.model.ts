@@ -64,7 +64,7 @@ export class Workspace extends Entity {
   @property({
     type: 'boolean',
     postgresql: {columnName: 'issue_sync'},
-    default: true,
+    default: false,
   })
   issueSync?: boolean;
 
@@ -85,21 +85,21 @@ export class Workspace extends Entity {
   @property({
     type: 'boolean',
     postgresql: {columnName: 'capacity_planning_sync'},
-    default: true,
+    default: false,
   })
   capacityPlanningSync?: boolean;
 
   @property({
     type: 'boolean',
     postgresql: {columnName: 'pr_risk_prediction_sync'},
-    default: true,
+    default: false,
   })
   prRiskPredictionSync?: boolean;
 
   @property({
     type: 'boolean',
     postgresql: {columnName: 'reviewer_suggestion_sync'},
-    default: true,
+    default: false,
   })
   reviewerSuggestionSync?: boolean;
 

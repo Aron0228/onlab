@@ -10,6 +10,7 @@ import type { PullRequestReviewerStatus } from 'client/models/github-pull-reques
 import UiIcon from 'client/components/ui/icon';
 import UiContainer from 'client/components/ui/container';
 import UiButton from 'client/components/ui/button';
+import UiAvatar from 'client/components/ui/avatar';
 
 const AI_PRIORITY_NOTE_START = '<!-- onlab-ai-priority:start -->';
 const AI_PRIORITY_NOTE_END = '<!-- onlab-ai-priority:end -->';
@@ -261,6 +262,18 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     return 'Awaiting review';
   };
 
+  reviewerSecondaryLabel = (
+    reviewer: GithubPullRequestReviewerModel
+  ): string => {
+    if (reviewer.user) {
+      return reviewer.user.fullName || `@${reviewer.user.username}`;
+    }
+
+    return reviewer.userId
+      ? `Linked user #${reviewer.userId}`
+      : 'GitHub reviewer';
+  };
+
   private reviewerStatusRank(status: PullRequestReviewerStatus): number {
     switch (status) {
       case 'changes_requested':
@@ -282,6 +295,15 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
     <aside class="route-workspaces-edit-pull-requests-edit">
       <div class="pull-request-edit-panel layout-vertical --gap-lg">
         <div class="pull-request-edit-panel__header layout-horizontal --gap-md">
+          <LinkTo
+            @route={{this.closeRoute}}
+            @model={{this.closeModel}}
+            class="mobile-detail-back"
+            aria-label="Back to pull requests"
+          >
+            <UiIcon @name="arrow-left" />
+          </LinkTo>
+
           <div class="layout-horizontal --gap-sm">
             <UiIcon @name="git-pull-request" @variant="primary" />
             <h2 class="margin-zero">
@@ -399,7 +421,13 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
                   <div class="pull-request-reviewer-row">
                     <div class="layout-horizontal --gap-sm">
                       <span class="pull-request-reviewer-avatar">
-                        {{reviewerInitials reviewer.githubLogin}}
+                        {{#if reviewer.user}}
+                          <UiAvatar @model={{reviewer.user}} @size="sm" />
+                        {{else}}
+                          <span class="pull-request-reviewer-avatar__fallback">
+                            {{reviewerInitials reviewer.githubLogin}}
+                          </span>
+                        {{/if}}
                       </span>
                       <div class="layout-vertical --gap-xs">
                         <span class="font-weight-medium">
@@ -408,11 +436,7 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
                         <span
                           class="font-size-text-sm font-color-text-secondary"
                         >
-                          {{#if reviewer.userId}}
-                            Linked user #{{reviewer.userId}}
-                          {{else}}
-                            GitHub reviewer
-                          {{/if}}
+                          {{this.reviewerSecondaryLabel reviewer}}
                         </span>
                       </div>
                     </div>

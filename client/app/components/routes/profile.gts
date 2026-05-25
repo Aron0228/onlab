@@ -4,7 +4,6 @@ import { service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
 import UiIcon from 'client/components/ui/icon';
 import UiThemeSwitcher from 'client/components/ui/theme-switcher';
-import UiLanguageSelector from 'client/components/ui/language-selector';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiContainer from 'client/components/ui/container';
 import UiAvatar from 'client/components/ui/avatar';
@@ -184,8 +183,7 @@ export default class RoutesProfile extends Component<RoutesProfileSignature> {
           </div>
         </div>
 
-        <div class="layout-horizontal --gap-md maring-left-auto">
-          <UiLanguageSelector />
+        <div class="layout-horizontal --gap-md margin-left-auto">
           <UiThemeSwitcher />
         </div>
       </div>

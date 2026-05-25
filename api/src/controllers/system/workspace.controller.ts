@@ -5,9 +5,13 @@ import {Count, DataObject, Filter, Where} from '@loopback/repository';
 import {repository} from '@loopback/repository';
 import {del, get, param, patch, post, put, requestBody} from '@loopback/rest';
 import {SecurityBindings, UserProfile} from '@loopback/security';
-import {WORKSPACE_PERMISSION} from '../../constants';
+import {WORKSPACE_PERMISSION, WorkspacePermission} from '../../constants';
 import {Workspace, WorkspaceRelations} from '../../models';
-import {WorkspaceRepository} from '../../repositories';
+import {
+  ChannelMemberRepository,
+  ChannelRepository,
+  WorkspaceRepository,
+} from '../../repositories';
 import {
   AuditEventService,
   WorkspaceAuthorizationService,
@@ -26,11 +30,83 @@ const OWNER_ONLY_WORKSPACE_FIELDS = new Set<keyof Workspace>([
   'prReviewReminderCron',
 ]);
 
+type WorkspaceNavigationItem = {
+  id: string;
+  label: string;
+  iconName: string;
+  route: string;
+  query?: Record<string, unknown>;
+};
+
+type WorkspaceNavigationChannel = {
+  id: number;
+  name: string;
+};
+
+type WorkspaceNavigation = {
+  items: WorkspaceNavigationItem[];
+  channels: WorkspaceNavigationChannel[];
+  canCreateChannels: boolean;
+  canManageGithubInstallation: boolean;
+};
+
+const WORKSPACE_NAVIGATION_ITEMS: Array<
+  WorkspaceNavigationItem & {permission: WorkspacePermission}
+> = [
+  {
+    id: 'news-feed',
+    label: 'News Feed',
+    iconName: 'news',
+    route: 'workspaces.edit.news-feed',
+    permission: WORKSPACE_PERMISSION.WORKSPACE_VIEW,
+  },
+  {
+    id: 'direct-messages',
+    label: 'Direct Messages',
+    iconName: 'message-circle',
+    route: 'workspaces.edit.communication',
+    query: {channelId: null},
+    permission: WORKSPACE_PERMISSION.COMMUNICATION_VIEW,
+  },
+  {
+    id: 'issues',
+    label: 'Issues',
+    iconName: 'exclamation-circle',
+    route: 'workspaces.edit.issues',
+    permission: WORKSPACE_PERMISSION.GITHUB_ISSUE_MANAGE,
+  },
+  {
+    id: 'pull-requests',
+    label: 'Pull Requests',
+    iconName: 'git-pull-request',
+    route: 'workspaces.edit.pull-requests',
+    permission: WORKSPACE_PERMISSION.GITHUB_PULL_REQUEST_VIEW,
+  },
+  {
+    id: 'capacity-planning',
+    label: 'Capacity Planning',
+    iconName: 'calendar-event',
+    route: 'workspaces.edit.capacity-planning',
+    permission: WORKSPACE_PERMISSION.CAPACITY_PLAN_MANAGE,
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    iconName: 'settings',
+    route: 'workspaces.edit.settings',
+    permission: WORKSPACE_PERMISSION.WORKSPACE_SETTINGS_MANAGE,
+  },
+];
+
 @authenticate('jwt-header')
 export class WorkspaceController {
   constructor(
     @repository(WorkspaceRepository)
     private workspaceRepository: WorkspaceRepository,
+    @repository(ChannelRepository)
+    private channelRepository: ChannelRepository,
+    @repository(ChannelMemberRepository)
+    private channelMemberRepository: ChannelMemberRepository,
     @inject('services.WorkspaceAuthorizationService')
     private workspaceAuthorizationService: WorkspaceAuthorizationService,
     @inject('services.AuditEventService')
@@ -84,6 +160,94 @@ export class WorkspaceController {
     @param.path.number('id') id: number,
   ): Promise<Workspace> {
     return this.workspaceRepository.findById(id);
+  }
+
+  @get('/workspaces/{id}/navigation')
+  public async navigation(
+    @inject(SecurityBindings.USER)
+    userProfile: UserProfile,
+    @param.path.number('id') id: number,
+  ): Promise<WorkspaceNavigation> {
+    const userId =
+      this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
+    await this.workspaceAuthorizationService.assertWorkspaceMember(id, userId);
+
+    const permissionDecisions = await Promise.all(
+      WORKSPACE_NAVIGATION_ITEMS.map(item =>
+        this.workspaceAuthorizationService.checkPermission(
+          id,
+          userId,
+          item.permission,
+        ),
+      ),
+    );
+    const allowedItems = WORKSPACE_NAVIGATION_ITEMS.filter(
+      (_item, index) => permissionDecisions[index]?.allowed,
+    ).map(item => ({
+      id: item.id,
+      label: item.label,
+      iconName: item.iconName,
+      route: item.route,
+      query: item.query,
+    }));
+    const canViewCommunication =
+      permissionDecisions[
+        WORKSPACE_NAVIGATION_ITEMS.findIndex(
+          item => item.id === 'direct-messages',
+        )
+      ]?.allowed ?? false;
+    const canCreateChannels = (
+      await this.workspaceAuthorizationService.checkPermission(
+        id,
+        userId,
+        WORKSPACE_PERMISSION.COMMUNICATION_MANAGE,
+      )
+    ).allowed;
+    const canManageGithubInstallation = (
+      await this.workspaceAuthorizationService.checkPermission(
+        id,
+        userId,
+        WORKSPACE_PERMISSION.GITHUB_INSTALL_MANAGE,
+      )
+    ).allowed;
+
+    if (!canViewCommunication) {
+      return {
+        items: allowedItems,
+        channels: [],
+        canCreateChannels: false,
+        canManageGithubInstallation,
+      };
+    }
+
+    const memberships = await this.channelMemberRepository.find({
+      where: {userId},
+    });
+    const channelIds = memberships
+      .map(membership => membership.channelId)
+      .filter(
+        (channelId): channelId is number => typeof channelId === 'number',
+      );
+    const channels = channelIds.length
+      ? await this.channelRepository.find({
+          where: {
+            id: {inq: channelIds},
+            workspaceId: id,
+            type: 'GROUP',
+          },
+          order: ['id ASC'],
+        })
+      : [];
+
+    return {
+      items: allowedItems,
+      channels: channels.map(channel => ({
+        id: channel.id,
+        name: channel.name ?? 'untitled',
+      })),
+      canCreateChannels,
+      canManageGithubInstallation,
+    };
   }
 
   @get('/Workspaces/{id}/{relationName}')

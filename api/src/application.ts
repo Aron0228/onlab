@@ -25,7 +25,8 @@ import {
 } from '@loopback/authentication';
 import {JwtTokenStrategy} from './strategies/jwt-token.strategy';
 import {QueryTokenStrategy} from './strategies/query-token.strategy';
-import {PrReviewReminderSchedulerService} from './services';
+import {CapacityPlanningSyncSchedulerService} from './services/capacity-planning-sync-scheduler.service';
+import {PrReviewReminderSchedulerService} from './services/pr-review-reminder-scheduler.service';
 import {
   WORKSPACE_AUTHORIZER,
   WorkspaceAuthorizerProvider,
@@ -69,6 +70,7 @@ export class RestApi extends BootMixin(
     this.component(CronComponent);
 
     this.lifeCycleObserver(PrReviewReminderSchedulerService);
+    this.lifeCycleObserver(CapacityPlanningSyncSchedulerService);
     this.bind(WORKSPACE_AUTHORIZER)
       .toProvider(WorkspaceAuthorizerProvider)
       .tag(AuthorizationTags.AUTHORIZER);

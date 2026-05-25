@@ -9,6 +9,7 @@ describe('JwtTokenService (unit)', () => {
   let accessTokenRepository: {
     create: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    updateById: ReturnType<typeof vi.fn>;
   };
   let service: JwtTokenService;
 
@@ -21,6 +22,7 @@ describe('JwtTokenService (unit)', () => {
     accessTokenRepository = {
       create: vi.fn(),
       findById: vi.fn(),
+      updateById: vi.fn(),
     };
 
     service = new JwtTokenService(
@@ -100,5 +102,13 @@ describe('JwtTokenService (unit)', () => {
     );
 
     await expect(service.validateToken('jwt-token')).resolves.toBeUndefined();
+  });
+
+  it('revokeToken marks the persisted token as revoked', async () => {
+    await service.revokeToken('jwt-token');
+
+    expect(accessTokenRepository.updateById).toHaveBeenCalledWith('jwt-token', {
+      revoked: true,
+    });
   });
 });

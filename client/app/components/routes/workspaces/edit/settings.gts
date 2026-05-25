@@ -706,6 +706,10 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
     return this.workspaceDeleteConfirmation.trim() === this.args.model.name;
   }
 
+  get isGithubInstallationMissing(): boolean {
+    return !this.args.model.githubInstallationId;
+  }
+
   get expertiseOptions(): DropdownOption[] {
     return this.workspaceExpertises.map((expertise) => ({
       id: Number(expertise.id),
@@ -885,6 +889,29 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
         }
       );
     });
+  }
+
+  @action
+  reinstallGithubApp(): void {
+    const workspaceId = Number(this.args.model.id);
+    const token = this.session.data.authenticated?.token;
+
+    if (!workspaceId || !token) {
+      this.flashMessages.danger(
+        'We could not start the GitHub installation. Please sign in again and retry.',
+        {
+          title: 'GitHub setup failed',
+        }
+      );
+      return;
+    }
+
+    const installUrl = this.api.buildUrl('/github/installApp', {
+      workspaceId: String(workspaceId),
+      token: String(token),
+    });
+
+    globalThis.location.assign(installUrl.toString());
   }
 
   @action
@@ -1116,6 +1143,29 @@ export default class RoutesWorkspacesEditSettings extends Component<RoutesWorksp
 
                 <:default>
                   <div class="settings-general-grid">
+                    {{#if this.isGithubInstallationMissing}}
+                      <div class="settings-github-setup">
+                        <div class="settings-github-setup__icon">
+                          <UiIcon @name="brand-github" />
+                        </div>
+
+                        <div class="settings-github-setup__copy">
+                          <strong>GitHub app installation required</strong>
+                          <span>
+                            This workspace was created, but GitHub was not
+                            connected. Install the app to finish setup and sync
+                            repositories.
+                          </span>
+                        </div>
+
+                        <UiButton
+                          @text="Install GitHub App"
+                          @iconRight="arrow-right"
+                          @onClick={{this.reinstallGithubApp}}
+                        />
+                      </div>
+                    {{/if}}
+
                     <div class="settings-identity-card">
                       <UiAvatar
                         @model={{@model}}

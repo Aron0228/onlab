@@ -5,7 +5,11 @@ import { service } from '@ember/service';
 import { task } from 'ember-concurrency';
 import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
-import { or } from 'ember-truth-helpers';
+import { fn } from '@ember/helper';
+import { modifier } from 'ember-modifier';
+import { eq, or } from 'ember-truth-helpers';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import type GithubRepositoryModel from 'client/models/github-repository';
 import type { WorkspacesEditIssuesNewRouteModel } from 'client/routes/workspaces/edit/issues/new';
 import UiButton from 'client/components/ui/button';
@@ -59,6 +63,24 @@ type FlashMessagesServiceLike = {
   danger(message: string, options?: { title?: string }): void;
 };
 
+type DescriptionMode = 'write' | 'preview';
+type MarkdownSnippet =
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'bold'
+  | 'italic'
+  | 'quote'
+  | 'code'
+  | 'list'
+  | 'task'
+  | 'link';
+
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
+
 export interface RoutesWorkspacesEditIssuesNewSignature {
   Args: {
     model: WorkspacesEditIssuesNewRouteModel;
@@ -79,6 +101,7 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
     : null;
   @tracked title = '';
   @tracked description = '';
+  @tracked descriptionMode: DescriptionMode = 'write';
   @tracked analysisResult: AnalyzeIssueResponse | null = null;
 
   get repositories(): GithubRepositoryModel[] {
@@ -97,14 +120,30 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
     return Number(this.args.model.workspace.id);
   }
 
+  get isIssuePriorityEnabled(): boolean {
+    return this.args.model.workspace.issueSync !== false;
+  }
+
   get canAnalyze(): boolean {
+    return Boolean(
+      this.isIssuePriorityEnabled &&
+      this.selectedRepository &&
+      this.title.trim() &&
+      this.description.trim()
+    );
+  }
+
+  get hasRequiredIssueFields(): boolean {
     return Boolean(
       this.selectedRepository && this.title.trim() && this.description.trim()
     );
   }
 
   get canCreate(): boolean {
-    return Boolean(this.canAnalyze && this.analysisResult);
+    return Boolean(
+      this.hasRequiredIssueFields &&
+      (!this.isIssuePriorityEnabled || this.analysisResult)
+    );
   }
 
   get isAnalyzeDisabled(): boolean {
@@ -161,8 +200,28 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
     return this.analysisResult?.expertiseRecommendations ?? [];
   }
 
+  get renderedDescription(): string {
+    const source = this.description.trim();
+
+    if (!source) {
+      return '<p class="issue-new-markdown__placeholder">Nothing to preview yet.</p>';
+    }
+
+    const parsedHtml = marked.parse(source) as string;
+
+    return DOMPurify.sanitize(parsedHtml, {
+      USE_PROFILES: { html: true },
+    });
+  }
+
+  applyRenderedDescription = modifier(
+    (element: HTMLElement, [html]: [string]) => {
+      element.innerHTML = html;
+    }
+  );
+
   analyzeIssueTask = task(async () => {
-    if (!this.selectedRepository) {
+    if (!this.selectedRepository || !this.isIssuePriorityEnabled) {
       return;
     }
 
@@ -191,7 +250,7 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
           repositoryId: Number(this.selectedRepository.id),
           title: this.title.trim(),
           description: this.description.trim(),
-          prediction: this.analysisResult,
+          prediction: this.isIssuePriorityEnabled ? this.analysisResult : null,
         },
       }
     )) as CreateIssueResponse;
@@ -245,6 +304,44 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
   }
 
   @action
+  setDescriptionMode(mode: DescriptionMode): void {
+    this.descriptionMode = mode;
+  }
+
+  @action
+  insertMarkdownSnippet(snippet: MarkdownSnippet): void {
+    this.descriptionMode = 'write';
+
+    requestAnimationFrame(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        '.issue-new-panel__textarea'
+      );
+
+      if (!textarea) {
+        return;
+      }
+
+      const selectionStart = textarea.selectionStart;
+      const selectionEnd = textarea.selectionEnd;
+      const selectedText = this.description.slice(selectionStart, selectionEnd);
+      const insertion = markdownSnippetFor(snippet, selectedText);
+      const nextDescription = `${this.description.slice(
+        0,
+        selectionStart
+      )}${insertion}${this.description.slice(selectionEnd)}`;
+
+      this.description = nextDescription;
+      this.analysisResult = null;
+
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const cursorPosition = selectionStart + insertion.length;
+        textarea.setSelectionRange(cursorPosition, cursorPosition);
+      });
+    });
+  }
+
+  @action
   analyzeIssue(): void {
     this.analyzeIssueTask.perform().catch((error: unknown) => {
       const message =
@@ -281,7 +378,12 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
             <div class="layout-vertical --gap-sm">
               <h2 class="margin-zero">Create New Issue</h2>
               <span class="font-color-text-secondary">
-                Add a new issue and let AI analyze its priority
+                {{#if this.isIssuePriorityEnabled}}
+                  Add a new issue and let AI analyze its priority
+                {{else}}
+                  Add a new issue. AI priority analysis is disabled for this
+                  workspace.
+                {{/if}}
               </span>
             </div>
           </div>
@@ -308,8 +410,8 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
                 {{repository.fullName}}
               </:selected>
               <:option as |repository|>
-                <div class="layout-vertical">
-                  <span>{{repository.name}}</span>
+                <div class="issue-new-repository-option">
+                  <strong>{{repository.name}}</strong>
                   <span class="font-color-text-muted font-size-text-sm">
                     {{repository.fullName}}
                   </span>
@@ -331,13 +433,84 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
             @required={{true}}
             @trailingText="Supports Markdown formatting."
           >
-            <textarea
-              class="ui-input issue-new-panel__textarea"
-              value={{this.description}}
-              aria-label="Issue description"
-              placeholder="Detailed description of the issue, steps to reproduce, expected behavior..."
-              {{on "input" this.updateDescription}}
-            ></textarea>
+            <div class="issue-new-markdown-editor">
+              <div class="issue-new-markdown-editor__tabs">
+                <button
+                  type="button"
+                  class="issue-new-markdown-editor__tab
+                    {{if (eq this.descriptionMode 'write') '--active'}}"
+                  {{on "click" (fn this.setDescriptionMode "write")}}
+                >
+                  Write
+                </button>
+                <button
+                  type="button"
+                  class="issue-new-markdown-editor__tab
+                    {{if (eq this.descriptionMode 'preview') '--active'}}"
+                  {{on "click" (fn this.setDescriptionMode "preview")}}
+                >
+                  Preview
+                </button>
+              </div>
+
+              {{#if (eq this.descriptionMode "write")}}
+                <div class="issue-new-markdown-toolbar">
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "h1")}}
+                  >H1</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "h2")}}
+                  >H2</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "h3")}}
+                  >H3</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "bold")}}
+                  >B</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "italic")}}
+                  ><em>I</em></button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "quote")}}
+                  >Quote</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "code")}}
+                  >Code</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "list")}}
+                  >List</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "task")}}
+                  >Task</button>
+                  <button
+                    type="button"
+                    {{on "click" (fn this.insertMarkdownSnippet "link")}}
+                  >Link</button>
+                </div>
+
+                <textarea
+                  class="ui-input issue-new-panel__textarea"
+                  value={{this.description}}
+                  aria-label="Issue description"
+                  placeholder="Detailed description of the issue, steps to reproduce, expected behavior..."
+                  {{on "input" this.updateDescription}}
+                ></textarea>
+              {{else}}
+                <div
+                  class="issue-new-markdown issue-new-panel__textarea"
+                  {{this.applyRenderedDescription this.renderedDescription}}
+                ></div>
+              {{/if}}
+            </div>
           </UiFormGroup>
         </div>
 
@@ -408,19 +581,33 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
           </div>
         {{/if}}
 
-        {{#if this.analyzeIssueTask.isRunning}}
-          <div class="issue-new-panel__loading">
-            <UiLoadingSpinner />
-          </div>
+        {{#if this.isIssuePriorityEnabled}}
+          {{#if this.analyzeIssueTask.isRunning}}
+            <div class="issue-new-panel__loading">
+              <UiLoadingSpinner />
+            </div>
+          {{else}}
+            <UiButton
+              class="issue-new-panel__action issue-new-panel__analyze"
+              @text="Analyze with AI"
+              @iconLeft="sparkles"
+              @hierarchy="secondary"
+              @onClick={{this.analyzeIssue}}
+              @disabled={{this.isAnalyzeDisabled}}
+            />
+          {{/if}}
         {{else}}
-          <UiButton
-            class="issue-new-panel__action issue-new-panel__analyze"
-            @text="Analyze with AI"
-            @iconLeft="sparkles"
-            @hierarchy="secondary"
-            @onClick={{this.analyzeIssue}}
-            @disabled={{this.isAnalyzeDisabled}}
-          />
+          <UiContainer @bordered={{true}} @variant="info">
+            <:default>
+              <div class="layout-horizontal --gap-sm">
+                <UiIcon @name="info-circle" @variant="info" />
+                <p class="margin-zero font-color-text-secondary">
+                  AI issue priority analysis is disabled in workspace settings,
+                  so this issue will be created without AI labels or notes.
+                </p>
+              </div>
+            </:default>
+          </UiContainer>
         {{/if}}
 
         <div class="issue-new-panel__footer layout-horizontal --gap-md">
@@ -436,4 +623,34 @@ export default class RoutesWorkspacesEditIssuesNew extends Component<RoutesWorks
       </div>
     </aside>
   </template>
+}
+
+function markdownSnippetFor(
+  snippet: MarkdownSnippet,
+  selectedText: string
+): string {
+  const text = selectedText || 'text';
+
+  switch (snippet) {
+    case 'h1':
+      return `# ${selectedText || 'Heading'}\n`;
+    case 'h2':
+      return `## ${selectedText || 'Heading'}\n`;
+    case 'h3':
+      return `### ${selectedText || 'Heading'}\n`;
+    case 'bold':
+      return `**${text}**`;
+    case 'italic':
+      return `_${text}_`;
+    case 'quote':
+      return `> ${selectedText || 'Quote'}\n`;
+    case 'code':
+      return selectedText ? `\`${selectedText}\`` : '```\ncode\n```';
+    case 'list':
+      return `- ${selectedText || 'List item'}\n`;
+    case 'task':
+      return `- [ ] ${selectedText || 'Task'}\n`;
+    case 'link':
+      return `[${selectedText || 'link text'}](https://)`;
+  }
 }

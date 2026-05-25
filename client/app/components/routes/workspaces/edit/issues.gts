@@ -5,7 +5,7 @@ import { LinkTo } from '@ember/routing';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { service } from '@ember/service';
-import { task } from 'ember-concurrency';
+import { didCancel, restartableTask, task, timeout } from 'ember-concurrency';
 import { modifier } from 'ember-modifier';
 import type { WorkspacesEditIssuesRouteModel } from 'client/routes/workspaces/edit/issues';
 import type GithubIssueModel from 'client/models/github-issue';
@@ -16,6 +16,8 @@ import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
 import UiLoadingSpinner from 'client/components/ui/loading-spinner';
 
+const AI_PRIORITY_NOTE_START = '<!-- onlab-ai-priority:start -->';
+const AI_PRIORITY_NOTE_END = '<!-- onlab-ai-priority:end -->';
 const ISSUE_PAGE_SIZE = 25;
 
 type RouterLike = {
@@ -51,7 +53,9 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
   @tracked issueOffset = 0;
   @tracked hasMoreIssues = true;
   @tracked hasLoadedInitialIssues = false;
+  @tracked searchQuery = '';
   private paginationScopeKey: string | null = null;
+  private paginationGeneration = 0;
 
   loadIssuesPageTask = task(async () => {
     if (!this.hasMoreIssues) {
@@ -59,6 +63,9 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     }
 
     const repositoryIds = this.repositoryIds;
+    const searchQuery = this.normalizedSearchQuery;
+    const generation = this.paginationGeneration;
+    const offset = this.issueOffset;
 
     if (!repositoryIds.length) {
       this.hasMoreIssues = false;
@@ -66,22 +73,45 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
       return;
     }
 
+    const where: Record<string, unknown> = {
+      repositoryId: { inq: repositoryIds },
+    };
+
+    if (searchQuery) {
+      const searchTerm = `%${escapeLikeTerm(searchQuery)}%`;
+      where.or = [
+        { title: { ilike: searchTerm } },
+        { description: { ilike: searchTerm } },
+      ];
+    }
+
     const issues = await this.store.query('github-issue', {
       filter: {
         include: ['aiPrediction'],
         limit: ISSUE_PAGE_SIZE,
-        skip: this.issueOffset,
+        skip: offset,
         order: ['id DESC'],
-        where: {
-          repositoryId: { inq: repositoryIds },
-        },
+        where,
       },
     });
+
+    if (
+      generation !== this.paginationGeneration ||
+      searchQuery !== this.normalizedSearchQuery ||
+      offset !== this.issueOffset
+    ) {
+      return;
+    }
 
     this.issueOffset += issues.length;
     this.hasMoreIssues = issues.length === ISSUE_PAGE_SIZE;
     this.hasLoadedInitialIssues = true;
     this.workspaceIssues = mergeRecordsById(this.workspaceIssues, issues);
+  });
+
+  searchIssuesTask = restartableTask(async () => {
+    await timeout(250);
+    this.loadNextPage();
   });
 
   get repositoryIds(): Array<string | number> {
@@ -92,6 +122,10 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
 
   get repositoryScopeKey(): string {
     return this.repositoryIds.join(',');
+  }
+
+  get normalizedSearchQuery(): string {
+    return this.searchQuery.trim();
   }
 
   get filters() {
@@ -165,6 +199,31 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     return [Number(this.args.model.workspace.id), issueId ?? githubIssueNumber];
   };
 
+  cleanDescription = (description: string | null | undefined): string => {
+    if (!description) {
+      return '';
+    }
+
+    const notePattern = new RegExp(
+      `\\s*${escapeRegExp(AI_PRIORITY_NOTE_START)}[\\s\\S]*?${escapeRegExp(AI_PRIORITY_NOTE_END)}\\s*$`
+    );
+
+    return description
+      .replace(notePattern, '')
+      .replace(/^👀\s*/u, '')
+      .trim();
+  };
+
+  analysisSummary = (priorityReason: string | null | undefined): string => {
+    const trimmedReason = priorityReason?.trim();
+
+    if (trimmedReason) {
+      return trimmedReason;
+    }
+
+    return 'Awaiting AI priority analysis for this issue.';
+  };
+
   get filteredWorkspaceIssues() {
     if (!this.activeFilters.length) {
       return this.workspaceIssues;
@@ -217,6 +276,18 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
   }
 
   @action
+  updateSearchQuery(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.searchQuery = target.value;
+
+    void this.loadIssuesPageTask.cancelAll();
+    this.resetPagination();
+    this.searchIssuesTask.perform().catch((error: unknown) => {
+      logTaskError('Failed to search issues', error);
+    });
+  }
+
+  @action
   openNewIssue(): void {
     this.router.transitionTo('workspaces.edit.issues.new');
   }
@@ -228,11 +299,12 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
     }
 
     this.loadIssuesPageTask.perform().catch((error: unknown) => {
-      console.error('Failed to load issues page', error);
+      logTaskError('Failed to load issues page', error);
     });
   }
 
   private resetPagination(): void {
+    this.paginationGeneration += 1;
     this.workspaceIssues = [];
     this.issueOffset = 0;
     this.hasMoreIssues = true;
@@ -285,6 +357,18 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
             </button>
           {{/each}}
         </div>
+
+        <div class="issues-search-container layout-horizontal --gap-sm">
+          <UiIcon @name="search" />
+          <input
+            type="text"
+            class="issues-search-input"
+            aria-label="Search issues"
+            placeholder="Search issues..."
+            value={{this.searchQuery}}
+            {{on "input" this.updateSearchQuery}}
+          />
+        </div>
       </div>
 
       <div class="issues-body layout-vertical --gap-lg">
@@ -301,21 +385,22 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
           >
             <UiContainer class="issue-card">
               <:header>
-                <div class="layout-horizontal --gap-sm">
-                  <UiIcon @name="exclamation-circle" />
-                  <span class="font-weight-bold">
-                    #{{workspaceIssue.githubIssueNumber}}
-                  </span>
-                  <div
-                    class="issue-ai-priority
-                      {{this.prioritySelector workspaceIssue.priority}}
-                      layout-horizontal --gap-xs"
-                  >
-                    <UiIcon @name="circle-arrow-up" @size="sm" />
-
-                    <span class="font-size-text-sm">{{this.priorityLabel
-                        workspaceIssue.priority
-                      }}</span>
+                <div class="issue-card__header layout-horizontal --gap-sm">
+                  <div class="layout-horizontal --gap-sm">
+                    <UiIcon @name="exclamation-circle" />
+                    <span class="font-weight-bold">
+                      #{{workspaceIssue.githubIssueNumber}}
+                    </span>
+                    <div
+                      class="issue-ai-priority
+                        {{this.prioritySelector workspaceIssue.priority}}
+                        layout-horizontal --gap-xs"
+                    >
+                      <UiIcon @name="circle-arrow-up" @size="sm" />
+                      <span class="font-size-text-sm">{{this.priorityLabel
+                          workspaceIssue.priority
+                        }}</span>
+                    </div>
                   </div>
 
                   <div
@@ -327,9 +412,27 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
                 </div>
               </:header>
               <:default>
-                <span class="font-weight-medium font-size-text-lg">
-                  {{workspaceIssue.title}}
-                </span>
+                <div class="layout-vertical --gap-md">
+                  <span class="font-weight-medium font-size-text-lg">
+                    {{workspaceIssue.title}}
+                  </span>
+
+                  {{#if (this.cleanDescription workspaceIssue.description)}}
+                    <p class="issue-summary margin-zero">
+                      {{this.cleanDescription workspaceIssue.description}}
+                    </p>
+                  {{/if}}
+
+                  <div class="issue-analysis layout-horizontal --gap-xs">
+                    <UiIcon @name="sparkles" @variant="primary" @size="sm" />
+                    <span class="font-weight-bold">
+                      AI Analysis:
+                    </span>
+                    <span>
+                      {{this.analysisSummary workspaceIssue.priorityReason}}
+                    </span>
+                  </div>
+                </div>
               </:default>
             </UiContainer>
           </LinkTo>
@@ -363,4 +466,20 @@ export default class RoutesWorkspacesEditIssues extends Component<RoutesWorkspac
       </div>
     </div>
   </template>
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeLikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+function logTaskError(message: string, error: unknown): void {
+  if (didCancel(error)) {
+    return;
+  }
+
+  console.error(message, error);
 }

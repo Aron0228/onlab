@@ -1,12 +1,12 @@
 .ui-alert {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   border-radius: var(--radius-md);
   z-index: 9999;
   pointer-events: auto;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
-  width: min(28rem, 100%);
+  gap: var(--space-md);
+  padding: var(--space-md);
+  width: min(34rem, 100%);
   max-width: 100%;
   box-sizing: border-box;
 
@@ -31,32 +31,85 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    padding-top: 0.1rem;
   }
 
   .ui-alert__content {
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
+    flex: 1 1 auto;
+    gap: calc(var(--space-xs) / 2);
     min-width: 0;
   }
 
+  .ui-alert__title,
   .ui-alert__message {
-    display: flex;
-    word-break: break-word;
-    overflow-wrap: break-word;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ui-alert__title {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.2;
+  }
+
+  .ui-alert__message {
+    color: var(--text-secondary);
+    line-height: 1.35;
+  }
+
+  &.--type-info .ui-alert__message,
+  &.--type-success .ui-alert__message,
+  &.--type-warning .ui-alert__message,
+  &.--type-alert .ui-alert__message {
+    color: var(--text-primary);
   }
 
   .ui-alert__action {
-    align-self: flex-start;
+    flex-shrink: 0;
+    min-height: 2.5rem;
+  }
+
+  .ui-alert__controls {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .ui-alert__close {
-    margin-left: auto;
     display: flex;
     align-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border-radius: var(--radius-md);
+  }
+
+  .ui-alert__close .ui-icon-wrapper,
+  .ui-alert__close .ui-icon-wrapper.--variant-info,
+  .ui-alert__close .ui-icon-wrapper.--variant-success,
+  .ui-alert__close .ui-icon-wrapper.--variant-warning,
+  .ui-alert__close .ui-icon-wrapper.--variant-error {
+    color: currentcolor;
   }
 
   animation: alert-in 0.3s ease-out;
+}
+
+@media (width <= 640px) {
+  .ui-alert {
+    flex-wrap: wrap;
+
+    .ui-alert__controls {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
 }
 
 .ui-alert.--interactive {

@@ -22,6 +22,7 @@ import {
   GithubIssue,
   GithubIssueRelations,
   GithubRepository,
+  Workspace,
 } from '../../models';
 import {
   GithubIssueRepository,
@@ -216,6 +217,12 @@ export class GithubIssueController {
       body.repositoryId,
     );
 
+    if (repositoryContext.workspace.issueSync === false) {
+      throw new HttpErrors.BadRequest(
+        'AI issue priorities are disabled for this workspace',
+      );
+    }
+
     return this.issuePriorityService.predictIssuePriority({
       installationId: repositoryContext.installationId,
       repositoryFullName: repositoryContext.repository.fullName,
@@ -241,10 +248,14 @@ export class GithubIssueController {
     jobId?: string;
   }> {
     const {title, description} = this.validateDraft(body);
-    await this.getRepositoryContext(userProfile, body.repositoryId);
-    const prediction = this.issuePriorityService.normalizePredictionInput(
-      body.prediction,
+    const repositoryContext = await this.getRepositoryContext(
+      userProfile,
+      body.repositoryId,
     );
+    const prediction =
+      repositoryContext.workspace.issueSync !== false
+        ? this.issuePriorityService.normalizePredictionInput(body.prediction)
+        : null;
 
     const job = await this.queueService.enqueueGithubIssueCreation({
       repositoryId: body.repositoryId,
@@ -289,6 +300,7 @@ export class GithubIssueController {
   ): Promise<{
     installationId: number;
     repository: GithubRepository;
+    workspace: Workspace;
   }> {
     const repository =
       await this.githubRepositoryRepository.findById(repositoryId);
@@ -308,6 +320,7 @@ export class GithubIssueController {
     return {
       installationId,
       repository,
+      workspace,
     };
   }
 

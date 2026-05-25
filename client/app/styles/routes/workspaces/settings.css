@@ -78,6 +78,39 @@
     background: color-mix(in srgb, var(--bg-app) 64%, var(--bg-surface) 36%);
   }
 
+  .settings-github-setup {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    border: 1px solid var(--color-warning);
+    border-radius: var(--radius-lg);
+    background: var(--color-warning-bg);
+  }
+
+  .settings-github-setup__icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+    color: var(--color-warning);
+  }
+
+  .settings-github-setup__copy {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: var(--space-xs);
+
+    span {
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+  }
+
   .settings-sync-grid {
     display: grid;
     gap: var(--space-md);
@@ -488,6 +521,11 @@
     }
 
     .settings-identity-card {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .settings-github-setup {
       align-items: flex-start;
       flex-direction: column;
     }

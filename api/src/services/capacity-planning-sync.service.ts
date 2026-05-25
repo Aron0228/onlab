@@ -61,6 +61,10 @@ export class CapacityPlanningSyncService {
       return;
     }
 
+    if (!this.isPlanActive(plan)) {
+      return;
+    }
+
     await this.githubService.setIssueAssignees(
       Number(workspace.githubInstallationId),
       githubRepository.fullName,
@@ -82,6 +86,63 @@ export class CapacityPlanningSyncService {
         assignee: user.username,
       },
     });
+  }
+
+  async syncActiveCapacityPlans(): Promise<number> {
+    const workspaces = await this.workspaceRepository.find();
+    let syncedIssueCount = 0;
+
+    for (const workspace of workspaces) {
+      if (
+        !workspace.id ||
+        !workspace.capacityPlanningSync ||
+        !workspace.githubInstallationId
+      ) {
+        continue;
+      }
+
+      syncedIssueCount += await this.syncActiveWorkspacePlan(workspace.id);
+    }
+
+    return syncedIssueCount;
+  }
+
+  async syncActiveWorkspacePlan(workspaceId: number): Promise<number> {
+    const workspace = await this.workspaceRepository.findById(workspaceId);
+
+    if (!workspace.capacityPlanningSync || !workspace.githubInstallationId) {
+      return 0;
+    }
+
+    const activePlan = await this.resolveActiveCapacityPlan(workspaceId);
+
+    if (!activePlan?.id) {
+      return 0;
+    }
+
+    const assignments = await this.issueAssignmentRepository.find({
+      where: {capacityPlanId: activePlan.id},
+    });
+    const assignmentsByIssueId = new Map<number, IssueAssignment[]>();
+
+    for (const assignment of assignments) {
+      const issueAssignments =
+        assignmentsByIssueId.get(assignment.issueId) ?? [];
+
+      issueAssignments.push(assignment);
+      assignmentsByIssueId.set(assignment.issueId, issueAssignments);
+    }
+
+    for (const [issueId, issueAssignments] of assignmentsByIssueId.entries()) {
+      await this.syncIssueAssignmentsToGithub({
+        workspace,
+        plan: activePlan,
+        issueId,
+        assignments: issueAssignments,
+      });
+    }
+
+    return assignmentsByIssueId.size;
   }
 
   async syncGithubIssueAssigneeChange({
@@ -218,6 +279,79 @@ export class CapacityPlanningSyncService {
     return this.capacityPlanRepository.findOne({
       where: {workspaceId},
       order: ['start DESC'],
+    });
+  }
+
+  private async resolveActiveCapacityPlan(
+    workspaceId: number,
+  ): Promise<CapacityPlan | null> {
+    const now = new Date().toISOString();
+
+    return this.capacityPlanRepository.findOne({
+      where: {
+        workspaceId,
+        start: {lte: now},
+        end: {gte: now},
+      },
+      order: ['start DESC'],
+    });
+  }
+
+  private isPlanActive(plan: CapacityPlan): boolean {
+    const now = Date.now();
+    const start = new Date(plan.start).getTime();
+    const end = new Date(plan.end).getTime();
+
+    return start <= now && end >= now;
+  }
+
+  private async syncIssueAssignmentsToGithub({
+    workspace,
+    plan,
+    issueId,
+    assignments,
+  }: {
+    workspace: {githubInstallationId?: string | number | null};
+    plan: CapacityPlan;
+    issueId: number;
+    assignments: IssueAssignment[];
+  }): Promise<void> {
+    const issue = await this.githubIssueRepository.findById(issueId);
+    const githubRepository = await this.githubRepositoryRepository.findById(
+      issue.repositoryId,
+    );
+    const users = await Promise.all(
+      assignments.map(assignment =>
+        this.userRepository.findById(assignment.userId),
+      ),
+    );
+    const assignees = Array.from(
+      new Set(
+        users
+          .map(user => user.username)
+          .filter((username): username is string => Boolean(username?.trim())),
+      ),
+    );
+
+    await this.githubService.setIssueAssignees(
+      Number(workspace.githubInstallationId),
+      githubRepository.fullName,
+      issue.githubIssueNumber,
+      assignees,
+    );
+
+    await this.auditEventService.record({
+      workspaceId: plan.workspaceId,
+      action: 'capacity-planning.active-plan.synced',
+      resourceType: 'capacity-plan',
+      resourceId: String(plan.id),
+      source: 'system',
+      payload: {
+        issueId,
+        githubIssueNumber: issue.githubIssueNumber,
+        repositoryFullName: githubRepository.fullName,
+        assignees,
+      },
     });
   }
 

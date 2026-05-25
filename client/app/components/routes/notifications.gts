@@ -8,7 +8,6 @@ import UiIcon from 'client/components/ui/icon';
 import UiIconButton from 'client/components/ui/icon-button';
 import UiButton from 'client/components/ui/button';
 import UiContainer from 'client/components/ui/container';
-import UiLanguageSelector from 'client/components/ui/language-selector';
 import UiThemeSwitcher from 'client/components/ui/theme-switcher';
 import type RouterService from '@ember/routing/router-service';
 import type ApiService from 'client/services/api';
@@ -196,7 +195,6 @@ export default class RoutesNotifications extends Component<RoutesNotificationsSi
               @onClick={{this.markAllRead}}
             />
           {{/if}}
-          <UiLanguageSelector />
           <UiThemeSwitcher />
         </div>
       </div>

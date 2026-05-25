@@ -1,5 +1,6 @@
 import {BindingScope, injectable, service} from '@loopback/core';
 import {repository} from '@loopback/repository';
+import {GithubRepositoryWithRelations} from '../../models';
 import {GithubRepositoryRepository, UserRepository} from '../../repositories';
 import {GithubService} from './github.service';
 import {IssueService} from './issue.service';
@@ -307,9 +308,12 @@ export class GithubWebhookService {
       this.issuePriorityService.sanitizeIssueDescription(
         payload.issue.body ?? '',
       );
+    const issuePriorityEnabled =
+      (repository as GithubRepositoryWithRelations).workspace?.issueSync !==
+      false;
     let processingReactionId: number | null = null;
 
-    if (payload.installation?.id) {
+    if (payload.installation?.id && issuePriorityEnabled) {
       processingReactionId = await this.githubService.markIssueAsProcessing(
         payload.installation.id,
         repository.fullName,
@@ -317,13 +321,15 @@ export class GithubWebhookService {
       );
     }
 
-    const prediction = await this.issuePriorityService.predictIssuePriority({
-      installationId: payload.installation?.id ?? null,
-      repositoryFullName: repository.fullName,
-      workspaceId: repository.workspaceId,
-      title: payload.issue.title,
-      description: cleanedDescription,
-    });
+    const prediction = issuePriorityEnabled
+      ? await this.issuePriorityService.predictIssuePriority({
+          installationId: payload.installation?.id ?? null,
+          repositoryFullName: repository.fullName,
+          workspaceId: repository.workspaceId,
+          title: payload.issue.title,
+          description: cleanedDescription,
+        })
+      : undefined;
 
     await this.issueService.upsertIssue(
       {
@@ -338,14 +344,20 @@ export class GithubWebhookService {
         repositoryId: repository.id,
         githubId: payload.issue.id,
       },
-      {
-        priority: prediction.priority,
-        reason: prediction.reason,
-        estimatedHours: prediction.estimatedHours,
-        estimationConfidence: prediction.estimationConfidence,
-        expertiseRecommendations: prediction.expertiseRecommendations,
-      },
+      prediction
+        ? {
+            priority: prediction.priority,
+            reason: prediction.reason,
+            estimatedHours: prediction.estimatedHours,
+            estimationConfidence: prediction.estimationConfidence,
+            expertiseRecommendations: prediction.expertiseRecommendations,
+          }
+        : undefined,
     );
+
+    if (!prediction) {
+      return;
+    }
 
     if (!payload.installation?.id) {
       console.warn(
@@ -550,6 +562,7 @@ export class GithubWebhookService {
 
     const repository = await this.githubRepositoryRepository.findOne({
       where: {fullName},
+      include: [{relation: 'workspace'}],
     });
 
     if (!repository) {

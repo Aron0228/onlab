@@ -140,6 +140,12 @@
     overflow-y: auto;
   }
 
+  .capacity-plan-editor__issue-queue-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
   .capacity-plan-editor__issue-card {
     width: 100%;
     appearance: none;

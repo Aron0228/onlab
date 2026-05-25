@@ -9,6 +9,9 @@
   }
 
   .body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
     flex: 1;
     background: var(--bg-app);
     padding: var(--space-md);
@@ -22,6 +25,193 @@
     justify-content: flex-end;
     box-sizing: border-box;
     max-width: 100%;
+  }
+
+  .workspace-new-footer-actions .ui-footer-actions__inner {
+    animation: workspace-new-footer-actions-enter 0.22s ease-out both;
+  }
+
+  .workspace-new-section {
+    display: grid;
+    gap: var(--space-md);
+  }
+
+  .workspace-new-team-info {
+    flex-shrink: 0;
+  }
+
+  .workspace-new-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .workspace-new-stepper__status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .workspace-new-step {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-muted);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .workspace-new-step span {
+    display: inline-grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: var(--bg-muted);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+  }
+
+  .workspace-new-step.--active {
+    color: var(--text-primary);
+  }
+
+  .workspace-new-step.--active span {
+    background: var(--color-primary-600);
+    color: var(--text-on-primary);
+  }
+
+  .workspace-new-stepper__hint {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    text-align: right;
+  }
+
+  .workspace-new-step-viewport {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .workspace-new-step-track {
+    display: grid;
+    grid-template-columns: 100% 100%;
+    transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+
+  .workspace-new-step-track.--show-general {
+    transform: translateX(0);
+  }
+
+  .workspace-new-step-track.--show-ai {
+    transform: translateX(-100%);
+  }
+
+  .workspace-new-step-page {
+    min-width: 0;
+    opacity: 0;
+    transform: translateX(1.5rem);
+    transition:
+      opacity 0.24s ease,
+      transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .workspace-new-step-track.--show-general .workspace-new-step-page:first-child,
+  .workspace-new-step-track.--show-ai .workspace-new-step-page:last-child {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .workspace-new-next-row {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-md);
+  }
+
+  .workspace-new-next-row.--back {
+    justify-content: flex-start;
+  }
+
+  .workspace-new-identity-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-lg);
+    min-width: 0;
+  }
+
+  .workspace-new-ai-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-md);
+  }
+
+  .workspace-new-ai-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    min-width: 0;
+    padding: var(--space-md);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-input);
+  }
+
+  .workspace-new-ai-card__control {
+    flex-shrink: 0;
+    padding-top: 0.1rem;
+  }
+
+  .workspace-new-ai-card__content {
+    display: grid;
+    gap: var(--space-xs);
+    min-width: 0;
+  }
+
+  .workspace-new-ai-card__content strong {
+    color: var(--text-primary);
+  }
+
+  .workspace-new-ai-card__content span {
+    color: var(--text-secondary);
+  }
+
+  @media (width <= 768px) {
+    .workspace-new-stepper {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .workspace-new-stepper__status {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .workspace-new-stepper__hint {
+      text-align: left;
+    }
+
+    .workspace-new-identity-card {
+      flex-direction: column;
+    }
+
+    .workspace-new-ai-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@keyframes workspace-new-footer-actions-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

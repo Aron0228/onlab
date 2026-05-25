@@ -58,8 +58,7 @@ export class NewsFeedEntryRepository extends DefaultCrudRepository<
       .map(assoc => assoc.expertiseId);
 
     if (!workspaceExpertiseIds.length) {
-      const entries = await this.find({where: {workspaceId}});
-      return sortNewsFeedEntries(entries);
+      return this.findWorkspaceFeed(workspaceId);
     }
 
     const assocRepository =
@@ -86,6 +85,14 @@ export class NewsFeedEntryRepository extends DefaultCrudRepository<
     );
 
     return sortNewsFeedEntries(uniqueEntries);
+  }
+
+  public async findWorkspaceFeed(
+    workspaceId: number,
+  ): Promise<NewsFeedEntry[]> {
+    const entries = await this.find({where: {workspaceId}});
+
+    return sortNewsFeedEntries(entries);
   }
 }
 

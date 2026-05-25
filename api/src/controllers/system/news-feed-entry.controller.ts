@@ -56,6 +56,9 @@ export class NewsFeedEntryController {
     @inject(SecurityBindings.USER)
     userProfile: UserProfile,
     @param.query.number('workspaceId') workspaceId: number,
+    @param.query.number('limit') limit?: number,
+    @param.query.number('skip') skip?: number,
+    @param.query.boolean('personalized') personalized = true,
   ): Promise<NewsFeedEntry[]> {
     const userId =
       this.workspaceAuthorizationService.getAuthenticatedUserId(userProfile);
@@ -64,7 +67,15 @@ export class NewsFeedEntryController {
       userId,
     );
 
-    return this.repository.findPersonalizedFeed(workspaceId, userId);
+    const entries = personalized
+      ? await this.repository.findPersonalizedFeed(workspaceId, userId)
+      : await this.repository.findWorkspaceFeed(workspaceId);
+    const safeSkip = Math.max(0, skip ?? 0);
+    const safeLimit = limit == null ? undefined : Math.max(0, limit);
+
+    return safeLimit == null
+      ? entries.slice(safeSkip)
+      : entries.slice(safeSkip, safeSkip + safeLimit);
   }
 
   @get('/newsFeedEntries/{id}')
