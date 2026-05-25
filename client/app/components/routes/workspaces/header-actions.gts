@@ -31,6 +31,7 @@ export default class RoutesWorkspacesHeaderActions extends Component<RoutesWorks
       <UiLanguageSelector />
       <UiThemeSwitcher />
       <UiIconButton
+        class="workspace-header-actions__notifications"
         @iconName="bell"
         @onClick={{this.openNotifications}}
         aria-label="Open notifications"

@@ -89,8 +89,7 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
 
   @tracked isCollapsed = false;
   @tracked communicationChannels: CommunicationChannel[] = [];
-  @tracked navigationChannels: WorkspaceNavigationChannel[] =
-    this.args.model.navigation.channels;
+  @tracked navigationChannels: WorkspaceNavigationChannel[] = [];
   @tracked communicationMembers: CommunicationMember[] = [];
   @tracked selectedCommunicationChannelId = this.channelIdFromUrl;
   @tracked unreadCounts: Record<number, number> = {};
@@ -106,6 +105,8 @@ export default class RoutesWorkspacesEdit extends Component<RoutesWorkspacesEdit
 
   constructor(owner: Owner, args: RoutesWorkspacesEditSignature['Args']) {
     super(owner, args);
+
+    this.navigationChannels = [...args.model.navigation.channels];
 
     if (globalThis.matchMedia?.('(max-width: 768px)').matches) {
       this.isCollapsed = true;

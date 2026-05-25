@@ -18,6 +18,7 @@ interface UiIconButtonSignature {
     iconSize?: 'sm' | 'md' | 'lg';
     onClick?: (event?: Event) => void;
     route?: string;
+    disabled?: boolean;
   };
   Element: HTMLElement;
 }
@@ -51,6 +52,7 @@ export default class UiIconButton extends Component<UiIconButtonSignature> {
         type="button"
         class="ui-icon-button --{{this.iconVariant}}"
         {{on "click" this.onClick}}
+        disabled={{@disabled}}
         ...attributes
       >
         <UiIcon

@@ -421,7 +421,6 @@ export default class RoutesWorkspacesEditPullRequestsEdit extends Component<Rout
                   <div class="pull-request-reviewer-row">
                     <div class="layout-horizontal --gap-sm">
                       <span class="pull-request-reviewer-avatar">
-                        {{log reviewer}}
                         {{#if reviewer.user}}
                           <UiAvatar @model={{reviewer.user}} @size="sm" />
                         {{else}}

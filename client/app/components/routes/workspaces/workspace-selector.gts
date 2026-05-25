@@ -414,7 +414,9 @@ export default class RoutesWorkspacesWorkspaceSelector extends Component<RoutesW
           @size="sm"
         />
         <span class="workspace-selector__trigger-copy">
-          <h2 class="margin-zero">{{this.currentWorkspace.name}}</h2>
+          <span class="workspace-selector__trigger-title margin-zero">
+            {{this.currentWorkspace.name}}
+          </span>
           <small class="workspace-selector__trigger-meta">
             <span
               class="workspace-selector__online-dot"

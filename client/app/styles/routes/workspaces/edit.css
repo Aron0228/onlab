@@ -87,6 +87,7 @@
 
   .workspace-selector__trigger-copy strong,
   .workspace-selector__item-copy strong,
+  .workspace-selector__trigger-title,
   .workspace-selector__trigger-copy small,
   .workspace-selector__item-copy small {
     overflow: hidden;
@@ -95,7 +96,8 @@
   }
 
   .workspace-selector__trigger-copy strong,
-  .workspace-selector__item-copy strong {
+  .workspace-selector__item-copy strong,
+  .workspace-selector__trigger-title {
     font-weight: var(--font-weight-bold);
   }
 

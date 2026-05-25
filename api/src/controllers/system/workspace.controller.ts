@@ -183,7 +183,13 @@ export class WorkspaceController {
     );
     const allowedItems = WORKSPACE_NAVIGATION_ITEMS.filter(
       (_item, index) => permissionDecisions[index]?.allowed,
-    ).map(({permission: _permission, ...item}) => item);
+    ).map(item => ({
+      id: item.id,
+      label: item.label,
+      iconName: item.iconName,
+      route: item.route,
+      query: item.query,
+    }));
     const canViewCommunication =
       permissionDecisions[
         WORKSPACE_NAVIGATION_ITEMS.findIndex(

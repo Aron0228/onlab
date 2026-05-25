@@ -129,6 +129,21 @@
   height: 24px;
 }
 
+.workspace-header-actions
+  .workspace-header-actions__notifications:hover
+  > .ui-icon-wrapper,
+.workspace-header-actions
+  .workspace-header-actions__notifications:focus-visible
+  > .ui-icon-wrapper,
+.workspace-header-actions
+  .workspace-header-actions__notifications:hover
+  > .ui-icon-wrapper.--variant-normal,
+.workspace-header-actions
+  .workspace-header-actions__notifications:focus-visible
+  > .ui-icon-wrapper.--variant-normal {
+  color: var(--text-primary);
+}
+
 .workspace-header-actions .separator.--vertical {
   min-height: 2rem;
 }

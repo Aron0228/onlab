@@ -127,9 +127,9 @@ export default class RouteProfile extends Component<RouteProfileSignature> {
           {{on "click" this.toggleMenu}}
         >
           <div class="route-profile-component__meta">
-            <h3 class="route-profile-component__title margin-zero">
+            <span class="route-profile-component__title margin-zero">
               {{or this.user.fullName this.user.username}}
-            </h3>
+            </span>
             <span class="route-profile-component__subtitle">
               {{this.usernameTag}}
             </span>
