@@ -4,7 +4,6 @@ import { service } from '@ember/service';
 import type RouterService from '@ember/routing/router-service';
 import UiThemeSwitcher from 'client/components/ui/theme-switcher';
 import RouteProfile from 'client/components/route-profile';
-import UiLanguageSelector from 'client/components/ui/language-selector';
 import UiIconButton from 'client/components/ui/icon-button';
 import type { EmptyArgs } from 'client/types/component';
 
@@ -28,7 +27,6 @@ export default class RoutesWorkspacesHeaderActions extends Component<RoutesWorks
     <div
       class="workspace-header-actions layout-horizontal --gap-md margin-left-auto"
     >
-      <UiLanguageSelector />
       <UiThemeSwitcher />
       <UiIconButton
         class="workspace-header-actions__notifications"
