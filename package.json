@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "pnpm -r eslint .",
-    "format": "pnpm -r prettier --write ."
+    "format": "pnpm -r prettier --write .",
+    "mobile:analyze": "cd mobile && flutter analyze",
+    "mobile:test": "cd mobile && flutter test"
   },
   "keywords": [],
   "author": "",
