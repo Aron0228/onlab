@@ -2,3 +2,7 @@
 node_modules/
 client/node_modules/
 api/node_modules/
+
+.codex
+.agents
+skills-lock.json
